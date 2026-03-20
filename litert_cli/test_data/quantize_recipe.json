@@ -1,0 +1,16 @@
+[
+  {
+    "regex": ".*",
+    "operation": "*",
+    "algorithm_key": "min_max_uniform_quantize",
+    "op_config": {
+      "weight_tensor_config": {
+        "num_bits": 8,
+        "symmetric": true,
+        "granularity": "CHANNELWISE",
+        "dtype": "INT"
+      },
+      "compute_precision": "INTEGER"
+    }
+  }
+]
