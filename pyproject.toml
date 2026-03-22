@@ -8,7 +8,7 @@ version = "0.1.1.dev11"
 
 description = "LiteRT Toolkit Command Line Interface"
 dependencies = [
-    "click>=8.0.0",
+    "click",
     "numpy",
 ]
 
@@ -18,7 +18,7 @@ download = [
     "requests",
 ]
 torch = [
-    "litert-torch>=0.8.0", 
+    "litert-torch", 
     "torch",
     "transformers",
     "torchvision",
@@ -42,7 +42,7 @@ image = [
 all = [
     "huggingface_hub",
     "requests",
-    "litert-torch>=0.8.0", 
+    "litert-torch", 
     "torch",
     "transformers",
     "torchvision",
