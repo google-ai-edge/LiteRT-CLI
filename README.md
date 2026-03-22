@@ -6,21 +6,6 @@ and benchmarking LiteRT (TFLite) models.
 Please follow the demo scripts to try:
 https://github.com/google-ai-edge/LiteRT-CLI-staging/blob/main/test_scripts/litert_cli_demo.sh
 
-## 🤖 AI Assistant Support (Gemini / Jetski)
-
-This repository includes a predefined **AI Agent Skill** to improve Developer
-Experience (DX). If you use workspace-aware AI coding assistants like Gemini
-Code Assist, Cursor, or Jetski, they will automatically detect the
-`.agents/skills/litert_cli/SKILL.md` file!
-
-You do **not** need to manually define context or explain how the CLI works.
-You can simply ask your AI assistant something like:
-
-> "Convert the Qwen 2.5 0.5B model to TFLite using the litert_cli."
-
-The AI will automatically understand the parameter structure and execute
-the testing shell scripts to verify your results!
-
 ## 🚀 Installation
 
 Install `litert-cli` with pip from the local source or Test PyPI.
