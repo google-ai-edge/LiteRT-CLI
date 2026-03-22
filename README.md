@@ -3,6 +3,9 @@
 A Python-based command-line toolkit for managing, converting, quantizing, running
 and benchmarking LiteRT (TFLite) models.
 
+Please follow the demo scripts to try:
+https://github.com/google-ai-edge/LiteRT-CLI-staging/blob/main/test_scripts/litert_cli_demo.sh
+
 ## 🤖 AI Assistant Support (Gemini / Jetski)
 
 This repository includes a predefined **AI Agent Skill** to improve Developer
@@ -27,7 +30,7 @@ Install `litert-cli` with pip from the local source or Test PyPI.
 pip install -e .
 
 # Or install from Test PyPI
-pip install litert-cli
+pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple litert-cli==0.1.1.dev11
 ```
 
 ## 🎯 Quick Start
