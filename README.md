@@ -17,7 +17,7 @@ Install `litert-cli` with pip from the local source or Test PyPI.
 pip install -e .
 
 # Or install from Test PyPI (verified in linux and macbook, with Python 3.13)
-pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple litert-cli==0.1.1.dev11
+pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple litert-cli==0.1.1.dev12
 ```
 
 ## 🎯 Quick Start
