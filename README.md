@@ -6,6 +6,8 @@ and benchmarking LiteRT (TFLite) models.
 Please follow the demo scripts to try:
 https://github.com/google-ai-edge/LiteRT-CLI-staging/blob/main/test_scripts/litert_cli_demo.sh
 
+Verified in linux and macbook, with Python 3.13
+
 ## 🚀 Installation
 
 Install `litert-cli` with pip from the local source or Test PyPI.
@@ -14,7 +16,7 @@ Install `litert-cli` with pip from the local source or Test PyPI.
 # Installation from local source (recommended for development)
 pip install -e .
 
-# Or install from Test PyPI
+# Or install from Test PyPI (verified in linux and macbook, with Python 3.13)
 pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple litert-cli==0.1.1.dev11
 ```
 
