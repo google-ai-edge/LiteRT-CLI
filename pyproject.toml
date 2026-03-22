@@ -23,6 +23,7 @@ torch = [
     "transformers",
     "torchvision",
     "huggingface_hub",
+    "sentencepiece",
 ]
 run = [
     "ai-edge-litert"
@@ -43,6 +44,7 @@ all = [
     "huggingface_hub",
     "requests",
     "litert-torch", 
+    "sentencepiece",
     "torch",
     "transformers",
     "torchvision",
