@@ -3,10 +3,10 @@
 A Python-based command-line toolkit for managing, converting, quantizing, running
 and benchmarking LiteRT (TFLite) models.
 
-Please follow the demo scripts to try:
+Please follow the demo script to try:
 https://github.com/google-ai-edge/LiteRT-CLI-staging/blob/main/test_scripts/litert_cli_demo.sh
 
-Verified in linux and macbook, with Python 3.13
+Verified platforms (Linux, MacOS) with Python 3.13
 
 ## 🚀 Installation
 
