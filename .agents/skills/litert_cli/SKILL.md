@@ -7,6 +7,33 @@ description: LiteRT CLI tool to convert, download, quantize, run, benchmark, and
 
 This skill allows the agent to download, convert, quantize, run, benchmark, and visualize LiteRT models using the `litert` command on desktop, device, or Google Cloud
 
+## Setup & Prerequisites
+
+Before running any `litert` commands, an agent should ensure it is in a Python virtual environment and `litert-cli` is installed.
+
+### 1. Check/Create Virtual Environment
+Run the following checks:
+```bash
+# If not in a venv, create and activate one automatically
+if [ -z "$VIRTUAL_ENV" ]; then
+  python3 -m venv litert-cli-venv
+  source litert-cli-venv/bin/activate
+fi
+```
+
+### 2. Check/Install LiteRT CLI
+Run the following checks to ensure the command is available:
+```bash
+# If litert is not found, try local install from source or fallback to TestPyPI
+if ! command -v litert &> /dev/null; then
+  if [ -f "pyproject.toml" ]; then
+    pip install -e .
+  else
+    pip install -q -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple litert-cli==0.1.1.dev15
+  fi
+fi
+```
+
 ## Core Commands
 
 ### 1. Run (Inference)
