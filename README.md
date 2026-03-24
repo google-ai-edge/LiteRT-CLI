@@ -8,6 +8,15 @@ https://github.com/google-ai-edge/LiteRT-CLI-staging/blob/main/test_scripts/lite
 
 Verified platforms (Linux, MacOS) with Python 3.13
 
+## Use in Agent
+There are agent skills defined in .agents/skills/litert_cli/SKILL.md, and you can use LiteRT-CLI directly
+in your agents, like Jetski or Gemini Code Assist. For example:
+- `Download litert-community/MobileNet-v3-large and run it on gcp`
+- `Download litert-community/MobileNet-v3-large and benchmark it on gcp`
+- `Download litert-community/MobileNet-v3-large to a folder called mobiletnet-v3, and visualize them`
+
+It will install automatically as well: including python virtual env, and install LiteRT-CLI and all the dependencies.
+
 ## 🚀 Installation
 
 Install `litert-cli` with pip from the local source or Test PyPI.
@@ -17,7 +26,7 @@ Install `litert-cli` with pip from the local source or Test PyPI.
 pip install -e .
 
 # Or install from Test PyPI (verified in linux and macbook, with Python 3.13)
-pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple litert-cli==0.1.1.dev12
+pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple litert-cli==0.1.1.dev15
 ```
 
 ## 🎯 Quick Start
