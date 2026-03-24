@@ -31,3 +31,9 @@ BUILD
 BUILD.bazel
 
 docs/
+
+# Temporary test models and build environment
+Qwen*/
+mobile*net*/
+build_env/
+default.profraw
