@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "litert-cli"
-version = "0.1.1.dev14"
+version = "0.1.1.dev15"
 
 description = "LiteRT Toolkit Command Line Interface"
 dependencies = [

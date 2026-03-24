@@ -44,7 +44,7 @@ litert quantize "$MOBILENET" --output mobilenet_quant.tflite
 
 # --- Desktop Execution ---
 # Run quantized model on Desktop CPU
-litert run mobilenet_quant.tflite --desktop --cpu
+litert run mobilenet_quant.tflite --desktop --cpu --quiet
 
 # Run float model on Desktop GPU (EfficientNet)
 litert run "$EFFICIENTNET" --desktop --gpu
