@@ -32,7 +32,7 @@ visualize = [
     "ai-edge-model-explorer"
 ]
 lm = [
-    "litert-lm-cli",
+    "litert-lm-nightly",
 ]
 quantize = [
     "ai-edge-quantizer"
@@ -50,7 +50,7 @@ all = [
     "torchvision",
     "ai-edge-litert",
     "ai-edge-model-explorer",
-    "litert-lm-cli",
+    "litert-lm-nightly",
     "Pillow",
 ]
 
