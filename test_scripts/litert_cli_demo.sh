@@ -33,8 +33,8 @@ litert download litert-community/MobileNet-v3-large --output mobilenet
 # EfficientNet B1 for GPU tests (as V3 contains GATHER_ND which isn't GPU-compatible yet)
 litert download litert-community/efficientnet_b1 --output efficientnet
 
-# Visualize (Note: This is a blocking command, uncomment to test manually)
-# litert visualize mobilenet/tflite_model.tflite
+# Visualize
+litert visualize mobilenet/mobilenet_v3_large.tflite
 
 MOBILENET=$(ls mobilenet/*.tflite | head -n 1)
 EFFICIENTNET=$(ls efficientnet/*.tflite | head -n 1)
