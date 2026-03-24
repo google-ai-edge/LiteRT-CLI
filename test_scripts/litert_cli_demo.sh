@@ -75,6 +75,9 @@ litert benchmark resnet18/resnet18.tflite --android
 # Convert Qwen from HF (Disabled for speed in demo run)
 litert convert Qwen/Qwen1.5-0.5B-Chat
 
-# Run LLM: requires to install litert-lm-cli or litert-lm-nightly package.
-# Check: go/litert-lm-cli-food
-litert lm run Qwen1.5-0.5B-Chat
+# Run LLM: requires to install litert-lm-cli (Check: go/litert-lm-cli-food) or
+# litert-lm-nightly (as today) package.
+# Run LLM with prompt
+litert lm run Qwen1.5-0.5B-Chat/model.litertlm "Hello, how are you?"
+# Interactive mode
+litert lm run Qwen1.5-0.5B-Chat/model.litertlm
