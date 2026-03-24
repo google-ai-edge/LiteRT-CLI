@@ -19,7 +19,7 @@ import click
 # Map extra names to Python module names to check if the optional
 # dependency is already installed.
 _MODULE_BY_EXTRA = {
-    "torch": "litert_torch",
+    "convert": "litert_torch",
     "lm": "litert_lm",
     "download": "huggingface_hub",
     "run": "ai_edge_litert",

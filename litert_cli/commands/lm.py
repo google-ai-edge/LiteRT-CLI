@@ -46,30 +46,31 @@ def lm_cmd(ctx: click.Context) -> None:
   Args:
     ctx: click Context object containing forwarded arguments.
   """
+  if ctx.args and ctx.args[0] == "run-local":
+    _run_with_python_api(ctx.args[1:])
+    return
+
   try:
     result = subprocess.run(["litert-lm"] + ctx.args, check=False)
     sys.exit(result.returncode)
   except FileNotFoundError:
-    if ctx.args and ctx.args[0] == "run":
-      _run_with_python_api(ctx.args[1:])
-    else:
-      click.secho("Error: 'litert-lm' executable not found in PATH.", fg="red")
-      click.secho(
-          "Please install 'litert-lm-cli' to use this command.", fg="yellow"
-      )
-      sys.exit(1)
+    click.secho("Error: 'litert-lm' executable not found in PATH.", fg="red")
+    click.secho(
+        "Please install 'litert-lm-cli' to use this command.", fg="yellow"
+    )
+    sys.exit(1)
 
 
 def _run_with_python_api(args: list[str]) -> None:
   """Runs the model using litert-lm-nightly Python API.
 
   Args:
-    args: A list of arguments passed to the 'run' command. The first argument
+    args: A list of arguments passed to the 'run-local' command. The first argument
       should be the path to the model file, and the second (optional) can be
       the prompt.
   """
   if not args:
-    click.secho("Usage: litert lm run <model_path> [prompt]", fg="red")
+    click.secho("Usage: litert lm run-local <model_path> [prompt]", fg="red")
     sys.exit(1)
 
   model_path = args[0]

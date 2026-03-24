@@ -30,7 +30,7 @@ Examples:
     $ litert convert my_model.py --output /tmp/mymodel
 """,
 )
-@deps.require_extra("torch")
+@deps.require_extra("convert")
 @click.argument("model_or_script", type=str, required=True)
 @click.option(
     "--task",

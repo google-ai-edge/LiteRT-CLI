@@ -17,7 +17,7 @@ class EnsureExtraTest(absltest.TestCase):
   ) -> None:
     """Tests that ensure_extra returns True when dependency is installed."""
     mock_find_spec.return_value = mock.MagicMock()
-    self.assertTrue(deps.ensure_extra("torch", silent=True))
+    self.assertTrue(deps.ensure_extra("convert", silent=True))
     mock_check_call.assert_not_called()
 
   @mock.patch("importlib.util.find_spec")
@@ -30,12 +30,12 @@ class EnsureExtraTest(absltest.TestCase):
 
     with mock.patch("pathlib.Path.exists") as mock_exists:
       mock_exists.return_value = False
-      self.assertTrue(deps.ensure_extra("torch", silent=True))
+      self.assertTrue(deps.ensure_extra("convert", silent=True))
 
     mock_check_call.assert_called_once()
     call_args = mock_check_call.call_args[0][0]
     self.assertIn("pip", call_args)
-    self.assertIn("litert-cli[torch]", call_args)
+    self.assertIn("litert-cli[convert]", call_args)
 
   def test_ensure_extra_unknown_extra_returns_false_silent(self) -> None:
     """Tests ensure_extra returns False in silent mode."""
@@ -57,12 +57,12 @@ class RequireExtraDecoratorTest(absltest.TestCase):
     """Tests that require_extra decorator calls ensure_extra."""
     mock_ensure_extra.return_value = True
 
-    @deps.require_extra("torch")
+    @deps.require_extra("convert")
     def dummy_func(x: int) -> int:
       return x + 1
 
     self.assertEqual(dummy_func(2), 3)
-    mock_ensure_extra.assert_called_once_with("torch", silent=False)
+    mock_ensure_extra.assert_called_once_with("convert", silent=False)
 
 
 if __name__ == "__main__":

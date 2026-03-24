@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "litert-cli"
-version = "0.1.1.dev15"
+version = "0.1.1.dev16"
 
 description = "LiteRT Toolkit Command Line Interface"
 dependencies = [
@@ -14,6 +14,7 @@ dependencies = [
     "requests",
     "sentencepiece",
     "ai-edge-litert",
+    "litert-lm-cli-nightly",
     "litert-lm-nightly",
     "ai-edge-quantizer",
     "Pillow",
@@ -24,7 +25,7 @@ download = [
     "huggingface_hub",
     "requests",
 ]
-torch = [
+convert = [
     "litert-torch", 
     "torch",
     "transformers",
@@ -39,6 +40,7 @@ visualize = [
     "ai-edge-model-explorer"
 ]
 lm = [
+    "litert-lm-cli-nightly",
     "litert-lm-nightly",
 ]
 quantize = [
@@ -48,13 +50,7 @@ image = [
     "Pillow",
 ]
 all = [
-    "litert-torch", 
-    "torch",
-    "transformers",
-    "torchvision",
-    "huggingface_hub",
-    "sentencepiece",
-    "ai-edge-model-explorer",
+    "litert-cli[convert,visualize]"
 ]
 
 [project.scripts]
