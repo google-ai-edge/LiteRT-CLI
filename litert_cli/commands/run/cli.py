@@ -135,6 +135,12 @@ Examples:
     default=5,
     help="Number of sample elements to print from tensors. Default is 5.",
 )
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Silence C++ INFO and WARNING logs during execution.",
+)
 def run_cmd(
     model: pathlib.Path,
     inputs: tuple[str, ...],
@@ -144,6 +150,7 @@ def run_cmd(
     iterations: int,
     print_tensors: bool,
     sample_size: int,
+    quiet: bool,
 ) -> None:
   r"""Runs LiteRT models locally or on device.
 
@@ -168,6 +175,7 @@ def run_cmd(
         iterations=iterations,
         print_tensors=print_tensors,
         sample_size=sample_size,
+        quiet=quiet,
     )
   elif target == "android":
     from litert_cli.commands.run import android  # pylint: disable=g-import-not-at-top

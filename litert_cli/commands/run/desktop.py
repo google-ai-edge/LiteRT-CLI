@@ -25,6 +25,8 @@ from __future__ import annotations
 
 import time
 from typing import Any, TYPE_CHECKING
+from contextlib import nullcontext
+from litert_cli.core.utils import silence_stderr
 
 import click
 from litert_cli.core import inputs as inputs_utils
@@ -186,6 +188,7 @@ def run_desktop(
     iterations: int,
     print_tensors: bool,
     sample_size: int,
+    quiet: bool = False,
 ) -> None:
   """Run the model on the desktop target using CompiledModel.
 
@@ -218,55 +221,56 @@ def run_desktop(
         "NPU accelerator is not yet formally supported via desktop API."
     )
 
-  try:
-    cm = CompiledModel.from_file(model_path, hw_accel)
-  except Exception as e:  # pylint: disable=broad-exception-caught
-    raise click.ClickException(f"Failed to load CompiledModel: {e}") from e
+  ctx = silence_stderr() if quiet else nullcontext()
+  with ctx:
+    try:
+      cm = CompiledModel.from_file(model_path, hw_accel)
+      signatures = cm.get_signature_list()
+      if not signatures:
+        click.secho("No signatures found in the model.", fg="yellow")
+        return
 
-  signatures = cm.get_signature_list()
-  if not signatures:
-    click.secho("No signatures found in the model.", fg="yellow")
-    return
+      try:
+        sig_info = cm.get_signature_by_index(signature_index)
+        sig_key = sig_info["key"]
+      except Exception as e:  # pylint: disable=broad-exception-caught
+        raise click.ClickException(
+            f"Failed to get signature at index {signature_index}: {e}"
+        ) from e
 
-  try:
-    sig_info = cm.get_signature_by_index(signature_index)
-    sig_key = sig_info["key"]
-  except Exception as e:  # pylint: disable=broad-exception-caught
-    raise click.ClickException(
-        f"Failed to get signature at index {signature_index}: {e}"
-    ) from e
+      click.echo(f"Using signature: {sig_key}")
 
-  click.echo(f"Using signature: {sig_key}")
+      parsed_inputs = _parse_inputs_dict(inputs)
+      inputs_dict = _prepare_inputs(cm, sig_key, parsed_inputs)
 
-  parsed_inputs = _parse_inputs_dict(inputs)
-  inputs_dict = _prepare_inputs(cm, sig_key, parsed_inputs)
+      click.echo(f"Running inference {iterations} times...")
 
-  click.echo(f"Running inference {iterations} times...")
+      run_times = []
 
-  run_times = []
+      sig_idx = cm.get_signature_index(sig_key)
+      out_buffers = cm.create_output_buffers(sig_idx)
+      out_names = signatures[sig_key]["outputs"]
+      outputs_map = dict(zip(out_names, out_buffers))
 
-  try:
-    sig_idx = cm.get_signature_index(sig_key)
-    out_buffers = cm.create_output_buffers(sig_idx)
-    out_names = signatures[sig_key]["outputs"]
-    outputs_map = dict(zip(out_names, out_buffers))
+      for _ in range(iterations):
+        start_time = time.time()
+        cm.run_by_name(sig_key, inputs_dict, outputs_map)
+        end_time = time.time()
+        run_times.append((end_time - start_time) * 1000)
 
-    for _ in range(iterations):
-      start_time = time.time()
-      cm.run_by_name(sig_key, inputs_dict, outputs_map)
-      end_time = time.time()
-      run_times.append((end_time - start_time) * 1000)
+      if iterations == 1:
+        click.echo(f"Inference complete in {run_times[0]:.2f} ms")
+      else:
+        click.echo(f"Benchmark results ({iterations} iterations):")
+        click.echo(f"  First run: {run_times[0]:.2f} ms")
+        click.echo(f"  Average: {np.mean(run_times):.2f} ms")
+        click.echo(f"  Min: {np.min(run_times):.2f} ms")
+        click.echo(f"  Max: {np.max(run_times):.2f} ms")
 
-    if iterations == 1:
-      click.echo(f"Inference complete in {run_times[0]:.2f} ms")
-    else:
-      click.echo(f"Benchmark results ({iterations} iterations):")
-      click.echo(f"  First run: {run_times[0]:.2f} ms")
-      click.echo(f"  Average: {np.mean(run_times):.2f} ms")
-      click.echo(f"  Min: {np.min(run_times):.2f} ms")
-      click.echo(f"  Max: {np.max(run_times):.2f} ms")
+      _print_outputs(outputs_map, print_tensors, sample_size)
+      del outputs_map
+      del inputs_dict
+      del cm
 
-    _print_outputs(outputs_map, print_tensors, sample_size)
-
-  except Exception as e:  # pylint: disable=broad-exception-caught
-    raise click.ClickException(f"Inference failed: {e}") from e
+    except Exception as e:  # pylint: disable=broad-exception-caught
+      raise click.ClickException(f"Inference failed: {e}") from e
