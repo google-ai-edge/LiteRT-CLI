@@ -25,7 +25,7 @@ source venv/bin/activate
 
 # Install litert-cli from local source or test pypi
 # pip install -e "$REPO_ROOT"
-pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple litert-cli==0.1.1.dev13
+pip install -q -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple litert-cli==0.1.1.dev13
 
 # Download Models
 # MobileNet V3 for CPU/Quantization tests

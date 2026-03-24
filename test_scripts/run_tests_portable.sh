@@ -9,8 +9,8 @@ python3 -m venv venv_test
 source venv_test/bin/activate
 
 # Install package in editable mode with stable subset of optional dependencies
-pip install absl-py
-pip install -e ".[download,run,image]"
+pip install -q absl-py
+pip install -q -e ".[download,run,image]"
 
 # Run python tests using discover
 python3 -m unittest discover -s litert_cli -p "*_test.py"

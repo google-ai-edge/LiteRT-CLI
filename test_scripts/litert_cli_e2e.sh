@@ -20,7 +20,7 @@ python3 -m venv venv
 source venv/bin/activate
 
 # Install litert-cli from local scripts
-pip install -e "$REPO_ROOT"
+pip install -q -e "$REPO_ROOT"
 
 # Find test data and scripts from the installed package
 TEST_DATA_DIR=$(python3 -c "import os, litert_cli; print(os.path.join(os.path.dirname(litert_cli.__file__), 'test_data'))")
@@ -101,7 +101,7 @@ function test_run() {
 
     echo "--- 3.3: Multi-Input Formats (Files) ---"
     # Ensure dependencies for the helper script are present in the venv
-    pip install Pillow
+    pip install -q Pillow
     # Generate test input files (.npy, .raw, .png)
     python3 "$GENERATE_SCRIPT" "$LITERT_CLI_ROOT"
 

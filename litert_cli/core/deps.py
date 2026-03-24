@@ -69,11 +69,11 @@ def ensure_extra(extra_name: str, silent: bool = False) -> bool:
       cwd = None
 
     if not silent:
-      click.echo(f"    Running: pip install {target}")
+      click.echo(f"    Running: pip install -q {target}")
 
     try:
       subprocess.check_call(
-          [sys.executable, "-m", "pip", "install", target],
+          [sys.executable, "-m", "pip", "install", "-q", target],
           cwd=cwd,
           stdout=subprocess.DEVNULL if silent else None,
           stderr=subprocess.DEVNULL if silent else None,
