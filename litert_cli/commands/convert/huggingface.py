@@ -8,25 +8,35 @@ models directly from the Hugging Face Hub.
 from __future__ import annotations
 
 import click
+import pathlib
+import shutil
+
+from ai_edge_litert.aot import aot_compile as aot_lib
+from ai_edge_litert.aot.ai_pack import export_lib as ai_pack_export
+from litert_cli.core import npu_utils
 
 
-def convert_huggingface(model: str, task: str | None, output: str) -> None:
+def convert_huggingface(
+    model: str,
+    output: str,
+    target: tuple[str, ...],
+    export_aipack: pathlib.Path | None,
+) -> None:
   """Conversion logic using HuggingFace Automated Export (export_hf).
 
   Args:
     model: The Hugging Face model ID (e.g., Qwen/Qwen1.5-0.5B-Chat).
-    task: The target task for conversion (e.g., text_generation).
     output: The directory to save the converted model.
+    target: NPU targets to apply AOT compilation.
+    export_aipack: Output directory to export the AI Pack for PODAI.
   """
   # Lazy load the export module to avoid importing torch and other heavy
   # dependencies when the litert CLI is merely invoked for --help.
   # pylint: disable=g-import-not-at-top
   from litert_torch.generative.export_hf import export as hf_export
 
-  export_task = task if task else "text_generation"
-
   click.echo(
-      f"Starting conversion for model '{model}' with task '{export_task}'"
+      f"Starting conversion for model '{model}''"
   )
 
   try:
@@ -36,6 +46,35 @@ def convert_huggingface(model: str, task: str | None, output: str) -> None:
         model=model,
         output_dir=output,
     )
+
+    if target:
+      output_dir = pathlib.Path(output)
+      # Find the generated tflite
+      tflite_files = list(output_dir.glob("*.tflite"))
+      if not tflite_files:
+        raise FileNotFoundError(f"No .tflite files found in HF export output: {output_dir}")
+      target_tflite = tflite_files[0]
+      base_name = target_tflite.stem
+
+      click.echo(f"Compiling converted model {target_tflite} for targets: {', '.join(target)}")
+      aot_targets = [npu_utils.get_target(t) for t in target]
+      
+      compiled_models = aot_lib.aot_compile(
+          str(target_tflite),
+          target=aot_targets,
+          keep_going=False,
+      )
+      
+      if export_aipack:
+          export_dir = pathlib.Path(export_aipack)
+          click.echo(f"Exporting AI Pack to: {export_dir}")
+          shutil.rmtree(export_dir, ignore_errors=True)
+          export_dir.mkdir(parents=True, exist_ok=True)
+          ai_pack_export.export(compiled_models, str(export_dir), base_name, "model")
+      else:
+          # Overwrite the original tflite output with the compiled models
+          click.echo(f"Exporting compiled model over original in {output_dir}")
+          compiled_models.export(str(output_dir), model_name=base_name)
 
     click.echo(f"Successfully converted and saved model to {output}")
 

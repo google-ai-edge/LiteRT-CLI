@@ -5,13 +5,21 @@ from __future__ import annotations
 import importlib.util
 import pathlib
 import sys
+import shutil
 from typing import Any
 
 import click
+from litert_cli.core import npu_utils
+from ai_edge_litert.aot.ai_pack import export_lib as ai_pack_export
 
 
 def convert_generic_script(
-    script: str, model_func: str, input_func: str, output: str
+    script: str,
+    model_func: str,
+    input_func: str,
+    output: str,
+    target: tuple[str, ...],
+    export_aipack: pathlib.Path | None,
 ) -> None:
   """Conversion logic using generic PyTorch scripts and `litert_torch.convert`.
 
@@ -20,6 +28,8 @@ def convert_generic_script(
     model_func: Name of function returning the `torch.nn.Module`.
     input_func: Name of function returning sample inputs.
     output: Directory to save the converted model.
+    target: NPU targets to apply AOT compilation.
+    export_aipack: Output directory to export the AI Pack for PODAI.
 
   Raises:
     ImportError: If the script loading fails.
@@ -88,21 +98,39 @@ def convert_generic_script(
       )
 
     click.echo("Executing liteRT conversion tracer...")
-    # Delegate to the core litert_torch tracer
-    edge_model = litert_torch.convert(
-        module=model,
-        sample_args=sample_args,
-        sample_kwargs=sample_kwargs,
-        quant_config=quant_config,
-    )
+    
+    builder = litert_torch
+    if target:
+      for t in target:
+        target_obj = npu_utils.get_target(t)
+        builder = builder.experimental_add_compilation_backend(target_obj)
+      
+    edge_model = builder.convert(
+          module=model,
+          sample_args=sample_args,
+          sample_kwargs=sample_kwargs,
+          quant_config=quant_config,
+      )
 
     out_path = pathlib.Path(output)
     out_path.mkdir(parents=True, exist_ok=True)
     model_name = script_path.stem
 
-    final_path = out_path / f"{model_name}.tflite"
-    click.echo(f"Exporting converted model to {final_path}...")
-    edge_model.export(str(final_path))
+    if target and export_aipack:
+      export_dir = pathlib.Path(export_aipack)
+      click.echo(f"Exporting AI Pack to: {export_dir}")
+      shutil.rmtree(export_dir, ignore_errors=True)
+      export_dir.mkdir(parents=True, exist_ok=True)
+      ai_pack_export.export(edge_model, str(export_dir), model_name, "model")
+    else:
+      if target:
+        click.echo(f"Exporting compiled model to {out_path} as {model_name}...")
+        edge_model.export(str(out_path), model_name=model_name)
+      else:
+        final_path = out_path / f"{model_name}.tflite"
+        click.echo(f"Exporting converted model to {final_path}...")
+        edge_model.export(str(final_path))
+      
     click.echo("Done!")
 
   finally:

@@ -39,6 +39,7 @@ import click
 from litert_cli.core import android_utils
 from litert_cli.core import constants
 from litert_cli.core import inputs as inputs_utils
+from litert_cli.core import npu_utils as npu
 
 
 def _prepare_inputs_on_device(
@@ -202,10 +203,13 @@ def run_android(
       ["adb", "push", str(run_model_bin), remote_run_model_path], check=True
   )
 
-  # Prepare inputs if any are provided (creates and pushes input data folder)
   remote_input_dir = _prepare_inputs_on_device(
       model_path, inputs, signature_index, android_root
   )
+
+  remote_dispatch_dir = ""
+  if accelerator == "npu":
+    remote_dispatch_dir = npu.push_runtime_libraries(None, android_root)
 
   click.echo("Executing on device...\n")
 
@@ -218,6 +222,8 @@ def run_android(
   run_cmd_args = [remote_run_model_path, f"--graph={remote_model_path}"]
   if accelerator != "cpu":
     run_cmd_args.append(f"--accelerator={accelerator}")
+  if remote_dispatch_dir:
+    run_cmd_args.append(f"--dispatch_library_dir={remote_dispatch_dir}")
   if iterations > 1:
     run_cmd_args.append(f"--iterations={iterations}")
   if signature_index != 0:
@@ -230,11 +236,13 @@ def run_android(
     run_cmd_args.append(f"--input_dir={remote_input_dir}")
 
   try:
+    env_vars = f"LD_LIBRARY_PATH={remote_dispatch_dir} " if remote_dispatch_dir else ""
+    cmd_str = env_vars + " ".join(shlex.quote(arg) for arg in run_cmd_args)
     subprocess.run(
         [
             "adb",
             "shell",
-            " ".join(shlex.quote(arg) for arg in run_cmd_args),
+            cmd_str,
         ],
         check=True,
     )
@@ -245,4 +253,5 @@ def run_android(
     cleanup_cmd = f"rm -f {remote_model_path} {remote_run_model_path}"
     if remote_input_dir:
       cleanup_cmd += f" && rm -rf {remote_input_dir}"
+    # Do not cleanup dispatch dir for now as it might be shared or large?
     subprocess.run(["adb", "shell", cleanup_cmd], check=False)

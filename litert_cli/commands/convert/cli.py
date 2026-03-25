@@ -33,12 +33,6 @@ Examples:
 @deps.require_extra("convert")
 @click.argument("model_or_script", type=str, required=True)
 @click.option(
-    "--task",
-    type=str,
-    required=False,
-    help="Target task (e.g., text_generation).",
-)
-@click.option(
     "--output",
     type=click.Path(
         file_okay=False,
@@ -68,21 +62,41 @@ Examples:
         "and/or kwargs. Default: 'get_args'."
     ),
 )
+@click.option(
+    "--target",
+    type=str,
+    multiple=True,
+    help="One or more NPU target codenames (e.g., sm8450) to apply AOT compilation.",
+)
+@click.option(
+    "--export-aipack",
+    type=click.Path(
+        file_okay=False,
+        dir_okay=True,
+        resolve_path=True,
+        path_type=pathlib.Path,
+    ),
+    required=False,
+    default=None,
+    help="If specified, exports an AI Pack directory for PODAI alongside the compiled model.",
+)
 def convert_cmd(
     model_or_script: str,
-    task: str | None,
     output: pathlib.Path | None,
     model_func: str,
     input_func: str,
+    target: tuple[str, ...],
+    export_aipack: pathlib.Path | None,
 ) -> None:
   r"""Converts a PyTorch model into a LiteRT model.
 
   Args:
     model_or_script: Hugging Face model ID or path to a PyTorch script.
-    task: Target task for HF conversion.
     output: Output directory for the converted model.
     model_func: Function to retrieve the model in 'script' mode.
     input_func: Function to retrieve sample inputs in 'script' mode.
+    target: NPU targets to compile for.
+    export_aipack: Output directory to export the AI Pack for PODAI.
   """
 
   if not output:
@@ -96,9 +110,9 @@ def convert_cmd(
     from litert_cli.commands.convert import generic  # pylint: disable=g-import-not-at-top
 
     generic.convert_generic_script(
-        model_or_script, model_func, input_func, str(output)
+        model_or_script, model_func, input_func, str(output), target, export_aipack
     )
   else:
     from litert_cli.commands.convert import huggingface  # pylint: disable=g-import-not-at-top
 
-    huggingface.convert_huggingface(model_or_script, task, str(output))
+    huggingface.convert_huggingface(model_or_script, str(output), target, export_aipack)

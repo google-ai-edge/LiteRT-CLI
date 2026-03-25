@@ -18,6 +18,8 @@ dependencies = [
     "litert-lm-nightly",
     "ai-edge-quantizer",
     "Pillow",
+    "ai-edge-litert-sdk-qualcomm",
+    "ai-edge-litert-sdk-mediatek",
 ]
 
 [project.optional-dependencies]
@@ -32,6 +34,8 @@ convert = [
     "torchvision",
     "huggingface_hub",
     "sentencepiece",
+    "ai-edge-litert-sdk-qualcomm",
+    "ai-edge-litert-sdk-mediatek",
 ]
 run = [
     "ai-edge-litert"

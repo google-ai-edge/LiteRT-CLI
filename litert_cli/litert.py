@@ -24,6 +24,7 @@ class LazyCLI(click.Group):
     return [
         'download',
         'convert',
+        'compile',
         'visualize',
         'quantize',
         'run',
@@ -46,6 +47,7 @@ class LazyCLI(click.Group):
     routes = {
         'download': ('litert_cli.commands.download', 'download_cmd'),
         'convert': ('litert_cli.commands.convert.cli', 'convert_cmd'),
+        'compile': ('litert_cli.commands.compile', 'compile_cmd'),
         'quantize': ('litert_cli.commands.quantize', 'quantize_cmd'),
         'run': ('litert_cli.commands.run.cli', 'run_cmd'),
         'visualize': ('litert_cli.commands.visualize', 'visualize_cmd'),
