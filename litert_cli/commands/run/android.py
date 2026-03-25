@@ -193,6 +193,10 @@ def run_android(
 
   run_model_bin = android_utils.find_android_binary("run_model", abi)
 
+  # Download libraries
+  lib_litert = android_utils.find_android_lib("libLiteRt.so", abi)
+  lib_clgl = android_utils.find_android_lib("libLiteRtClGlAccelerator.so", abi)
+
   # Push model file and runner binary to Android device
   click.echo(f"Pushing model {model_name} to device...")
   subprocess.run(["adb", "push", model_path, remote_model_path], check=True)
@@ -202,6 +206,13 @@ def run_android(
   subprocess.run(
       ["adb", "push", str(run_model_bin), remote_run_model_path], check=True
   )
+
+  # Push libraries to default path
+  click.echo(f"Pushing {lib_litert.name} to device...")
+  subprocess.run(["adb", "push", str(lib_litert), f"{android_root}/{lib_litert.name}"], check=True)
+
+  click.echo(f"Pushing {lib_clgl.name} to device...")
+  subprocess.run(["adb", "push", str(lib_clgl), f"{android_root}/{lib_clgl.name}"], check=True)
 
   remote_input_dir = _prepare_inputs_on_device(
       model_path, inputs, signature_index, android_root

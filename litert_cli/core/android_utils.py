@@ -132,3 +132,77 @@ def find_android_binary(tool_name: str, abi: str) -> pathlib.Path:
   raise click.ClickException(
       f"Could not find or download {tool_name} for ABI '{abi}'."
   )
+
+
+def _ensure_downloaded_library(abi: str, lib_name: str) -> pathlib.Path | None:
+  """Downloads the pre-built library for the given ABI if not cached.
+
+  Args:
+    abi: The Android CPU ABI (e.g., 'arm64-v8a').
+    lib_name: The library name to download (e.g., 'libLiteRt.so').
+
+  Returns:
+    The absolute local path to the cached binary, or None on failure.
+  """
+  if "arm64" not in abi:
+    raise click.ClickException(
+        f"Architecture '{abi}' is not supported for automatic downloading of"
+        f" {lib_name}. Only arm64 is supported for these specific binaries."
+    )
+
+  download_url = f"https://storage.googleapis.com/litert/tools/tmp/{lib_name}"
+
+  # Determine cache directory
+  cache_dir = pathlib.Path.home() / ".cache" / "litert-cli" / "binaries" / abi
+  cache_dir.mkdir(parents=True, exist_ok=True)
+
+  cached_lib_path = cache_dir / lib_name
+  if cached_lib_path.exists():
+    return cached_lib_path
+
+  click.secho(f"Downloading {lib_name} for {abi}...", fg="cyan")
+  try:
+    with urllib.request.urlopen(download_url) as response:
+      total_size = int(response.headers.get("Content-Length", 0))
+
+      with click.progressbar(
+          length=total_size, label=f"Downloading {lib_name}"
+      ) as bar:
+        with open(cached_lib_path, "wb") as f:
+          while True:
+            buffer = response.read(8192)
+            if not buffer:
+              break
+            f.write(buffer)
+            bar.update(len(buffer))
+
+    return cached_lib_path
+  except Exception as e:  # pylint: disable=broad-exception-caught
+    if cached_lib_path.exists():
+      cached_lib_path.unlink()
+    click.secho(f"Failed to download {lib_name}: {e}", fg="yellow")
+    return None
+
+
+def find_android_lib(lib_name: str, abi: str) -> pathlib.Path:
+  """Locates or downloads an Android executable binary.
+
+  Always downloads from a fixed URL (cached locally).
+
+  Args:
+    lib_name: Binary name (e.g. 'run_model').
+    abi: Target Android CPU ABI.
+
+  Returns:
+    The absolute path to the binary.
+
+  Raises:
+    click.ClickException: If the binary could not be found or downloaded.
+  """
+  downloaded_bin = _ensure_downloaded_library(abi, lib_name)
+  if downloaded_bin and downloaded_bin.exists():
+    return downloaded_bin
+
+  raise click.ClickException(
+      f"Could not find or download {lib_name} for ABI '{abi}'."
+  )

@@ -99,7 +99,9 @@ def ensure_runtime_libraries() -> pathlib.Path:
   # If directory doesn't exist, download and unzip
   if not runtime_dir.exists():
     click.echo(f"Downloading NPU runtime libraries from {_DEFAULT_LITERT_NPU_RUNTIME_LIBRARIES_URL}...")
-    zip_path = _get_workspace_root() / "litert_npu_runtime_libraries.zip"
+    zip_path_parent = pathlib.Path(constants.LITERT_CLI_ROOT)
+    zip_path_parent.mkdir(parents=True, exist_ok=True)
+    zip_path = zip_path_parent / "litert_npu_runtime_libraries.zip"
     
     try:
       response = requests.get(_DEFAULT_LITERT_NPU_RUNTIME_LIBRARIES_URL, stream=True)
