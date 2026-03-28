@@ -25,7 +25,7 @@ source venv/bin/activate
 
 # Install litert-cli from local source or test pypi
 # pip install -e "$REPO_ROOT"
-pip install -q -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple litert-cli==0.1.1.dev16
+pip install -q -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple litert-cli==0.1.1.dev17
 
 # Download Models
 # MobileNet V3 for CPU/Quantization tests
@@ -37,6 +37,7 @@ MOBILENET=mobilenet/mobilenet_v3_large.tflite
 EFFICIENTNET=efficientnet/efficientnet_b1.tflite
 
 # Visualize
+# Warning: seems less reliable, and if doesn't work, re-run it again.
 litert visualize "$MOBILENET"
 
 # Quantize
