@@ -8,6 +8,8 @@ import urllib.request
 
 import click
 
+from litert_cli.core import constants
+
 
 def check_adb() -> None:
   """Checks if adb is available.
@@ -74,10 +76,10 @@ def _ensure_downloaded_binary(abi: str, tool_name: str) -> pathlib.Path | None:
         f" {tool_name}. Only arm64 is supported for these specific binaries."
     )
 
-  download_url = f"https://storage.googleapis.com/litert/tools/tmp/{tool_name}_android_arm64"
+  download_url = f"{constants.LITERT_BINARIES_BASE_URL_ANDROID}/{tool_name}"
 
   # Determine cache directory
-  cache_dir = pathlib.Path.home() / ".cache" / "litert-cli" / "binaries" / abi
+  cache_dir = pathlib.Path(constants.LITERT_CLI_CACHE_DIR) / "binaries" / abi
   cache_dir.mkdir(parents=True, exist_ok=True)
 
   cached_binary_path = cache_dir / tool_name
@@ -86,13 +88,14 @@ def _ensure_downloaded_binary(abi: str, tool_name: str) -> pathlib.Path | None:
 
   click.secho(f"Downloading {tool_name} for {abi}...", fg="cyan")
   try:
+    tmp_cached_file = cached_binary_path.with_suffix(".tmp")
     with urllib.request.urlopen(download_url) as response:
       total_size = int(response.headers.get("Content-Length", 0))
 
       with click.progressbar(
           length=total_size, label=f"Downloading {tool_name}"
       ) as bar:
-        with open(cached_binary_path, "wb") as f:
+        with open(tmp_cached_file, "wb") as f:
           while True:
             buffer = response.read(8192)
             if not buffer:
@@ -100,12 +103,16 @@ def _ensure_downloaded_binary(abi: str, tool_name: str) -> pathlib.Path | None:
             f.write(buffer)
             bar.update(len(buffer))
 
+    tmp_cached_file.rename(cached_binary_path)
     # Ensure it is executable
     cached_binary_path.chmod(0o755)
     return cached_binary_path
   except Exception as e:  # pylint: disable=broad-exception-caught
     if cached_binary_path.exists():
       cached_binary_path.unlink()
+    tmp_cached_file = cached_binary_path.with_suffix(".tmp")
+    if tmp_cached_file.exists():
+      tmp_cached_file.unlink()
     click.secho(f"Failed to download {tool_name}: {e}", fg="yellow")
     return None
 
@@ -134,12 +141,17 @@ def find_android_binary(tool_name: str, abi: str) -> pathlib.Path:
   )
 
 
-def _ensure_downloaded_library(abi: str, lib_name: str) -> pathlib.Path | None:
+def _ensure_downloaded_library(
+    abi: str,
+    lib_name: str,
+    base_url: str = constants.LITERT_BINARIES_BASE_URL_ANDROID,
+) -> pathlib.Path | None:
   """Downloads the pre-built library for the given ABI if not cached.
 
   Args:
     abi: The Android CPU ABI (e.g., 'arm64-v8a').
     lib_name: The library name to download (e.g., 'libLiteRt.so').
+    base_url: The base URL to download the library from.
 
   Returns:
     The absolute local path to the cached binary, or None on failure.
@@ -150,10 +162,10 @@ def _ensure_downloaded_library(abi: str, lib_name: str) -> pathlib.Path | None:
         f" {lib_name}. Only arm64 is supported for these specific binaries."
     )
 
-  download_url = f"https://storage.googleapis.com/litert/tools/tmp/{lib_name}"
+  download_url = f"{base_url}/{lib_name}"
 
   # Determine cache directory
-  cache_dir = pathlib.Path.home() / ".cache" / "litert-cli" / "binaries" / abi
+  cache_dir = pathlib.Path(constants.LITERT_CLI_CACHE_DIR) / "binaries" / abi
   cache_dir.mkdir(parents=True, exist_ok=True)
 
   cached_lib_path = cache_dir / lib_name
@@ -162,13 +174,14 @@ def _ensure_downloaded_library(abi: str, lib_name: str) -> pathlib.Path | None:
 
   click.secho(f"Downloading {lib_name} for {abi}...", fg="cyan")
   try:
+    tmp_cached_file = cached_lib_path.with_suffix(".tmp")
     with urllib.request.urlopen(download_url) as response:
       total_size = int(response.headers.get("Content-Length", 0))
 
       with click.progressbar(
           length=total_size, label=f"Downloading {lib_name}"
       ) as bar:
-        with open(cached_lib_path, "wb") as f:
+        with open(tmp_cached_file, "wb") as f:
           while True:
             buffer = response.read(8192)
             if not buffer:
@@ -176,15 +189,23 @@ def _ensure_downloaded_library(abi: str, lib_name: str) -> pathlib.Path | None:
             f.write(buffer)
             bar.update(len(buffer))
 
+    tmp_cached_file.rename(cached_lib_path)
     return cached_lib_path
   except Exception as e:  # pylint: disable=broad-exception-caught
     if cached_lib_path.exists():
       cached_lib_path.unlink()
+    tmp_cached_file = cached_lib_path.with_suffix(".tmp")
+    if tmp_cached_file.exists():
+      tmp_cached_file.unlink()
     click.secho(f"Failed to download {lib_name}: {e}", fg="yellow")
     return None
 
 
-def find_android_lib(lib_name: str, abi: str) -> pathlib.Path:
+def find_android_lib(
+    lib_name: str,
+    abi: str,
+    base_url: str = constants.LITERT_BINARIES_BASE_URL_ANDROID,
+) -> pathlib.Path:
   """Locates or downloads an Android executable binary.
 
   Always downloads from a fixed URL (cached locally).
@@ -192,6 +213,7 @@ def find_android_lib(lib_name: str, abi: str) -> pathlib.Path:
   Args:
     lib_name: Binary name (e.g. 'run_model').
     abi: Target Android CPU ABI.
+    base_url: The base URL to download the library from.
 
   Returns:
     The absolute path to the binary.
@@ -199,10 +221,31 @@ def find_android_lib(lib_name: str, abi: str) -> pathlib.Path:
   Raises:
     click.ClickException: If the binary could not be found or downloaded.
   """
-  downloaded_bin = _ensure_downloaded_library(abi, lib_name)
+  downloaded_bin = _ensure_downloaded_library(abi, lib_name, base_url)
   if downloaded_bin and downloaded_bin.exists():
     return downloaded_bin
 
   raise click.ClickException(
       f"Could not find or download {lib_name} for ABI '{abi}'."
+  )
+
+def find_npu_dispatch_lib(soc_vendor: str, abi: str) -> pathlib.Path:
+  """Finds and downloads the NPU dispatch library for the given SoC vendor.
+  
+  Args:
+    soc_vendor: The NPU vendor ("qualcomm" or "mediatek").
+    abi: Target Android CPU ABI.
+    
+  Returns:
+    The absolute path to the local downloaded backend dispatch library.
+  """
+  if soc_vendor == "qualcomm":
+    lib_name = "libLiteRtDispatch_Qualcomm.so"
+  elif soc_vendor == "mediatek":
+    lib_name = "libLiteRtDispatch_MediaTek.so"
+  else:
+    raise click.ClickException(f"Unsupported NPU vendor for dispatch: {soc_vendor}")
+    
+  return find_android_lib(
+      lib_name, abi, base_url=constants.LITERT_CLI_DOWNLOAD_BASE_URL
   )

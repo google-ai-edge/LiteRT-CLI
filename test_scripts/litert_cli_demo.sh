@@ -33,14 +33,20 @@ litert download litert-community/MobileNet-v3-large --output mobilenet
 # EfficientNet B1 for GPU tests (as V3 contains GATHER_ND which isn't GPU-compatible yet)
 litert download litert-community/efficientnet_b1 --output efficientnet
 
-# Visualize
-litert visualize mobilenet/mobilenet_v3_large.tflite
+MOBILENET=mobilenet/mobilenet_v3_large.tflite
+EFFICIENTNET=efficientnet/efficientnet_b1.tflite
 
-MOBILENET=$(ls mobilenet/*.tflite | head -n 1)
-EFFICIENTNET=$(ls efficientnet/*.tflite | head -n 1)
+# Visualize
+litert visualize "$MOBILENET"
 
 # Quantize
 litert quantize "$MOBILENET" --output mobilenet_quant.tflite
+
+# Compile as NPU compatable model
+# Please replace the target as your target device. E.g. sm8750, sm8850, etc.
+# Here qualcomm sm8750 is just an example, for Xiaomi 15 pro.
+# NOTE: this only works from Linux host for now.
+litert compile "$EFFICIENTNET" --target sm8750
 
 # --- Desktop Execution ---
 # Run quantized model on Desktop CPU
@@ -55,6 +61,10 @@ litert run mobilenet_quant.tflite --android --cpu
 
 # Run float model on Android GPU (EfficientNet)
 litert run "$EFFICIENTNET" --android --gpu
+
+# Run NPU compatable model on Android NPU (EfficientNet).
+# Warning: please change to your own model name.
+litert run efficientnet_b1_Qualcomm_SM8750.tflite --android --npu
 
 # Benchmark on android
 litert benchmark mobilenet_quant.tflite --android

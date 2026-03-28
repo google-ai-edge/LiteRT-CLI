@@ -30,6 +30,7 @@ class LazyCLI(click.Group):
         'run',
         'lm',
         'benchmark',
+        'clean',
     ]
 
   def get_command(
@@ -53,6 +54,7 @@ class LazyCLI(click.Group):
         'visualize': ('litert_cli.commands.visualize', 'visualize_cmd'),
         'lm': ('litert_cli.commands.lm', 'lm_cmd'),
         'benchmark': ('litert_cli.commands.benchmark.cli', 'benchmark_cmd'),
+        'clean': ('litert_cli.commands.clean', 'clean_cmd'),
     }
 
     if cmd_name not in routes:

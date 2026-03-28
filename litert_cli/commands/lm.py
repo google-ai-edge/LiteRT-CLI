@@ -7,6 +7,8 @@ import sys
 
 import click
 
+from litert_cli.core import deps
+
 
 @click.command(
     name="lm",
@@ -36,6 +38,7 @@ Examples:
     $ litert lm benchmark gemma3-1b
 """,
 )
+@deps.require_extra("lm")
 @click.pass_context
 def lm_cmd(ctx: click.Context) -> None:
   """LiteRT-LM related commands.

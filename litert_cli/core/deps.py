@@ -73,7 +73,8 @@ def ensure_extra(extra_name: str, silent: bool = False) -> bool:
 
     try:
       subprocess.check_call(
-          [sys.executable, "-m", "pip", "install", "-q", target],
+          # Note: Add "-q" for quiet install.
+          [sys.executable, "-m", "pip", "install", target],
           cwd=cwd,
           stdout=subprocess.DEVNULL if silent else None,
           stderr=subprocess.DEVNULL if silent else None,

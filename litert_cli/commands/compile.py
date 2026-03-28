@@ -11,7 +11,7 @@ import shutil
 
 import click
 from litert_cli.core import deps
-from litert_cli.core import npu_utils as aot
+from litert_cli.core import npu_utils
 
 from ai_edge_litert.aot import aot_compile as aot_lib
 from ai_edge_litert.aot.ai_pack import export_lib as ai_pack_export
@@ -79,7 +79,7 @@ def compile_cmd(
 
     click.echo(f"Compiling model {model_path} for targets: {', '.join(target)}")
     
-    aot_targets = [aot.get_target(t) for t in target]
+    aot_targets = [npu_utils.get_aot_target(t) for t in target]
     
     try:
         compiled_models = aot_lib.aot_compile(

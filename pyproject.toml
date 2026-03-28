@@ -14,12 +14,10 @@ dependencies = [
     "requests",
     "sentencepiece",
     "ai-edge-litert",
-    "litert-lm-cli-nightly",
-    "litert-lm-nightly",
     "ai-edge-quantizer",
     "Pillow",
-    "ai-edge-litert-sdk-qualcomm",
-    "ai-edge-litert-sdk-mediatek",
+    "ai-edge-litert-sdk-qualcomm-nightly",
+    "ai-edge-litert-sdk-mediatek-nightly",
 ]
 
 [project.optional-dependencies]
@@ -28,14 +26,12 @@ download = [
     "requests",
 ]
 convert = [
-    "litert-torch", 
+    "litert-torch-nightly", 
     "torch",
-    "transformers",
+    # Latest transformers break litert-torch-nightly
+    "transformers<5.0.0",
     "torchvision",
-    "huggingface_hub",
     "sentencepiece",
-    "ai-edge-litert-sdk-qualcomm",
-    "ai-edge-litert-sdk-mediatek",
 ]
 run = [
     "ai-edge-litert"
@@ -54,7 +50,7 @@ image = [
     "Pillow",
 ]
 all = [
-    "litert-cli[convert,visualize]"
+    "litert-cli[convert,visualize,lm]"
 ]
 
 [project.scripts]

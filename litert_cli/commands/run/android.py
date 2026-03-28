@@ -201,18 +201,29 @@ def run_android(
   click.echo(f"Pushing model {model_name} to device...")
   subprocess.run(["adb", "push", model_path, remote_model_path], check=True)
 
-  click.echo("Pushing run_model to device...")
   remote_run_model_path = f"{android_root}/run_model"
-  subprocess.run(
-      ["adb", "push", str(run_model_bin), remote_run_model_path], check=True
-  )
+  if subprocess.run(["adb", "shell", f"[ -f {remote_run_model_path} ]"], check=False).returncode == 0:
+    click.echo("  Skipping run_model (already on device)")
+  else:
+    click.echo("Pushing run_model to device...")
+    subprocess.run(
+        ["adb", "push", str(run_model_bin), remote_run_model_path], check=True
+    )
 
   # Push libraries to default path
-  click.echo(f"Pushing {lib_litert.name} to device...")
-  subprocess.run(["adb", "push", str(lib_litert), f"{android_root}/{lib_litert.name}"], check=True)
+  remote_lib_litert = f"{android_root}/{lib_litert.name}"
+  if subprocess.run(["adb", "shell", f"[ -f {remote_lib_litert} ]"], check=False).returncode == 0:
+    click.echo(f"  Skipping {lib_litert.name} (already on device)")
+  else:
+    click.echo(f"Pushing {lib_litert.name} to device...")
+    subprocess.run(["adb", "push", str(lib_litert), remote_lib_litert], check=True)
 
-  click.echo(f"Pushing {lib_clgl.name} to device...")
-  subprocess.run(["adb", "push", str(lib_clgl), f"{android_root}/{lib_clgl.name}"], check=True)
+  remote_lib_clgl = f"{android_root}/{lib_clgl.name}"
+  if subprocess.run(["adb", "shell", f"[ -f {remote_lib_clgl} ]"], check=False).returncode == 0:
+    click.echo(f"  Skipping {lib_clgl.name} (already on device)")
+  else:
+    click.echo(f"Pushing {lib_clgl.name} to device...")
+    subprocess.run(["adb", "push", str(lib_clgl), remote_lib_clgl], check=True)
 
   remote_input_dir = _prepare_inputs_on_device(
       model_path, inputs, signature_index, android_root
@@ -220,7 +231,19 @@ def run_android(
 
   remote_dispatch_dir = ""
   if accelerator == "npu":
-    remote_dispatch_dir = npu.push_runtime_libraries(None, android_root)
+    remote_dispatch_dir = npu.push_npu_runtime_libraries(None, android_root)
+
+    # Download and push SOC-specific LiteRT dispatch library
+    target_model = npu.get_soc_target_model(None)
+    soc_vendor = "mediatek" if "mt" in target_model else "qualcomm"
+    lib_dispatch = android_utils.find_npu_dispatch_lib(soc_vendor, abi)
+
+    remote_lib_dispatch = f"{android_root}/{lib_dispatch.name}"
+    if subprocess.run(["adb", "shell", f"[ -f {remote_lib_dispatch} ]"], check=False).returncode == 0:
+      click.echo(f"  Skipping {lib_dispatch.name} (already on device)")
+    else:
+      click.echo(f"Pushing {lib_dispatch.name} to device...")
+      subprocess.run(["adb", "push", str(lib_dispatch), remote_lib_dispatch], check=True)
 
   click.echo("Executing on device...\n")
 
@@ -247,7 +270,7 @@ def run_android(
     run_cmd_args.append(f"--input_dir={remote_input_dir}")
 
   try:
-    env_vars = f"LD_LIBRARY_PATH={remote_dispatch_dir} " if remote_dispatch_dir else ""
+    env_vars = f"LD_LIBRARY_PATH={remote_dispatch_dir} ADSP_LIBRARY_PATH={remote_dispatch_dir} " if remote_dispatch_dir else ""
     cmd_str = env_vars + " ".join(shlex.quote(arg) for arg in run_cmd_args)
     subprocess.run(
         [
@@ -261,8 +284,8 @@ def run_android(
     raise click.ClickException(f"Execution failed on device: {e}") from e
   finally:
     # Cleanup remote paths
-    cleanup_cmd = f"rm -f {remote_model_path} {remote_run_model_path}"
-    if remote_input_dir:
-      cleanup_cmd += f" && rm -rf {remote_input_dir}"
-    # Do not cleanup dispatch dir for now as it might be shared or large?
-    subprocess.run(["adb", "shell", cleanup_cmd], check=False)
+    #cleanup_cmd = f"rm -f {remote_model_path} {remote_run_model_path}"
+    #if remote_input_dir:
+    #  cleanup_cmd += f" && rm -rf {remote_input_dir}"
+    #subprocess.run(["adb", "shell", cleanup_cmd], check=False)
+    click.echo("Clearing remote files...")

@@ -142,7 +142,10 @@ def visualize_cmd(
     data_param = urllib.parse.quote(json.dumps(data))
     url = f'http://localhost:{port}/?data={data_param}'
 
-    cmd = ['model-explorer', str(model_path), '--no_open_in_browser']
+    python_dir = pathlib.Path(sys.executable).parent
+    model_explorer_bin = python_dir / 'model-explorer'
+    
+    cmd = [str(model_explorer_bin) if model_explorer_bin.exists() else 'model-explorer', str(model_path), '--no_open_in_browser']
     if reuse_server:
       cmd.append('--reuse_server')
 
