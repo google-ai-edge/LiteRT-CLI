@@ -8,6 +8,7 @@ import subprocess
 import click
 from litert_cli.core import android_utils
 from litert_cli.core import constants
+from litert_cli.core import npu_utils as npu
 
 
 def run_android(model_path: str, accelerator: str) -> None:
@@ -34,20 +35,22 @@ def run_android(model_path: str, accelerator: str) -> None:
       "benchmark_model", abi
   )
 
-  qualcomm_dispatch_so = None
+  remote_dispatch_dir = ""
+  remote_lib_dispatch = ""
   if accelerator == "npu":
-    qualcomm_dispatch_so = (
-        pathlib.Path(cli_root)
-        / "bin"
-        / "android"
-        / "libLiteRtDispatch_Qualcomm.so"
-    )
-    if not qualcomm_dispatch_so.exists():
-      click.secho(
-          "Warning: Qualcomm dispatch library not found at: "
-          f"{qualcomm_dispatch_so}",
-          fg="yellow",
-      )
+    remote_dispatch_dir = npu.push_npu_runtime_libraries(None, cli_android_root)
+
+    # Download and push SOC-specific LiteRT dispatch library
+    target_model = npu.get_soc_target_model(None)
+    soc_vendor = "mediatek" if "mt" in target_model else "qualcomm"
+    lib_dispatch = android_utils.find_npu_dispatch_lib(soc_vendor, abi)
+
+    remote_lib_dispatch = f"{cli_android_root}/{lib_dispatch.name}"
+    if subprocess.run(["adb", "shell", f"[ -f {remote_lib_dispatch} ]"], check=False).returncode == 0:
+      click.echo(f"  Skipping {lib_dispatch.name} (already on device)")
+    else:
+      click.echo(f"Pushing {lib_dispatch.name} to device...")
+      subprocess.run(["adb", "push", str(lib_dispatch), remote_lib_dispatch], check=True)
 
   click.echo(f"Pushing model {model_name} to device...")
   subprocess.run(["adb", "shell", "mkdir", "-p", cli_android_root], check=True)
@@ -68,25 +71,7 @@ def run_android(model_path: str, accelerator: str) -> None:
       check=True,
   )
 
-  if (
-      accelerator == "npu"
-      and qualcomm_dispatch_so
-      and qualcomm_dispatch_so.exists()
-  ):
-    click.echo("Pushing Qualcomm dispatch library to device...")
-    subprocess.run(
-        ["adb", "shell", "mkdir", "-p", f"{cli_android_root}/dispatch"],
-        check=True,
-    )
-    subprocess.run(
-        [
-            "adb",
-            "push",
-            str(qualcomm_dispatch_so),
-            f"{cli_android_root}/dispatch/libLiteRtDispatch_Qualcomm.so",
-        ],
-        check=True,
-    )
+
 
   click.echo("Executing benchmark on device...\n")
   try:
@@ -97,9 +82,10 @@ def run_android(model_path: str, accelerator: str) -> None:
       bench_cmd += " --use_gpu=true"
     elif accelerator == "npu":
       bench_cmd += (
-          f" --use_npu=true --dispatch_library_dir={cli_android_root}/dispatch"
+          f" --use_npu=true --dispatch_library_path={cli_android_root}"
       )
 
-    subprocess.run(["adb", "shell", bench_cmd], check=True)
+    env_vars = f"LD_LIBRARY_PATH={remote_dispatch_dir} ADSP_LIBRARY_PATH={remote_dispatch_dir} " if remote_dispatch_dir else ""
+    subprocess.run(["adb", "shell", env_vars + bench_cmd], check=True)
   except subprocess.CalledProcessError as e:
     click.secho(f"Execution failed on device: {e}", fg="red")

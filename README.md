@@ -87,7 +87,18 @@ litert quantize model.tflite \
   --output recipe.tflite
 ```
 
-**4. Run a LiteRT model on Desktop or Android:**
+**4. Compile a LiteRT model for NPU AOT:**
+
+```bash
+# Basic Compilation for specific NPU, like qualcomm sm8450, used in Xiaomi 15 pro.
+# Only verified on linux host for now and Macbook doesn't work.
+litert compile model.tflite --target sm8450
+
+# Compile for multiple targets and export AI Pack for Android
+litert compile model.tflite --target sm8550 --target mt6989 --export-aipack my_npu_models
+```
+
+**5. Run a LiteRT model on Desktop or Android:**
 ```bash
 # Run locally on desktop (CPU)
 litert run model.tflite --desktop --cpu
@@ -97,6 +108,9 @@ litert run model.tflite --gpu
 
 # Run on connected Android device
 litert run model.tflite --android
+
+# Run on connected Android device with NPU acceleration, with NPU AOT compiled model
+litert run model_sm8450.tflite --android --npu
 
 # Run multiple iterations and print output tensors
 litert run model.tflite \
@@ -109,16 +123,19 @@ litert run model.tflite \
   --print_tensors
 ```
 
-**5. Benchmark a model performance:**
+**6. Benchmark a model performance:**
 ```bash
 # Benchmark on Android (CPU side)
 litert benchmark model.tflite --android --cpu
+
+# Benchmark AOT compiled model on Android NPU
+litert benchmark model_sm8450.tflite --android --npu
 
 # Benchmark on Android GPU
 litert benchmark model.tflite --android --gpu
 ```
 
-**6. Visualize a model architecture:**
+**7. Visualize a model architecture:**
 ```bash
 # Open in Model Explorer graph
 litert visualize model.tflite
