@@ -1,21 +1,24 @@
 # LiteRT CLI
 
-A Python-based command-line toolkit for managing, converting, quantizing, running
-and benchmarking LiteRT (TFLite) models.
+A convenient command-line toolkit to streamline  LiteRT development workflow, including
+converting, compiling, quantizing, running and benchamrking LiteRT (TFLite) models on various
+haredware (CPU / GPU / NPU) across platforms (desktop, mobile or cloud).
 
+## Use in Coding Agent
+Add LiteRT CLI skills .agents/skills/litert_cli/SKILL.md into your AI coding agent like
+Antigravity or Gemini CLI, you can use prompts like:
+- `Download LiteRT model litert-community/efficientnet_b1 and run it on CPU`
+- `Benchmark LiteRT model litert-community/efficientnet_b1 on my Android GPU`
+- `Compile LiteRT model litert-community/efficientnet_b1 for NPU target sm8750`
+- `Visualize LiteRT model litert-community/efficientnet_b1`
+
+It will install automatically: including python virtual env, LiteRT-CLI and related dependencies.
+
+## Demo
 Please follow the demo script to try:
 https://github.com/google-ai-edge/LiteRT-CLI-staging/blob/main/test_scripts/litert_cli_demo.sh
 
 Verified platforms (Linux, MacOS) with Python 3.13
-
-## Use in Agent
-There are agent skills defined in .agents/skills/litert_cli/SKILL.md, and you can use LiteRT-CLI directly
-in your agents, like Jetski or Gemini Code Assist. For example:
-- `Download litert-community/MobileNet-v3-large and run it on gcp`
-- `Download litert-community/MobileNet-v3-large and benchmark it on gcp`
-- `Download litert-community/MobileNet-v3-large to a folder called mobiletnet-v3, and visualize them`
-
-It will install automatically as well: including python virtual env, and install LiteRT-CLI and all the dependencies.
 
 ## 🚀 Installation
 
@@ -26,7 +29,7 @@ Install `litert-cli` with pip from the local source or Test PyPI.
 pip install -e .
 
 # Or install from Test PyPI (verified in linux and macbook, with Python 3.13)
-pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple litert-cli==0.1.1.dev15
+pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple litert-cli==0.1.1.dev17
 ```
 
 ## 🎯 Quick Start
@@ -36,6 +39,7 @@ Run the end-to-end demo script to see download and quantization in action:
 # Verify it by running e2e demo
 bash test_scripts/run_tests_portable.sh
 ```
+
 
 ### Common Commands
 
