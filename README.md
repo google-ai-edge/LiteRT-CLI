@@ -6,13 +6,13 @@ haredware (CPU / GPU / NPU) across platforms (desktop, mobile or cloud).
 
 ## Use in Coding Agent
 Add LiteRT CLI skills .agents/skills/litert_cli/SKILL.md into your AI coding agent like
-Antigravity or Gemini CLI, you can use prompts like:
+Antigravity or Gemini CLI, then you can use prompts like:
 - `Download LiteRT model litert-community/efficientnet_b1 and run it on CPU`
 - `Benchmark LiteRT model litert-community/efficientnet_b1 on my Android GPU`
 - `Compile LiteRT model litert-community/efficientnet_b1 for NPU target sm8750`
 - `Visualize LiteRT model litert-community/efficientnet_b1`
 
-It will install automatically: including python virtual env, LiteRT-CLI and related dependencies.
+It will install related tools automatically, including python virtual environment, LiteRT-CLI and related dependencies.
 
 ## Demo
 Please follow the demo script to try:
