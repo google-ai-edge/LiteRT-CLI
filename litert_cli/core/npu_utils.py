@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-import os
 import pathlib
 import subprocess
 import zipfile
 
 import click
+from litert_cli.core import constants
 import requests
 
 from ai_edge_litert.aot.vendors.mediatek import target as mtk_target
 from ai_edge_litert.aot.vendors.qualcomm import target as qnn_target
-from litert_cli.core import constants
 
 
 def ensure_npu_runtime_libraries(soc_vendor: str = "qualcomm") -> pathlib.Path:
@@ -26,56 +25,67 @@ def ensure_npu_runtime_libraries(soc_vendor: str = "qualcomm") -> pathlib.Path:
 
   Returns:
     Path to the litert_npu_runtime_libraries directory (or qairt_sdk directory).
+
+  Raises:
+    click.ClickException: If downloading or extracting the libraries fails.
   """
   runtime_dir = pathlib.Path(constants.LITERT_CLI_ROOT)
 
-  # For MediaTek, we don't need to prepare runtime libraries as it assumes already on Android.
+  # For MediaTek, we don't need to prepare runtime libraries as it assumes
+  # already on Android.
   if soc_vendor == "mediatek":
     return runtime_dir
 
-  # Check for a specific marker file to verify if the zip was successfully unpacked before.
-  marker_file = (
-      runtime_dir
-      / f"qairt/{constants.QAIRT_SDK_VERSION}/lib/aarch64-android/libQnnHtp.so"
-  )
+  # Check for a marker file to verify if the zip was successfully unpacked.
+  marker_file = runtime_dir / ".qairt_sdk_extracted.complete"
 
   if runtime_dir.exists() and marker_file.exists():
     click.echo(f"Found existing runtime libraries at {runtime_dir}")
     return runtime_dir
 
-  # If directory doesn't exist or marker file is missing, download and unzip the SDK.
-  if not runtime_dir.exists() or not marker_file.exists():
-    click.echo(
-        f"Downloading NPU runtime libraries from {constants.QAIRT_SDK_URL}..."
-    )
-    zip_path_parent = pathlib.Path(constants.LITERT_CLI_ROOT)
-    zip_path_parent.mkdir(parents=True, exist_ok=True)
-    zip_path = zip_path_parent / "qairt_sdk.zip"
+  # If directory doesn't exist or marker file is missing, download and unzip
+  # the SDK.
+  click.echo(
+      f"Downloading NPU runtime libraries from {constants.QAIRT_SDK_URL}..."
+  )
+  runtime_dir.mkdir(parents=True, exist_ok=True)
+  zip_path = runtime_dir / "qairt_sdk.zip"
 
-    try:
-      response = requests.get(constants.QAIRT_SDK_URL, stream=True)
+  tmp_zip_path = zip_path.with_suffix(".zip.tmp")
+
+  try:
+    with requests.get(constants.QAIRT_SDK_URL, stream=True) as response:
       response.raise_for_status()
 
-      tmp_zip_path = zip_path.with_suffix(".zip.tmp")
       with open(tmp_zip_path, "wb") as f:
         for chunk in response.iter_content(chunk_size=8192):
           f.write(chunk)
 
       tmp_zip_path.rename(zip_path)
 
-      click.echo(f"Extracting to {runtime_dir}...")
-      runtime_dir.mkdir(parents=True, exist_ok=True)
-      with zipfile.ZipFile(zip_path, "r") as zip_ref:
-        zip_ref.extractall(runtime_dir)
+    click.echo(f"Extracting to {runtime_dir}...")
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(zip_path, "r") as zip_ref:
+      # Validate against Zip Slip vulnerability.
+      for member in zip_ref.infolist():
+        # pathlib handles different OS path separators.
+        resolved_path = (runtime_dir / member.filename).resolve()
+        if not resolved_path.is_relative_to(runtime_dir.resolve()):
+          raise click.ClickException(
+              f"Unsafe path detected in zip file: {member.filename}"
+          )
+      zip_ref.extractall(runtime_dir)
 
-      os.remove(zip_path)
-    except Exception as e:
-      if zip_path.exists():
-        os.remove(zip_path)
-      tmp_zip_path = zip_path.with_suffix(".zip.tmp")
-      if tmp_zip_path.exists():
-        os.remove(tmp_zip_path)
-      raise click.ClickException(f"Failed to setup NPU runtime libraries: {e}")
+    # Create a marker file to indicate successful extraction.
+    marker_file.touch()
+    zip_path.unlink(missing_ok=True)
+  except Exception as e:  # pylint: disable=broad-exception-caught
+    zip_path.unlink(missing_ok=True)
+    if tmp_zip_path.exists():
+      tmp_zip_path.unlink()
+    if marker_file.exists():
+      marker_file.unlink()
+    raise click.ClickException("Failed to setup NPU runtime libraries") from e
 
   return runtime_dir
 
@@ -90,17 +100,30 @@ def get_soc_target_model(device_id: str | None = None) -> str:
     device_id: Optional adb device serial number.
 
   Returns:
-    The matched codename map (e.g. 'sm8550') or 'unknown' if not found/supported.
+    The matched codename map (e.g. 'sm8550') or 'unknown' if not
+    found/supported.
   """
-  cmd = ["adb"] + (["-s", device_id] if device_id else []) + [
-      "shell",
-      "getprop",
-      "ro.soc.model",
-  ]
+  cmd = (
+      ["adb"]
+      + (["-s", device_id] if device_id else [])
+      + [
+          "shell",
+          "getprop",
+          "ro.soc.model",
+      ]
+  )
 
   try:
     result = subprocess.run(cmd, capture_output=True, text=True, check=True)
     soc_model = result.stdout.strip().lower()
+    if not soc_model:
+      # Fallback to ro.board.platform
+      cmd_fallback = cmd[:-1] + ["ro.board.platform"]
+      result_fallback = subprocess.run(
+          cmd_fallback, capture_output=True, text=True, check=True
+      )
+      soc_model = result_fallback.stdout.strip().lower()
+
     if not soc_model:
       return "unknown"
 
@@ -119,12 +142,14 @@ def push_npu_runtime_libraries(
 ) -> str:
   """Pushes required NPU runtime libraries (QNN/MTK) to the connected Android device.
 
-  Identifies the SoC via `get_soc_target_model`, downloads the necessary SDKs if missing,
-  and pushes the correct specific dynamic libraries to the device based on the chip version.
+  Identifies the SoC via `get_soc_target_model`, downloads the necessary SDKs if
+  missing, and pushes the correct specific dynamic libraries to the device
+  based on the chip version.
 
   Args:
     device_id: Optional adb device serial number.
-    android_root: The remote path on the Android device to push the libraries to.
+    android_root: The remote path on the Android device to push the libraries
+      to.
 
   Returns:
     The remote directory path string where the libraries were pushed.
@@ -136,8 +161,10 @@ def push_npu_runtime_libraries(
   soc_vendor = "mediatek" if "mt" in target_model else "qualcomm"
   runtime_dir = ensure_npu_runtime_libraries(soc_vendor)
 
+  libs_to_push = []
   if soc_vendor == "qualcomm":
-    # Resolve the specific Hexagon DSP version (e.g., 69, 73, 75) mapped to the Qualcomm chip.
+    # Resolve the specific Hexagon DSP version (e.g., 69, 73, 75) mapped to
+    # the Qualcomm chip.
     best_version = constants.QNN_SOC_VERSION_MAP.get(target_model)
     if not best_version:
       raise click.ClickException(
@@ -148,15 +175,15 @@ def push_npu_runtime_libraries(
 
     # Paths to the unpacked QAIRT SDK on the host.
     src_dir = (
-        runtime_dir
-        / f"qairt/{constants.QAIRT_SDK_VERSION}/lib/aarch64-android"
+        runtime_dir / f"qairt/{constants.QAIRT_SDK_VERSION}/lib/aarch64-android"
     )
     skel_dir = (
         runtime_dir
         / f"qairt/{constants.QAIRT_SDK_VERSION}/lib/hexagon-v{best_version}/unsigned"
     )
 
-    # Essential QNN backend libraries and stub files needed for execution on the device.
+    # Essential QNN backend libraries and stub files needed for execution on
+    # the device.
     libs_to_push = [
         src_dir / "libQnnSystem.so",
         src_dir / "libQnnHtp.so",
@@ -182,12 +209,14 @@ def push_npu_runtime_libraries(
   click.echo(f"Pushing runtime libraries to {android_root}...")
   adb_cmd = ["adb", "-s", device_id] if device_id else ["adb"]
 
-  subprocess.run(adb_cmd + ["shell", f"mkdir -p {android_root}"], check=True)
+  subprocess.run(
+      adb_cmd + ["shell", "mkdir", "-p", f"'{android_root}'"], check=True
+  )
 
   for local_file in libs_to_push:
     remote_file_path = f"{android_root}/{local_file.name}"
     # Check if the file already exists on the device using adb shell test.
-    check_cmd = adb_cmd + ["shell", f"[ -f {remote_file_path} ]"]
+    check_cmd = adb_cmd + ["shell", "test", "-f", remote_file_path]
     if subprocess.run(check_cmd, check=False).returncode == 0:
       click.echo(f"  Skipping {local_file.name} (already on device)")
       continue
@@ -201,7 +230,7 @@ def push_npu_runtime_libraries(
   return android_root
 
 
-def get_aot_target(target_name: str):
+def get_aot_target(target_name: str) -> qnn_target.Target | mtk_target.Target:
   """Returns the mapped compilation Target object for a given string codename.
 
   Translates a CLI string input (e.g., 'sm8550') into the underlying Python AOT
@@ -211,7 +240,7 @@ def get_aot_target(target_name: str):
     target_name: The codename string of the target (e.g., 'sm8550').
 
   Returns:
-    The ai_edge_litert.aot.Target object for AOT compilation.
+    The LiteRT AOT Target object for AOT compilation.
   """
   target_name = target_name.lower().strip()
 
@@ -222,15 +251,7 @@ def get_aot_target(target_name: str):
 
   try:
     vendor_module = qnn_target if vendor == "qualcomm" else mtk_target
-    if not vendor_module:
-      raise ImportError(f"{vendor.capitalize()} AOT SDK not installed.")
-
     model_enum = getattr(vendor_module.SocModel, model_str)
     return vendor_module.Target(model_enum)
-  except ImportError as e:
-    raise click.ClickException(
-        f"Failed to load AOT target {target_name}: {e}\n"
-        "Ensure required ai-edge-litert AOT SDKs are installed."
-    )
   except AttributeError as e:
-    raise click.ClickException(f"Target model enum not found in SDK: {e}")
+    raise click.ClickException("Target model enum not found in SDK") from e

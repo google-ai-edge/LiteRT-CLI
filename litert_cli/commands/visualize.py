@@ -20,10 +20,12 @@ import pathlib
 import socket
 import subprocess
 import sys
+import textwrap
 import urllib.parse
 
 import click
-from litert_cli.core import deps
+
+from ..core import deps
 
 
 def _is_port_in_use(port_num: int) -> bool:
@@ -40,7 +42,15 @@ def _is_port_in_use(port_num: int) -> bool:
 
 
 def _find_available_port(start_port: int, max_attempts: int = 20) -> int:
-  """Finds the first available port on localhost starting from start_port."""
+  """Finds the first available port on localhost starting from start_port.
+
+  Args:
+    start_port: Port to start searching from.
+    max_attempts: Maximum number of ports to check.
+
+  Returns:
+    The first available port found.
+  """
   return next(
       (
           p
@@ -53,29 +63,30 @@ def _find_available_port(start_port: int, max_attempts: int = 20) -> int:
 
 @click.command(
     'visualize',
-    help="""Runs model explorer to visualize the model architecture.
+    help=textwrap.dedent("""\
+      Runs model explorer to visualize the model architecture.
 
-MODEL_PATH: Path to the LiteRT model (.tflite) to visualize.
+      MODEL_PATH: Path to the LiteRT model (.tflite) to visualize.
 
-Examples:
+      Examples:
 
-  1. Visualize a single model (starts a new server if none exists):
+        1. Visualize a single model (starts a new server if none exists):
 
-    $ litert visualize /path/to/model.tflite
+          $ litert visualize /path/to/model.tflite
 
-  2. Visualize a different model (reuses existing server, refreshes browser):
+        2. Visualize a different model (reuses existing server, refreshes browser):
 
-    $ litert visualize /path/to/another_model.tflite
+          $ litert visualize /path/to/another_model.tflite
 
-  3. Compare two models side-by-side (forces a new server on a new port):
+        3. Compare two models side-by-side (forces a new server on a new port):
 
-    $ litert visualize /path/to/model_A.tflite
-    $ litert visualize /path/to/model_B.tflite --no_reuse_server
+          $ litert visualize /path/to/model_A.tflite
+          $ litert visualize /path/to/model_B.tflite --no_reuse_server
 
-  4. Clean up and stop all running Model Explorer servers:
+        4. Clean up and stop all running Model Explorer servers:
 
-    $ litert visualize --stop_all
-""",
+          $ litert visualize --stop_all
+      """),
 )
 @click.argument(
     'model_path',
@@ -94,7 +105,7 @@ Examples:
 )
 @deps.require_extra('visualize')
 def visualize_cmd(
-    model_path: pathlib.Path | None, reuse_server: bool, stop_all: bool
+    model_path: pathlib.Path | None, *, reuse_server: bool, stop_all: bool
 ) -> None:
   """Runs model explorer to visualize the model architecture.
 
@@ -122,34 +133,42 @@ def visualize_cmd(
     return
 
   if not model_path:
-    click.secho('Error: Missing argument "MODEL_PATH".', fg='red')
-    sys.exit(1)
+    raise click.UsageError('Missing argument "MODEL_PATH".')
 
   click.echo(
       f'Starting Model Explorer visualization for {model_path} in the'
       ' background...'
   )
-  try:
-    # Check for available port so we can print the exact URL
-    port = (
-        8080
-        if reuse_server and _is_port_in_use(8080)
-        else _find_available_port(8080)
-    )
+  # Check for available port so we can print the exact URL
+  port = (
+      8080
+      if reuse_server and _is_port_in_use(8080)
+      else _find_available_port(8080)
+  )
 
-    # Build the exact model explorer data URL
-    data = {'models': [{'url': str(model_path)}]}
-    data_param = urllib.parse.quote(json.dumps(data))
-    url = f'http://localhost:{port}/?data={data_param}'
+  # Build the exact model explorer data URL
+  data = {'models': [{'url': str(model_path)}]}
+  data_param = urllib.parse.quote(json.dumps(data))
+  url = f'http://localhost:{port}/?data={data_param}'
 
+  model_explorer_bin = None
+  if sys.executable:
     python_dir = pathlib.Path(sys.executable).parent
+    # Assume model_explorer binary is in the same directory as the python
     model_explorer_bin = python_dir / 'model-explorer'
-    
-    cmd = [str(model_explorer_bin) if model_explorer_bin.exists() else 'model-explorer', str(model_path), '--no_open_in_browser']
-    if reuse_server:
-      cmd.append('--reuse_server')
 
-    # Launch as a fully detached daemon so the terminal isn't blocked.
+  cmd = [
+      str(model_explorer_bin)
+      if model_explorer_bin and model_explorer_bin.exists()
+      else 'model-explorer',
+      str(model_path),
+      '--no_open_in_browser',
+  ]
+  if reuse_server:
+    cmd.append('--reuse_server')
+
+  # Launch as a fully detached daemon so the terminal isn't blocked.
+  try:
     subprocess.Popen(
         cmd,
         stdout=subprocess.DEVNULL,
@@ -172,6 +191,16 @@ def visualize_cmd(
           ' running, avoiding port conflicts.',
           fg='cyan',
       )
-  except Exception as e:  # pylint: disable=broad-exception-caught
-    click.secho(f'Error starting model-explorer: {e}', fg='red')
-    sys.exit(1)
+  except FileNotFoundError:
+    click.secho(
+        '\nError: "model-explorer" command not found.', fg='red', bold=True
+    )
+    click.secho(
+        'Please make sure Model Explorer is installed and available in your'
+        ' PATH.',
+        fg='yellow',
+    )
+    click.secho(
+        'You can install it via: pip install model-explorer',
+        fg='cyan',
+    )

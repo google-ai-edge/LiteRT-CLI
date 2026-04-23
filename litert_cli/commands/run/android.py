@@ -15,7 +15,7 @@ Usage Examples:
      input2=value2
 
   4. Run with specific signature:
-     $ litert run /path/to/model.tflite --android --signature 0
+     $ litert run /path/to/model.tflite --android --signature_index 0
 
   5. Run with multiple iterations:
      $ litert run /path/to/model.tflite --android --iterations 10
@@ -29,6 +29,7 @@ Usage Examples:
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 import pathlib
 import shlex
 import subprocess
@@ -43,8 +44,9 @@ from litert_cli.core import npu_utils as npu
 
 
 def _prepare_inputs_on_device(
-    model_path: str,
-    inputs: tuple[str, ...],
+    *,
+    model_path: pathlib.Path,
+    inputs: Sequence[str],
     signature_index: int,
     android_root: str,
 ) -> str:
@@ -67,18 +69,17 @@ def _prepare_inputs_on_device(
 
   try:
     click.echo("Parsing inputs locally before pushing to device...")
-    # 1. Load model structure for Input meta details.
-    from ai_edge_litert.compiled_model import CompiledModel  # pylint: disable=g-import-not-at-top
+    from ai_edge_litert.litert_wrapper.compiled_model_wrapper import compiled_model  # pylint: disable=g-import-not-at-top
 
-    cm = CompiledModel.from_file(model_path)
-    signatures = cm.get_signature_list()
-    if not signatures:
-      click.secho("No signatures found in the model for inputs.", fg="yellow")
-      return ""
+    with compiled_model.CompiledModel.from_file(model_path) as cm:
+      signatures = cm.get_signature_list()
+      if not signatures:
+        click.secho("No signatures found in the model for inputs.", fg="yellow")
+        return ""
 
-    sig_info = cm.get_signature_by_index(signature_index)
-    sig_key = sig_info["key"]
-    input_details = cm.get_input_tensor_details(sig_key)
+      sig_info = cm.get_signature_by_index(signature_index)
+      sig_key = sig_info["key"]
+      input_details = cm.get_input_tensor_details(sig_key)
 
     # 2. Process input strings mapping (e.g., name=value or literal value).
     parsed_inputs = {}
@@ -104,12 +105,11 @@ def _prepare_inputs_on_device(
           np_dtype = inputs_utils.get_np_dtype(tensor_type)
 
           click.echo(
-              f"  Preparing input '{name}' from '{input_data_str}' (shape:"
+              f"  Preparing input {name!r} from {input_data_str!r} (shape:"
               f" {shape}, dtype: {tensor_type})"
           )
           data = inputs_utils.parse_input(input_data_str, shape, np_dtype)
 
-          # Write to temp raw file
           raw_file_path = temp_path / f"{name}.raw"
           data.tofile(raw_file_path)
           has_inputs = True
@@ -119,14 +119,15 @@ def _prepare_inputs_on_device(
         remote_input_dir = f"{android_root}/inputs_{int(time.time())}"
         click.echo(f"Pushing processed inputs to {remote_input_dir}...")
         subprocess.run(
-            ["adb", "shell", f"mkdir -p {remote_input_dir}"], check=True
+            ["adb", "shell", f"mkdir -p {shlex.quote(remote_input_dir)}"],
+            check=True,
         )
         for local_file in temp_path.iterdir():
           subprocess.run(
               [
                   "adb",
                   "push",
-                  str(local_file),
+                  local_file,
                   f"{remote_input_dir}/{local_file.name}",
               ],
               check=True,
@@ -139,13 +140,14 @@ def _prepare_inputs_on_device(
 
   except Exception as e:  # pylint: disable=broad-exception-caught
     raise click.ClickException(
-        f"Failed to prepare inputs for Android: {e}"
+        f"Failed to prepare inputs for Android model {model_path}: {e!r}"
     ) from e
 
 
 def run_android(
+    *,
     model_path: str,
-    inputs: tuple[str, ...],
+    inputs: Sequence[str],
     accelerator: str,
     signature_index: int,
     iterations: int,
@@ -173,14 +175,14 @@ def run_android(
   android_root = constants.LITERT_CLI_ANDROID_ROOT
   try:
     subprocess.run(
-        ["adb", "shell", f"mkdir -p {android_root}"],
+        ["adb", "shell", f"mkdir -p {shlex.quote(android_root)}"],
         check=True,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
   except subprocess.CalledProcessError as e:
     raise click.ClickException(
-        f"Failed to create directory {android_root} on device: {e}"
+        f"Failed to create directory {android_root} on device: {e!r}"
     ) from e
 
   # Create remote execution tracking paths
@@ -202,54 +204,88 @@ def run_android(
   subprocess.run(["adb", "push", model_path, remote_model_path], check=True)
 
   remote_run_model_path = f"{android_root}/run_model"
-  if subprocess.run(["adb", "shell", f"[ -f {remote_run_model_path} ]"], check=False).returncode == 0:
+  if (
+      subprocess.run(
+          ["adb", "shell", f"[ -f {shlex.quote(remote_run_model_path)} ]"],
+          check=False,
+      ).returncode
+      == 0
+  ):
     click.echo("  Skipping run_model (already on device)")
   else:
     click.echo("Pushing run_model to device...")
     subprocess.run(
-        ["adb", "push", str(run_model_bin), remote_run_model_path], check=True
+        ["adb", "push", run_model_bin, remote_run_model_path], check=True
     )
 
   # Push libraries to default path
   remote_lib_litert = f"{android_root}/{lib_litert.name}"
-  if subprocess.run(["adb", "shell", f"[ -f {remote_lib_litert} ]"], check=False).returncode == 0:
+  if (
+      subprocess.run(
+          ["adb", "shell", f"[ -f {shlex.quote(remote_lib_litert)} ]"],
+          check=False,
+      ).returncode
+      == 0
+  ):
     click.echo(f"  Skipping {lib_litert.name} (already on device)")
   else:
     click.echo(f"Pushing {lib_litert.name} to device...")
-    subprocess.run(["adb", "push", str(lib_litert), remote_lib_litert], check=True)
+    subprocess.run(["adb", "push", lib_litert, remote_lib_litert], check=True)
 
   remote_lib_clgl = f"{android_root}/{lib_clgl.name}"
-  if subprocess.run(["adb", "shell", f"[ -f {remote_lib_clgl} ]"], check=False).returncode == 0:
+  if (
+      subprocess.run(
+          ["adb", "shell", f"[ -f {shlex.quote(remote_lib_clgl)} ]"],
+          check=False,
+      ).returncode
+      == 0
+  ):
     click.echo(f"  Skipping {lib_clgl.name} (already on device)")
   else:
     click.echo(f"Pushing {lib_clgl.name} to device...")
-    subprocess.run(["adb", "push", str(lib_clgl), remote_lib_clgl], check=True)
+    subprocess.run(["adb", "push", lib_clgl, remote_lib_clgl], check=True)
 
   remote_input_dir = _prepare_inputs_on_device(
-      model_path, inputs, signature_index, android_root
+      model_path=pathlib.Path(model_path),
+      inputs=inputs,
+      signature_index=signature_index,
+      android_root=android_root,
   )
 
-  remote_dispatch_dir = ""
-  if accelerator == "npu":
-    remote_dispatch_dir = npu.push_npu_runtime_libraries(None, android_root)
+  # Pass None as device_id to use the default connected device.
+  remote_dispatch_dir = (
+      npu.push_npu_runtime_libraries(None, android_root)
+      if accelerator == "npu"
+      else ""
+  )
 
+  if accelerator == "npu":
     # Download and push SOC-specific LiteRT dispatch library
     target_model = npu.get_soc_target_model(None)
     soc_vendor = "mediatek" if "mt" in target_model else "qualcomm"
     lib_dispatch = android_utils.find_npu_dispatch_lib(soc_vendor, abi)
 
     remote_lib_dispatch = f"{android_root}/{lib_dispatch.name}"
-    if subprocess.run(["adb", "shell", f"[ -f {remote_lib_dispatch} ]"], check=False).returncode == 0:
+    if (
+        subprocess.run(
+            ["adb", "shell", f"[ -f {shlex.quote(remote_lib_dispatch)} ]"],
+            check=False,
+        ).returncode
+        == 0
+    ):
       click.echo(f"  Skipping {lib_dispatch.name} (already on device)")
     else:
       click.echo(f"Pushing {lib_dispatch.name} to device...")
-      subprocess.run(["adb", "push", str(lib_dispatch), remote_lib_dispatch], check=True)
+      subprocess.run(
+          ["adb", "push", lib_dispatch, remote_lib_dispatch], check=True
+      )
 
   click.echo("Executing on device...\n")
 
-  # Need to make the binary executable before drawing execution triggers
+  # Need to make the binary executable before running the model
   subprocess.run(
-      ["adb", "shell", f"chmod +x {remote_run_model_path}"], check=True
+      ["adb", "shell", f"chmod +x {shlex.quote(remote_run_model_path)}"],
+      check=True,
   )
 
   # Forward valid flags
@@ -264,14 +300,20 @@ def run_android(
     run_cmd_args.append(f"--signature_index={signature_index}")
   if print_tensors:
     run_cmd_args.append("--print_tensors=true")
-  if sample_size != 5:
-    run_cmd_args.append(f"--sample_size={sample_size}")
+  run_cmd_args.append(f"--sample_size={sample_size}")
   if remote_input_dir:
     run_cmd_args.append(f"--input_dir={remote_input_dir}")
 
   try:
-    env_vars = f"LD_LIBRARY_PATH={remote_dispatch_dir} ADSP_LIBRARY_PATH={remote_dispatch_dir} " if remote_dispatch_dir else ""
-    cmd_str = env_vars + " ".join(shlex.quote(arg) for arg in run_cmd_args)
+    if remote_dispatch_dir:
+      env_vars = (
+          f"LD_LIBRARY_PATH={shlex.quote(f'{remote_dispatch_dir}:{android_root}')}"
+          f" ADSP_LIBRARY_PATH={shlex.quote(remote_dispatch_dir)}"
+      )
+    else:
+      env_vars = ""
+    cmd_str = f"{env_vars} " if env_vars else ""
+    cmd_str += " ".join(shlex.quote(arg) for arg in run_cmd_args)
     subprocess.run(
         [
             "adb",
@@ -281,11 +323,15 @@ def run_android(
         check=True,
     )
   except subprocess.CalledProcessError as e:
-    raise click.ClickException(f"Execution failed on device: {e}") from e
+    raise click.ClickException(f"Execution failed on device: {e!r}") from e
   finally:
     # Cleanup remote paths
-    #cleanup_cmd = f"rm -f {remote_model_path} {remote_run_model_path}"
-    #if remote_input_dir:
-    #  cleanup_cmd += f" && rm -rf {remote_input_dir}"
-    #subprocess.run(["adb", "shell", cleanup_cmd], check=False)
     click.echo("Clearing remote files...")
+    cleanup_cmds = [
+        f"rm -f {shlex.quote(remote_model_path)}"
+        f" {shlex.quote(remote_run_model_path)}"
+    ]
+    if remote_input_dir:
+      cleanup_cmds.append(f"rm -rf {shlex.quote(remote_input_dir)}")
+    cleanup_cmd = " && ".join(cleanup_cmds)
+    subprocess.run(["adb", "shell", cleanup_cmd], check=False)

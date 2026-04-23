@@ -14,7 +14,9 @@ Key Features:
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 import pathlib
+import textwrap
 
 import click
 from litert_cli.core import deps
@@ -22,44 +24,45 @@ from litert_cli.core import deps
 
 @click.command(
     "run",
-    help="""Run LiteRT models locally or on device.
+    help=textwrap.dedent("""\
+        Run LiteRT models locally or on device.
 
-MODEL: Path to the LiteRT model (.tflite).
+        MODEL: Path to the LiteRT model (.tflite).
 
-Examples:
+        Examples:
 
-  1. Run on desktop (CPU) with dummy inputs:
+          1. Run on desktop (CPU) with dummy inputs:
 
-    $ litert run model.tflite
+            $ litert run model.tflite
 
-  2. Run on desktop with GPU acceleration:
+          2. Run on desktop with GPU acceleration:
 
-    $ litert run model.tflite --gpu
+            $ litert run model.tflite --gpu
 
-  3. Run with custom inputs (path or literal):
+          3. Run with custom inputs (path or literal):
 
-    $ litert run model.tflite --input image.jpg
+            $ litert run model.tflite --input image.jpg
 
-    OR with named inputs:
+            OR with named inputs:
 
-    $ litert run model.tflite --input in1=1.0 --input in2=image.jpg
+            $ litert run model.tflite --input in1=1.0 --input in2=image.jpg
 
-  4. Run on an attached Android device:
+          4. Run on an attached Android device:
 
-    $ litert run model.tflite --android
+            $ litert run model.tflite --android
 
-  5. Run on Android with GPU acceleration:
+          5. Run on Android with GPU acceleration:
 
-    $ litert run model.tflite --android --gpu
+            $ litert run model.tflite --android --gpu
 
-  6. Benchmark execution with 10 iterations:
+          6. Benchmark execution with 10 iterations:
 
-    $ litert run model.tflite --iterations 10
+            $ litert run model.tflite --iterations 10
 
-  7. Print detailed tensor outputs:
+          7. Print detailed tensor outputs:
 
-    $ litert run model.tflite --print_tensors --sample_size 10
-""",
+            $ litert run model.tflite --print-tensors --sample-size 10
+        """),
 )
 @deps.require_extra("run")
 @click.argument(
@@ -112,7 +115,7 @@ Examples:
     help="Use NPU accelerator.",
 )
 @click.option(
-    "--signature_index",
+    "--signature-index",
     type=int,
     default=0,
     help="Index of model signature to run. Default is 0.",
@@ -124,13 +127,13 @@ Examples:
     help="Number of times to execute the model for benchmarking. Default is 1.",
 )
 @click.option(
-    "--print_tensors",
+    "--print-tensors",
     is_flag=True,
     default=False,
     help="Print output tensor values after execution.",
 )
 @click.option(
-    "--sample_size",
+    "--sample-size",
     type=int,
     default=5,
     help="Number of sample elements to print from tensors. Default is 5.",
@@ -143,7 +146,7 @@ Examples:
 )
 def run_cmd(
     model: pathlib.Path,
-    inputs: tuple[str, ...],
+    inputs: Sequence[str],
     target: str,
     accelerator: str,
     signature_index: int,
@@ -159,16 +162,17 @@ def run_cmd(
     inputs: Tuple of input assignments (e.g., 'name=value' or just 'value').
     target: Execution target ('desktop' or 'android').
     accelerator: Hardware accelerator ('cpu', 'gpu', or 'npu').
-    signature_index: Signature index to invoke.
-    iterations: Number of iterations to run the model.
+    signature_index: Index of model signature to run.
+    iterations: Number of times to execute the model for benchmarking.
     print_tensors: Whether to print output tensor elements.
-    sample_size: Number of elements to print per tensor.
+    sample_size: Number of sample elements to print from tensors.
+    quiet: Whether to silence stderr output.
   """
   if target == "desktop":
     from litert_cli.commands.run import desktop  # pylint: disable=g-import-not-at-top
 
     desktop.run_desktop(
-        str(model),
+        model_path=str(model),
         inputs=inputs,
         accelerator=accelerator,
         signature_index=signature_index,
@@ -181,7 +185,7 @@ def run_cmd(
     from litert_cli.commands.run import android  # pylint: disable=g-import-not-at-top
 
     android.run_android(
-        str(model),
+        model_path=str(model),
         inputs=inputs,
         accelerator=accelerator,
         signature_index=signature_index,

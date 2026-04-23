@@ -7,9 +7,15 @@ auto-installed when the command is invoked.
 from __future__ import annotations
 
 import pathlib
+import textwrap
+import urllib.parse
 
 import click
-from litert_cli.core import deps
+import huggingface_hub
+import huggingface_hub.utils
+import requests
+
+from ..core import deps
 
 
 def _download_from_url(model_path: str, output_dir: str | pathlib.Path) -> None:
@@ -19,19 +25,12 @@ def _download_from_url(model_path: str, output_dir: str | pathlib.Path) -> None:
     model_path: The direct URL to the model file.
     output_dir: The directory where the model will be saved.
   """
-  try:
-    import requests  # pylint: disable=g-import-not-at-top
-  except ImportError:
-    click.secho(
-        "The 'requests' library is required for URL downloads. "
-        "Please install the 'download' extra.",
-        fg="red",
-    )
-    return
-
   click.echo(f"Downloading direct URL: {model_path} to {output_dir}")
 
-  filename = model_path.split("/")[-1] or "downloaded_model.tflite"
+  parsed_url = urllib.parse.urlparse(model_path)
+  filename = pathlib.Path(parsed_url.path).name
+  if not filename:
+    filename = "downloaded_model.tflite"
 
   filepath = pathlib.Path(output_dir) / filename
 
@@ -39,13 +38,24 @@ def _download_from_url(model_path: str, output_dir: str | pathlib.Path) -> None:
     with requests.get(model_path, stream=True) as response:
       response.raise_for_status()
 
-      with open(filepath, "wb") as f:
-        for chunk in response.iter_content(chunk_size=8192):
-          f.write(chunk)
+      total_size = int(response.headers.get("content-length", 0))
+      chunk_size = 8192
+
+      with click.progressbar(
+          length=total_size,
+          label=f"Downloading {filename}",
+          empty_char=" ",
+          fill_char=click.style("#", fg="green"),
+      ) as bar:
+        with open(filepath, "wb") as f:
+          for chunk in response.iter_content(chunk_size=chunk_size):
+            if chunk:
+              f.write(chunk)
+              bar.update(len(chunk))
 
     click.secho(f"Downloaded to {filepath}", fg="green")
   except requests.exceptions.RequestException as e:
-    click.secho(f"Failed to download URL: {e}", fg="red")
+    raise click.ClickException(f"Failed to download URL: {e}") from e
 
 
 def _download_from_hf(
@@ -62,17 +72,6 @@ def _download_from_hf(
     file_pattern: Optional glob pattern to filter files to download.
     token: Optional HuggingFace access token.
   """
-  try:
-    # pylint: disable=g-import-not-at-top
-    from huggingface_hub import snapshot_download
-    from huggingface_hub.utils import HfHubHTTPError
-  except ImportError:
-    click.secho(
-        "The 'huggingface_hub' library is required for HuggingFace downloads. "
-        "Please install the 'download' extra.",
-        fg="red",
-    )
-    return
 
   click.echo(f"Downloading from HuggingFace Hub: {repo_id}")
 
@@ -86,37 +85,47 @@ def _download_from_hf(
     kwargs["allow_patterns"] = file_pattern
 
   try:
-    downloaded_path = snapshot_download(repo_id=repo_id, **kwargs)
+    downloaded_path = huggingface_hub.snapshot_download(
+        repo_id=repo_id, **kwargs
+    )
     click.secho(f"Successfully downloaded to {downloaded_path}", fg="green")
-  except HfHubHTTPError as e:
-    click.secho(f"Failed to download from HuggingFace: {e}", fg="red")
+  except huggingface_hub.utils.HfHubHTTPError as e:
     if "401" in str(e):
-      click.secho("This model might require a token. Use --token", fg="yellow")
+      raise click.ClickException(
+          f"Failed to download from HuggingFace: {e}\n"
+          "This model might require a token. Use --token"
+      ) from e
+    raise click.ClickException(
+        f"Failed to download from HuggingFace: {e}"
+    ) from e
   except Exception as e:  # pylint: disable=broad-exception-caught
     # Catching broad exception as fallback for other huggingface_hub errors
-    click.secho(f"An error occurred during HuggingFace download: {e}", fg="red")
+    raise click.ClickException(
+        f"An error occurred during HuggingFace download: {e}"
+    ) from e
 
 
 @click.command(
     "download",
-    help="""Download models from URL or HuggingFace.
+    help=textwrap.dedent("""\
+    Download models from URL or HuggingFace.
 
-MODEL_PATH: Direct URL to a file, or a HuggingFace Hub repository ID.
+    MODEL_PATH: Direct URL to a file, or a HuggingFace Hub repository ID.
 
-Examples:
+    Examples:
 
-  Download a direct URL to the current directory:
+      Download a direct URL to the current directory:
 
-    $ litert download https://example.com/model.tflite
+        $ litert download https://example.com/model.tflite
 
-  Download all .tflite files from a HuggingFace repo:
+      Download all .tflite files from a HuggingFace repo:
 
-    $ litert download Qwen/Qwen1.5-0.5B-Chat --file "*.tflite"
+        $ litert download Qwen/Qwen1.5-0.5B-Chat --file "*.tflite"
 
-  Download from a private repository using a token:
+      Download from a private repository using a token:
 
-    $ litert download MyOrg/PrivateModel --token hf_your_token
-""",
+        $ litert download MyOrg/PrivateModel --token hf_your_token
+    """),
 )
 @click.argument("model_path")
 @click.option("--output", default=".", help="Specify output directory")

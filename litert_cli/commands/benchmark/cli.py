@@ -8,30 +8,32 @@ This module defines the `benchmark` command using Click. It supports:
 from __future__ import annotations
 
 import pathlib
+import textwrap
 
 import click
 
 
 @click.command(
     "benchmark",
-    help="""Benchmark LiteRT models on different platforms.
+    help=textwrap.dedent("""\
+        Benchmark LiteRT models on different platforms.
 
-MODEL: Path to the LiteRT model file.
+        MODEL: Path to the LiteRT model file.
 
-Examples:
+        Examples:
 
-  # Benchmark on Android with CPU (Default)
+          # Benchmark on Android with CPU (Default)
 
-    $ litert benchmark model.tflite
+            $ litert benchmark model.tflite
 
-  # Benchmark on Android with GPU
+          # Benchmark on Android with GPU
 
-    $ litert benchmark model.tflite --gpu
+            $ litert benchmark model.tflite --gpu
 
-  # Benchmark on Google AI Edge Portal in Google Cloud, using Pixel 7 devices.
+          # Benchmark on Google AI Edge Portal in Google Cloud, using Pixel 7 devices.
 
-    $ litert benchmark model.tflite --gcp --device "pixel 7"
-""",
+            $ litert benchmark model.tflite --gcp --device "pixel 7"
+        """),
 )
 @click.argument(
     "model",
@@ -99,7 +101,7 @@ def benchmark_cmd(
       click.secho(f"Error: Local model file not found: {model}", fg="red")
       return
 
-    android.run_android(str(model), accelerator)
+    android.run_android(model_path=model, accelerator=accelerator)
   elif target == "gcp":
     # pylint: disable=g-import-not-at-top
     from litert_cli.commands.benchmark import gcp

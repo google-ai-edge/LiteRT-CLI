@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import pathlib
+import textwrap
 
 import click
 from litert_cli.core import deps
@@ -11,31 +12,32 @@ from litert_cli.core import deps
 
 @click.command(
     "quantize",
-    help="""Quantize a LiteRT model.
+    help=textwrap.dedent("""\
+        Quantize a LiteRT model.
 
-MODEL: Path to the input .tflite model.
+        MODEL: Path to the input .tflite model.
 
-Examples:
+        Examples:
 
-  Dynamic INT8 Quantization (Default):
+          Dynamic INT8 Quantization (Default):
 
-    $ litert quantize raw_model.tflite --output quant_model.tflite
+            $ litert quantize raw_model.tflite --output quant_model.tflite
 
-  Weight-Only INT8 Quantization:
+          Weight-Only INT8 Quantization:
 
-    $ litert quantize raw_model.tflite --output quant_model.tflite \
-        --type int8_weight_only
+            $ litert quantize raw_model.tflite --output quant_model.tflite \
+                --type int8_weight_only
 
-  Static Quantization (Requires calibration data):
+          Static Quantization (Requires calibration data):
 
-    $ litert quantize raw_model.tflite --type static \
-        --calibration-data calib_data.py --output quant_model.tflite
+            $ litert quantize raw_model.tflite --type static \
+                --calibration-data calib_data.py --output quant_model.tflite
 
-  Custom Recipe:
+          Custom Recipe:
 
-    $ litert quantize raw_model.tflite --recipe recipe.json \
-        --output quant_model.tflite
-""",
+            $ litert quantize raw_model.tflite --recipe recipe.json \
+                --output quant_model.tflite
+        """),
 )
 @click.argument(
     "model",
@@ -84,7 +86,7 @@ def quantize_cmd(
     calibration_data: pathlib.Path | None,
     recipe: pathlib.Path | None,
 ) -> None:
-  r"""Quantizes a LiteRT model.
+  r"""Quantize a LiteRT model.
 
   Args:
     model: Path to the input .tflite model.
@@ -92,13 +94,22 @@ def quantize_cmd(
     quant_type: Type of quantization to apply.
     calibration_data: Path to Python script providing calibration data.
     recipe: Path to JSON recipe file for custom configurations.
+
+  Raises:
+    click.UsageError: If calibration data is missing when required.
+    click.ClickException: If calibration script loading fails or is invalid.
   """
-  import ai_edge_quantizer as aeq  # pylint: disable=g-import-not-at-top
+  from ai_edge_quantizer import quantizer as aeq  # pylint: disable=g-import-not-at-top
+  from ai_edge_quantizer import qtyping  # pylint: disable=g-import-not-at-top
 
-  if not output:
-    output = model.with_name(f"{model.stem}_quant.tflite")
+  if quant_type == "static" and calibration_data is None:
+    raise click.UsageError(
+        "--calibration-data is required when --type is 'static'."
+    )
 
-  click.echo(f"Quantizing '{model}' to '{output}'...")
+  resolved_output = output or model.with_name(f"{model.stem}_quant.tflite")
+
+  click.echo(f"Quantizing '{model}' to '{resolved_output}'...")
   quantizer = aeq.Quantizer(str(model))
 
   if recipe:
@@ -108,35 +119,35 @@ def quantize_cmd(
     click.echo("Configuring static quantization (A8W8)...")
     quantizer.add_static_config(
         regex=".*",
-        operation_name=aeq.qtyping.TFLOperationName.ALL_SUPPORTED,
+        operation_name=qtyping.TFLOperationName.ALL_SUPPORTED,
         activation_num_bits=8,
         weight_num_bits=8,
     )
   elif quant_type == "int8_dynamic":
     quantizer.add_dynamic_config(
         regex=".*",
-        operation_name=aeq.qtyping.TFLOperationName.ALL_SUPPORTED,
+        operation_name=qtyping.TFLOperationName.ALL_SUPPORTED,
         num_bits=8,
     )
   elif quant_type == "int8_weight_only":
     quantizer.add_weight_only_config(
         regex=".*",
-        operation_name=aeq.qtyping.TFLOperationName.ALL_SUPPORTED,
+        operation_name=qtyping.TFLOperationName.ALL_SUPPORTED,
         num_bits=8,
     )
   elif quant_type == "int16_weight_only":
     quantizer.add_weight_only_config(
         regex=".*",
-        operation_name=aeq.qtyping.TFLOperationName.ALL_SUPPORTED,
+        operation_name=qtyping.TFLOperationName.ALL_SUPPORTED,
         num_bits=16,
     )
 
   calibration_result = None
   if quantizer.need_calibration:
-    if not calibration_data:
+    if calibration_data is None:
       raise click.UsageError(
-          "Calibration data is required for this configuration (Static or"
-          " specific recipes). Use --calibration-data <script.py>"
+          "Calibration data is required for the specified recipe. Use "
+          "--calibration-data <script.py>"
       )
     click.echo(f"Loading calibration data from '{calibration_data}'...")
 
@@ -159,6 +170,7 @@ def quantize_cmd(
 
   click.echo("Applying quantization...")
   result = quantizer.quantize(calibration_result)
-  output.parent.mkdir(parents=True, exist_ok=True)
-  result.export_model(str(output), overwrite=True)
-  click.secho(f"Quantization complete! Saved to {output}", fg="green")
+  resolved_output.parent.mkdir(parents=True, exist_ok=True)
+  result.export_model(str(resolved_output), overwrite=True)
+
+  click.secho(f"Quantization complete! Saved to {resolved_output}", fg="green")

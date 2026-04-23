@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import importlib.util
 import pathlib
-import sys
 import shutil
+import sys
 from typing import Any
 
 import click
 from litert_cli.core import npu_utils
+
 from ai_edge_litert.aot.ai_pack import export_lib as ai_pack_export
 
 
@@ -21,7 +22,7 @@ def convert_generic_script(
     target: tuple[str, ...],
     export_aipack: pathlib.Path | None,
 ) -> None:
-  """Conversion logic using generic PyTorch scripts and `litert_torch.convert`.
+  """Converts using generic PyTorch scripts and `litert_torch.convert`.
 
   Args:
     script: Path to the PyTorch script (.py).
@@ -75,8 +76,7 @@ def convert_generic_script(
     # The user might return just the nn.Module or a tuple of
     # (nn.Module, QuantConfig)
     if isinstance(model_result, tuple):
-      model = model_result[0]
-      quant_config = model_result[1]
+      model, quant_config = model_result
     else:
       model = model_result
       quant_config = None
@@ -98,19 +98,19 @@ def convert_generic_script(
       )
 
     click.echo("Executing liteRT conversion tracer...")
-    
+
     builder = litert_torch
     if target:
       for t in target:
         target_obj = npu_utils.get_target(t)
         builder = builder.experimental_add_compilation_backend(target_obj)
-      
+
     edge_model = builder.convert(
-          module=model,
-          sample_args=sample_args,
-          sample_kwargs=sample_kwargs,
-          quant_config=quant_config,
-      )
+        module=model,
+        sample_args=sample_args,
+        sample_kwargs=sample_kwargs,
+        quant_config=quant_config,
+    )
 
     out_path = pathlib.Path(output)
     out_path.mkdir(parents=True, exist_ok=True)
@@ -130,7 +130,7 @@ def convert_generic_script(
         final_path = out_path / f"{model_name}.tflite"
         click.echo(f"Exporting converted model to {final_path}...")
         edge_model.export(str(final_path))
-      
+
     click.echo("Done!")
 
   finally:

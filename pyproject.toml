@@ -21,20 +21,16 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-download = [
-    "huggingface_hub",
-    "requests",
+test = [
+    "absl-py",
 ]
 convert = [
-    "litert-torch-nightly", 
+    "litert-torch-nightly",
     "torch",
     # Latest transformers break litert-torch-nightly
     "transformers<5.0.0",
     "torchvision",
     "sentencepiece",
-]
-run = [
-    "ai-edge-litert"
 ]
 visualize = [
     "ai-edge-model-explorer"
@@ -42,12 +38,6 @@ visualize = [
 lm = [
     "litert-lm-cli-nightly",
     "litert-lm-nightly",
-]
-quantize = [
-    "ai-edge-quantizer"
-]
-image = [
-    "Pillow",
 ]
 all = [
     "litert-cli[convert,visualize,lm]"
@@ -57,12 +47,9 @@ all = [
 litert = "litert_cli.litert:cli"
 
 [tool.setuptools]
-[tool.setuptools.packages.find]
-include = ["litert_cli*", "test_scripts*"]
+packages = ["litert_cli", "litert_cli.commands", "litert_cli.core"]
+package-dir = {"litert_cli" = ".", "litert_cli.commands" = "commands", "litert_cli.core" = "core"}
 
 [tool.setuptools.package-data]
 "litert_cli" = ["test_data/*"]
 "test_scripts" = ["*"]
-
-
-

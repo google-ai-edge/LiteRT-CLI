@@ -4,59 +4,46 @@ This module provides the main entry point for the LiteRT CLI, using lazy-loaded
 commands for improved startup performance.
 """
 
-from __future__ import annotations
-
 import importlib
-
+import sys
 import click
 
 
 class LazyCLI(click.Group):
-  """A click.Group that lazy-loads command implementations from other modules.
+  """Lazy loading command group.
 
-  This improves CLI startup performance by avoiding the overhead of importing
-  heavy dependencies (like torch, tensorflow, or huggingface_hub) until a
-  specific command is actually executed.
+  Only imports the actual module when the command is invoked.
   """
 
   def list_commands(self, ctx: click.Context) -> list[str]:
-    """Returns a list of available command names."""
+    del self
     return [
-        'download',
-        'convert',
-        'compile',
-        'visualize',
-        'quantize',
-        'run',
-        'lm',
         'benchmark',
         'clean',
+        'compile',
+        'convert',
+        'download',
+        'lm',
+        'quantize',
+        'run',
+        'visualize',
     ]
 
   def get_command(
       self, ctx: click.Context, cmd_name: str
   ) -> click.Command | None:
-    """Loads and returns the requested command object.
-
-    Args:
-      ctx: The click context (unused).
-      cmd_name: The name of the command to load.
-
-    Returns:
-      A click.Command instance if found, or None otherwise.
-    """
+    del self
     routes = {
-        'download': ('litert_cli.commands.download', 'download_cmd'),
-        'convert': ('litert_cli.commands.convert.cli', 'convert_cmd'),
+        'benchmark': ('litert_cli.commands.benchmark.cli', 'benchmark_cmd'),
+        'clean': ('litert_cli.commands.clean', 'clean_cmd'),
         'compile': ('litert_cli.commands.compile', 'compile_cmd'),
+        'convert': ('litert_cli.commands.convert.cli', 'convert_cmd'),
+        'download': ('litert_cli.commands.download', 'download_cmd'),
+        'lm': ('litert_cli.commands.lm', 'lm_cmd'),
         'quantize': ('litert_cli.commands.quantize', 'quantize_cmd'),
         'run': ('litert_cli.commands.run.cli', 'run_cmd'),
         'visualize': ('litert_cli.commands.visualize', 'visualize_cmd'),
-        'lm': ('litert_cli.commands.lm', 'lm_cmd'),
-        'benchmark': ('litert_cli.commands.benchmark.cli', 'benchmark_cmd'),
-        'clean': ('litert_cli.commands.clean', 'clean_cmd'),
     }
-
     if cmd_name not in routes:
       return None
 
@@ -65,16 +52,27 @@ class LazyCLI(click.Group):
       mod = importlib.import_module(module_path)
       return getattr(mod, obj_name)
     except (ImportError, AttributeError) as e:
-      click.secho(f"Failed to load command '{cmd_name}': {e}", fg='red')
-      return None
+      raise click.ClickException(
+          f"Failed to load command '{cmd_name}': {e}"
+      ) from e
 
 
 @click.command(cls=LazyCLI)
 @click.pass_context
 def cli(ctx: click.Context) -> None:
-  """The main entry point for the LiteRT CLI."""
+  """Runs the LiteRT CLI."""
   ctx.ensure_object(dict)
 
 
+def main_bridge(unused_argv):
+  cli.main(args=sys.argv[1:])
+
+
 if __name__ == '__main__':
-  cli()
+  try:
+    # Try to run in google3
+    from absl import app  # pylint: disable=g-import-not-at-top
+
+    app.run(main_bridge, argv=[sys.argv[0]])
+  except ImportError:
+    cli()

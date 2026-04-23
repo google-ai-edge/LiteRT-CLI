@@ -23,24 +23,25 @@ Usage Examples:
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
+import contextlib
 import time
 from typing import Any, TYPE_CHECKING
-from contextlib import nullcontext
-from litert_cli.core.utils import silence_stderr
 
 import click
+from litert_cli.core import constants
 from litert_cli.core import inputs as inputs_utils
+from litert_cli.core import utils
 import numpy as np
 
 if TYPE_CHECKING:
   # Import heavy dependencies only for type hinting to improve CLI startup
   # performance. These are not imported at runtime.
-  from ai_edge_litert.compiled_model import CompiledModel
-  from ai_edge_litert.hardware_accelerator import HardwareAccelerator
+  from ai_edge_litert.litert_wrapper.compiled_model_wrapper import compiled_model  # pylint: disable=g-import-not-at-top
 
 
-def _parse_inputs_dict(inputs: tuple[str, ...]) -> dict[str, str]:
-  """Parses a tuple of input assignments into a dictionary.
+def _parse_inputs_dict(inputs: Sequence[str]) -> dict[str, str]:
+  """Parse a tuple of input assignments into a dictionary.
 
   Args:
     inputs: A tuple of input strings, e.g., ('name=value', 'value2').
@@ -60,11 +61,14 @@ def _parse_inputs_dict(inputs: tuple[str, ...]) -> dict[str, str]:
 
 
 def _prepare_inputs(
-    cm: CompiledModel, sig_key: str, parsed_inputs: dict[str, str]
+    *,
+    cm: compiled_model.CompiledModel,
+    sig_key: str,
+    parsed_inputs: dict[str, str],
 ) -> dict[str, Any]:
-  """Prepares CompiledModel input buffers.
+  """Prepare CompiledModel input buffers.
 
-  Loads parsed input assignments or generates random dummy data to load into the
+  Load parsed input assignments or generates random dummy data to load into the
   CompiledModel TensorBuffers.
 
   Args:
@@ -90,60 +94,74 @@ def _prepare_inputs(
 
     if input_data_str:
       click.echo(
-          f"Loading input '{name}' from '{input_data_str}' (shape:"
+          f"Loading input {name!r} from {input_data_str!r} (shape:"
           f" {shape}, dtype: {tensor_type})"
       )
       try:
-        data = inputs_utils.parse_input(input_data_str, shape, np_dtype)
+        input_data = inputs_utils.parse_input(input_data_str, shape, np_dtype)
       except ImportError as ie:
-        click.secho(str(ie), fg="red")
+        click.secho(ie, fg="red")
         raise click.ClickException("Failed to load input module.") from ie
       except Exception as e:
-        click.secho(f"Failed to parse input: {e}", fg="red")
+        click.secho(f"Failed to parse input: {e!r}", fg="red")
         raise click.ClickException(
-            f"Failed to parse input '{name}': {e}"
+            f"Failed to parse input {name!r}: {e!r}"
         ) from e
     else:
       click.echo(
-          f"Generating random dummy input '{name}' with shape {shape} and"
+          f"Generating random dummy input {name!r} with shape {shape} and"
           f" dtype {tensor_type}"
       )
-      data = np.array(
-          np.random.uniform(low=-1.0, high=1.0, size=shape), dtype=np_dtype
-      )
+      rng = np.random.default_rng()
+      if np.issubdtype(np_dtype, np.integer):
+        input_data = rng.integers(0, 10, size=shape, dtype=np_dtype)
+      else:
+        input_data = np.asarray(
+            rng.uniform(low=-1.0, high=1.0, size=shape)
+        ).astype(np_dtype)
 
     tb = cm.create_input_buffer_by_name(sig_key, name)
-    tb.write(data)
+    tb.write(input_data)
     inputs_dict[name] = tb
 
   return inputs_dict
 
 
 def _print_outputs(
-    outputs_map: dict[str, Any], print_tensors: bool, sample_size: int
+    outputs_by_name: Mapping[str, Any],
+    print_tensors: bool,
+    sample_size: int,
+    output_details: Mapping[str, Any],
 ) -> None:
-  """Prints inference outputs to stdout.
+  """Print inference outputs to stdout.
 
-  Iterates through absolute tensor results and applies heuristics for
+  Iterate through absolute tensor results and applies heuristics for
   classification formatting or raw values flattening details.
 
   Args:
-    outputs_map: Dictionary mapping output names to read-ready TensorBuffers.
+    outputs_by_name: Dictionary mapping output names to read-ready
+      TensorBuffers.
     print_tensors: Boolean flag to trigger full tensor stream printing.
     sample_size: Constraint on how many elements to print for large arrays.
+    output_details: Dictionary mapping output names to their tensor details.
   """
   click.echo("Outputs:")
-  for out_name, out_tb in outputs_map.items():
+  for out_name, out_tb in outputs_by_name.items():
     try:
       shape = out_tb.shape if hasattr(out_tb, "shape") else []
       num_elements = np.prod(shape) if shape else 1
-      out_np = out_tb.read(num_elements, np.float32)
+
+      details = output_details.get(out_name, {})
+      tensor_type = details.get("dtype", "?")
+      np_dtype = inputs_utils.get_np_dtype(tensor_type)
+
+      out_np = out_tb.read(num_elements, np_dtype)
 
       if shape:
         out_np = out_np.reshape(shape)
 
       if print_tensors:
-        flat_out = out_np.flatten()
+        flat_out = out_np.ravel()
         n_elem = len(flat_out)
         click.echo(f"  {out_name} (shape: {shape}):")
 
@@ -153,8 +171,8 @@ def _print_outputs(
           p_start = flat_out[:sample_size]
           p_end = flat_out[-sample_size:]
           click.echo(
-              f"    [{' '.join(map(str, p_start))} ..."
-              f" {' '.join(map(str, p_end))}]"
+              f"    [{' '.join(str(x) for x in p_start)} ..."
+              f" {' '.join(str(x) for x in p_end)}]"
           )
       else:
         # Classification inference heuristics fallback
@@ -173,16 +191,17 @@ def _print_outputs(
               f"  {out_name}: mean={np.mean(out_np):.4f},"
               f" min={np.min(out_np):.4f}, max={np.max(out_np):.4f}"
           )
-    except Exception:  # pylint: disable=broad-exception-caught
+    except Exception as e:  # pylint: disable=broad-exception-caught
       click.echo(
           f"  {out_name}: [Unable to read data natively without specific"
-          " dtype info]"
+          f" dtype info] (Error: {e!r})"
       )
 
 
 def run_desktop(
+    *,
     model_path: str,
-    inputs: tuple[str, ...],
+    inputs: Sequence[str],
     accelerator: str,
     signature_index: int,
     iterations: int,
@@ -190,7 +209,7 @@ def run_desktop(
     sample_size: int,
     quiet: bool = False,
 ) -> None:
-  """Run the model on the desktop target using CompiledModel.
+  """Runs the model on the desktop target using CompiledModel.
 
   Args:
     model_path: Local path to the LiteRT model file (.tflite).
@@ -200,6 +219,7 @@ def run_desktop(
     iterations: Number of execute loops for remote runner.
     print_tensors: Whether to print absolute stats after execution completes.
     sample_size: Limit execution sample stream print length per tensor.
+    quiet: Whether to silence stderr output.
 
   Raises:
     click.ClickException: On loading failure or inference execution errors.
@@ -210,38 +230,49 @@ def run_desktop(
   )
 
   # pylint: disable=g-import-not-at-top,reimported
-  from ai_edge_litert.compiled_model import CompiledModel
-  from ai_edge_litert.hardware_accelerator import HardwareAccelerator
+  from ai_edge_litert.litert_wrapper.compiled_model_wrapper import compiled_model
+  from ai_edge_litert.litert_wrapper.compiled_model_wrapper import hardware_accelerator
 
-  hw_accel = HardwareAccelerator.CPU
+  hw_accel = hardware_accelerator.HardwareAccelerator.CPU
   if accelerator == "gpu":
-    hw_accel = HardwareAccelerator.GPU
+    hw_accel = hardware_accelerator.HardwareAccelerator.GPU
   elif accelerator == "npu":
     raise click.ClickException(
         "NPU accelerator is not yet formally supported via desktop API."
     )
 
-  ctx = silence_stderr() if quiet else nullcontext()
+  ctx = utils.silence_stderr() if quiet else contextlib.nullcontext()
   with ctx:
     try:
-      cm = CompiledModel.from_file(model_path, hw_accel)
+      env = None
+      if constants.IN_GOOGLE3:
+        # In Google3 environment, we need to fallback to LD_LIBRARY_PATH for
+        # loading GPU accelerators in hermetic .par file. Otherwise, use
+        # default path.
+        env = compiled_model.Environment.create(runtime_path="")
+      cm = compiled_model.CompiledModel.from_file(
+          model_path, hw_accel, environment=env
+      )
       signatures = cm.get_signature_list()
       if not signatures:
-        click.secho("No signatures found in the model.", fg="yellow")
-        return
+        raise click.ClickException(
+            f"No signatures found in the model: {model_path!r}"
+        )
 
       try:
         sig_info = cm.get_signature_by_index(signature_index)
         sig_key = sig_info["key"]
       except Exception as e:  # pylint: disable=broad-exception-caught
         raise click.ClickException(
-            f"Failed to get signature at index {signature_index}: {e}"
+            f"Failed to get signature at index {signature_index}: {e!r}"
         ) from e
 
-      click.echo(f"Using signature: {sig_key}")
+      click.echo(f"Using signature: {sig_key!r}")
 
       parsed_inputs = _parse_inputs_dict(inputs)
-      inputs_dict = _prepare_inputs(cm, sig_key, parsed_inputs)
+      inputs_dict = _prepare_inputs(
+          cm=cm, sig_key=sig_key, parsed_inputs=parsed_inputs
+      )
 
       click.echo(f"Running inference {iterations} times...")
 
@@ -250,12 +281,12 @@ def run_desktop(
       sig_idx = cm.get_signature_index(sig_key)
       out_buffers = cm.create_output_buffers(sig_idx)
       out_names = signatures[sig_key]["outputs"]
-      outputs_map = dict(zip(out_names, out_buffers))
+      outputs_by_name = dict(zip(out_names, out_buffers))
 
       for _ in range(iterations):
-        start_time = time.time()
-        cm.run_by_name(sig_key, inputs_dict, outputs_map)
-        end_time = time.time()
+        start_time = time.perf_counter()
+        cm.run_by_name(sig_key, inputs_dict, outputs_by_name)
+        end_time = time.perf_counter()
         run_times.append((end_time - start_time) * 1000)
 
       if iterations == 1:
@@ -267,10 +298,13 @@ def run_desktop(
         click.echo(f"  Min: {np.min(run_times):.2f} ms")
         click.echo(f"  Max: {np.max(run_times):.2f} ms")
 
-      _print_outputs(outputs_map, print_tensors, sample_size)
-      del outputs_map
-      del inputs_dict
-      del cm
+        output_details = cm.get_output_tensor_details(sig_key)
+        _print_outputs(
+            outputs_by_name, print_tensors, sample_size, output_details
+        )
 
     except Exception as e:  # pylint: disable=broad-exception-caught
-      raise click.ClickException(f"Inference failed: {e}") from e
+      raise click.ClickException(
+          f"Inference failed for model {model_path!r} with accelerator"
+          f" {accelerator!r}: {e!r}"
+      ) from e

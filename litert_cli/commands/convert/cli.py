@@ -8,6 +8,7 @@ injection, and native generative API re-authoring.
 from __future__ import annotations
 
 import pathlib
+import textwrap
 
 import click
 from litert_cli.core import deps
@@ -15,20 +16,21 @@ from litert_cli.core import deps
 
 @click.command(
     "convert",
-    help="""Convert a PyTorch model into a LiteRT model.
+    help=textwrap.dedent("""\
+        Convert a PyTorch model into a LiteRT model.
 
-MODEL_OR_SCRIPT: Hugging Face model ID or path to a PyTorch script.
+        MODEL_OR_SCRIPT: Hugging Face model ID or path to a PyTorch script.
 
-Examples:
+        Examples:
 
-  Automated HF Conversion:
+          Automated HF Conversion:
 
-    $ litert convert Qwen/Qwen1.5-0.5B-Chat --output /tmp/qwen
+            $ litert convert Qwen/Qwen1.5-0.5B-Chat --output /tmp/qwen
 
-  Generic Script Injection:
+          Generic Script Injection:
 
-    $ litert convert my_model.py --output /tmp/mymodel
-""",
+            $ litert convert my_model.py --output /tmp/mymodel
+    """),
 )
 @deps.require_extra("convert")
 @click.argument("model_or_script", type=str, required=True)
@@ -66,7 +68,10 @@ Examples:
     "--target",
     type=str,
     multiple=True,
-    help="One or more NPU target codenames (e.g., sm8450) to apply AOT compilation.",
+    help=(
+        "One or more NPU target codenames (e.g., sm8450) to apply AOT"
+        " compilation."
+    ),
 )
 @click.option(
     "--export-aipack",
@@ -78,7 +83,10 @@ Examples:
     ),
     required=False,
     default=None,
-    help="If specified, exports an AI Pack directory for PODAI alongside the compiled model.",
+    help=(
+        "If specified, exports an AI Pack directory for PODAI alongside the"
+        " compiled model."
+    ),
 )
 def convert_cmd(
     model_or_script: str,
@@ -99,20 +107,27 @@ def convert_cmd(
     export_aipack: Output directory to export the AI Pack for PODAI.
   """
 
-  if not output:
+  if output is None:
     if model_or_script.endswith(".py"):
       base_name = pathlib.Path(model_or_script).stem
     else:
-      base_name = model_or_script.split("/")[-1]
+      base_name = pathlib.Path(model_or_script).name
     output = pathlib.Path.cwd() / base_name
 
   if model_or_script.endswith(".py"):
     from litert_cli.commands.convert import generic  # pylint: disable=g-import-not-at-top
 
     generic.convert_generic_script(
-        model_or_script, model_func, input_func, str(output), target, export_aipack
+        model_or_script,
+        model_func,
+        input_func,
+        str(output),
+        target,
+        export_aipack,
     )
   else:
     from litert_cli.commands.convert import huggingface  # pylint: disable=g-import-not-at-top
 
-    huggingface.convert_huggingface(model_or_script, str(output), target, export_aipack)
+    huggingface.convert_huggingface(
+        model_or_script, str(output), target, export_aipack
+    )

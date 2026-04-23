@@ -1,4 +1,4 @@
-"""GCP Benchmark Module."""
+"""Benchmarking on Google AI Edge Portal in GCP."""
 
 from __future__ import annotations
 
@@ -13,10 +13,11 @@ import uuid
 
 import click
 
-# TODO(shuangfeng): Make these configurable via flags.
+# This is internal experimental code, not ready for general public.
+# TODO: b/493604945 - change this as public APIs later.
 _DEFAULT_GCP_PROJECT = "aep-e2e-test"
 _DEFAULT_GCP_LOCATION = "us-central1"
-_DEFAULT_GCP_BUCKET = "litert-cli-test"
+_GCP_BUCKET = os.environ.get("LITERT_GCP_BUCKET", "litert-cli-test")
 _DEFAULT_PORTAL_ENDPOINT = "https://aiedgeportal.googleapis.com/v1alpha"
 
 
@@ -52,6 +53,10 @@ def run_gcp(
 ) -> None:
   """Runs the model on GCP via AI Edge Portal Cloud API.
 
+  Uploads model to GCS if it's not already there.
+  Submits benchmark job to AI Edge Portal Cloud API.
+  Polls benchmark job status.
+
   Args:
     model_path_str: Path to the LiteRT model file (local or gs://).
     accelerator: Hardware accelerator to use (cpu, gpu, npu).
@@ -67,7 +72,7 @@ def run_gcp(
 
     click.secho(
         f"Uploading local model '{model_path}' to"
-        f" gs://{_DEFAULT_GCP_BUCKET}/...",
+        f" gs://{_GCP_BUCKET}/...",
         fg="cyan",
     )
     try:
@@ -77,14 +82,15 @@ def run_gcp(
               "storage",
               "cp",
               str(local_model),
-              f"gs://{_DEFAULT_GCP_BUCKET}/",
+              f"gs://{_GCP_BUCKET}/",
           ],
           check=True,
       )
-      model_path = f"gs://{_DEFAULT_GCP_BUCKET}/{local_model.name}"
-    except subprocess.CalledProcessError:
+      model_path = f"gs://{_GCP_BUCKET}/{local_model.name}"
+    except subprocess.CalledProcessError as e:
       click.secho(
-          f"Error: Failed to upload '{model_path}' to Google Cloud Storage.",
+          f"Error: Failed to upload '{model_path}' to Google Cloud Storage:"
+          f" {e}",
           fg="red",
       )
       return
@@ -96,10 +102,10 @@ def run_gcp(
     token = subprocess.check_output(
         ["gcloud", "auth", "print-access-token"], text=True
     ).strip()
-  except subprocess.CalledProcessError:
+  except subprocess.CalledProcessError as e:
     click.secho(
         "Error: Failed to get gcloud access token. Please run 'gcloud auth"
-        " login' first.",
+        f" login' first. Details: {e}",
         fg="red",
     )
     return
@@ -168,7 +174,8 @@ def run_gcp(
               with urllib.request.urlopen(req_op) as res_op:
                 op_data = json.loads(res_op.read().decode())
             except urllib.error.HTTPError as e:
-              click.secho(f"\nError polling operation: {e}", fg="yellow")
+              with e:
+                click.secho(f"\nError polling operation: {e}", fg="yellow")
               continue
 
             if op_data.get("done"):
@@ -192,10 +199,8 @@ def run_gcp(
               fg="yellow",
           )
           click.echo(
-              "You can check its status later by running:\n"
-              'curl -s -H "Authorization: Bearer $(gcloud auth'
-              f' print-access-token)" "{op_url}"\n'
-              f"Or view it in the console: {console_url}"
+              f"You can check its status later by viewing it in the console:"
+              " {console_url}"
           )
       else:
         click.echo(json.dumps(resp_data, indent=2))

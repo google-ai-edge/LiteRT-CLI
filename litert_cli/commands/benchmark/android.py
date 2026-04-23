@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pathlib
+import shlex
 import subprocess
 
 import click
@@ -11,12 +12,17 @@ from litert_cli.core import constants
 from litert_cli.core import npu_utils as npu
 
 
-def run_android(model_path: str, accelerator: str) -> None:
-  """Runs the model on an Android device via adb and benchmark_model.
+def run_android(*, model_path: pathlib.Path, accelerator: str) -> None:
+  """Runs the model on an Android device.
+
+  Pushes the model and benchmark_model binary to the device and runs it.
 
   Args:
     model_path: Path to the local LiteRT model file.
     accelerator: Hardware accelerator to use (cpu, gpu, npu).
+
+  Raises:
+    subprocess.CalledProcessError: If any adb command fails on the device.
   """
   click.echo("Preparing to run on Android device via adb...")
 
@@ -24,11 +30,9 @@ def run_android(model_path: str, accelerator: str) -> None:
   abi = android_utils.get_android_abi()
   click.echo(f"Detected Android device ABI: {abi}")
 
-  cli_root = constants.LITERT_CLI_ROOT
   cli_android_root = constants.LITERT_CLI_ANDROID_ROOT
 
-  model_path_obj = pathlib.Path(model_path)
-  model_name = model_path_obj.name
+  model_name = model_path.name
   remote_model_path = f"{cli_android_root}/{model_name}"
 
   benchmark_model_bin = android_utils.find_android_binary(
@@ -36,7 +40,6 @@ def run_android(model_path: str, accelerator: str) -> None:
   )
 
   remote_dispatch_dir = ""
-  remote_lib_dispatch = ""
   if accelerator == "npu":
     remote_dispatch_dir = npu.push_npu_runtime_libraries(None, cli_android_root)
 
@@ -46,15 +49,24 @@ def run_android(model_path: str, accelerator: str) -> None:
     lib_dispatch = android_utils.find_npu_dispatch_lib(soc_vendor, abi)
 
     remote_lib_dispatch = f"{cli_android_root}/{lib_dispatch.name}"
-    if subprocess.run(["adb", "shell", f"[ -f {remote_lib_dispatch} ]"], check=False).returncode == 0:
+    if (
+        subprocess.run(
+            ["adb", "shell", f"[ -f {remote_lib_dispatch} ]"], check=False
+        ).returncode
+        == 0
+    ):
       click.echo(f"  Skipping {lib_dispatch.name} (already on device)")
     else:
       click.echo(f"Pushing {lib_dispatch.name} to device...")
-      subprocess.run(["adb", "push", str(lib_dispatch), remote_lib_dispatch], check=True)
+      subprocess.run(
+          ["adb", "push", str(lib_dispatch), remote_lib_dispatch], check=True
+      )
 
   click.echo(f"Pushing model {model_name} to device...")
   subprocess.run(["adb", "shell", "mkdir", "-p", cli_android_root], check=True)
-  subprocess.run(["adb", "push", model_path, remote_model_path], check=True)
+  subprocess.run(
+      ["adb", "push", str(model_path), remote_model_path], check=True
+  )
 
   click.echo("Pushing benchmark_model to device...")
   subprocess.run(
@@ -71,21 +83,27 @@ def run_android(model_path: str, accelerator: str) -> None:
       check=True,
   )
 
-
-
   click.echo("Executing benchmark on device...\n")
   try:
-    bench_cmd = (
-        f"{cli_android_root}/benchmark_model --graph={remote_model_path}"
-    )
+    bench_args = [
+        f"{cli_android_root}/benchmark_model",
+        f"--graph={shlex.quote(remote_model_path)}",
+    ]
     if accelerator == "gpu":
-      bench_cmd += " --use_gpu=true"
+      bench_args.append("--use_gpu=true")
     elif accelerator == "npu":
-      bench_cmd += (
-          f" --use_npu=true --dispatch_library_path={cli_android_root}"
+      bench_args.append("--use_npu=true")
+      bench_args.append(f"--dispatch_library_path={shlex.quote(cli_android_root)}")
+
+    env_vars = ""
+    if remote_dispatch_dir:
+      quoted_dispatch_dir = shlex.quote(remote_dispatch_dir)
+      env_vars = (
+          f"LD_LIBRARY_PATH={quoted_dispatch_dir} "
+          f"ADSP_LIBRARY_PATH={quoted_dispatch_dir} "
       )
 
-    env_vars = f"LD_LIBRARY_PATH={remote_dispatch_dir} ADSP_LIBRARY_PATH={remote_dispatch_dir} " if remote_dispatch_dir else ""
-    subprocess.run(["adb", "shell", env_vars + bench_cmd], check=True)
+    full_command = env_vars + " ".join(bench_args)
+    subprocess.run(["adb", "shell", full_command], check=True)
   except subprocess.CalledProcessError as e:
-    click.secho(f"Execution failed on device: {e}", fg="red")
+    click.secho(f"Execution failed on device: {repr(e)}", fg="red")
