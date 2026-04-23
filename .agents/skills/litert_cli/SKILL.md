@@ -29,7 +29,7 @@ if ! command -v litert &> /dev/null; then
   if [ -f "pyproject.toml" ]; then
     pip install -e .
   else
-    pip install -q -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple litert-cli==0.1.1.dev15
+    pip install -q -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple litert-cli==0.1.1.dev17
   fi
 fi
 ```
