@@ -48,7 +48,6 @@ litert = "litert_cli.litert:cli"
 
 [tool.setuptools]
 packages = ["litert_cli", "litert_cli.commands", "litert_cli.core"]
-package-dir = {"litert_cli" = ".", "litert_cli.commands" = "commands", "litert_cli.core" = "core"}
 
 [tool.setuptools.package-data]
 "litert_cli" = ["test_data/*"]
