@@ -5,17 +5,15 @@ executing LiteRT (TFLite) models.
 
 ## 🚀 Installation
 
-Install `litert-cli` with pip from the local source or Test PyPI.
+Install `litert-cli` with pip from the local source or PyPI.
 
 ```bash
 # Installation from local source (recommended for development)
 pip install -e .
 
-# Or install from PyPI
-pip install litert-cli
+# Install from Test PyPI (verified in linux and macbook, with Python 3.13)
+pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple litert-cli==0.1.1.dev17
 ```
-
-## 🎯 Quick Start
 
 ### Common Commands
 
@@ -31,7 +29,91 @@ litert download litert-community/MobileNet-v3-large \
   --output mobilenet_full
 ```
 
-**2. Visualize a model architecture:**
+**2. Convert a PyTorch model into a LiteRT model:**
+```bash
+# Automated HF Conversion
+litert convert Qwen/Qwen1.5-0.5B-Chat --output /tmp/qwen
+
+# Generic Script Injection
+litert convert my_model.py --output /tmp/mymodel
+
+# Known Script Conversion (e.g., ResNet18)
+litert convert resnet18.py --output /tmp/resnet18
+```
+
+**3. Quantize a LiteRT model:**
+```bash
+# Dynamic INT8 Quantization (Default)
+litert quantize model.tflite \
+  --type int8_dynamic \
+  --output dynamic.tflite
+
+# Weight-Only Quantization
+litert quantize model.tflite \
+  --type int8_weight_only \
+  --output weight_only.tflite
+
+# Static Range Quantization (requires calibration data)
+litert quantize model.tflite \
+  --type static \
+  --calibration-data calib_data.py \
+  --output static.tflite
+
+# Recipe-based Custom Quantization
+litert quantize model.tflite \
+  --recipe recipe.json \
+  --output recipe.tflite
+```
+
+**4. Compile a LiteRT model for NPU AOT:**
+
+```bash
+# Basic Compilation for specific NPU, like qualcomm sm8450, used in Xiaomi 15 pro.
+# Only verified on linux host for now and Macbook doesn't work.
+litert compile model.tflite --target sm8450
+
+# Compile for multiple targets and export AI Pack for Android
+litert compile model.tflite --target sm8550 --target mt6989 --export-aipack my_npu_models
+```
+
+**5. Run a LiteRT model on Desktop or Android:**
+```bash
+# Run locally on desktop (CPU)
+litert run model.tflite --desktop --cpu
+
+# Run with GPU acceleration
+litert run model.tflite --gpu
+
+# Run on connected Android device
+litert run model.tflite --android
+
+# Run on connected Android device with NPU acceleration, with NPU AOT compiled model
+litert run model_sm8450.tflite --android --npu
+
+# Run multiple iterations and print output tensors
+litert run model.tflite \
+  --iterations 5 \
+  --print_tensors
+
+# Run with custom input formats (supports image, raw binary, numpy array)
+litert run model.tflite \
+  --input "image.png" \
+  --print_tensors
+```
+
+**6. Benchmark a model performance:**
+```bash
+# Benchmark on Android (CPU side)
+litert benchmark model.tflite --android --cpu
+
+# Benchmark AOT compiled model on Android NPU
+litert benchmark model_sm8450.tflite --android --npu
+
+# Benchmark on Android GPU
+litert benchmark model.tflite --android --gpu
+```
+
+**7. Visualize a model architecture:**
 ```bash
 # Open in Model Explorer graph
 litert visualize model.tflite
@@ -40,3 +122,14 @@ litert visualize model.tflite
 litert visualize --stop_all
 ```
 
+**7. Visualize a model architecture:**
+```bash
+# Open in Model Explorer graph
+litert visualize model.tflite
+```
+
+**8. Clean up all caches:**
+```bash
+# Clean up model cache, etc.
+litert clean
+```

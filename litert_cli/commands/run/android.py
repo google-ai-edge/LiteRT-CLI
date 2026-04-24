@@ -71,15 +71,15 @@ def _prepare_inputs_on_device(
     click.echo("Parsing inputs locally before pushing to device...")
     from ai_edge_litert.litert_wrapper.compiled_model_wrapper import compiled_model  # pylint: disable=g-import-not-at-top
 
-    with compiled_model.CompiledModel.from_file(model_path) as cm:
-      signatures = cm.get_signature_list()
-      if not signatures:
-        click.secho("No signatures found in the model for inputs.", fg="yellow")
-        return ""
+    cm = compiled_model.CompiledModel.from_file(str(model_path))
+    signatures = cm.get_signature_list()
+    if not signatures:
+      click.secho("No signatures found in the model for inputs.", fg="yellow")
+      return ""
 
-      sig_info = cm.get_signature_by_index(signature_index)
-      sig_key = sig_info["key"]
-      input_details = cm.get_input_tensor_details(sig_key)
+    sig_info = cm.get_signature_by_index(signature_index)
+    sig_key = sig_info["key"]
+    input_details = cm.get_input_tensor_details(sig_key)
 
     # 2. Process input strings mapping (e.g., name=value or literal value).
     parsed_inputs = {}
