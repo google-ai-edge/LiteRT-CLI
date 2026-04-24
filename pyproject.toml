@@ -36,7 +36,6 @@ visualize = [
     "ai-edge-model-explorer"
 ]
 lm = [
-    "litert-lm-cli-nightly",
     "litert-lm-nightly",
 ]
 all = [
