@@ -10,19 +10,21 @@ description = "LiteRT Toolkit Command Line Interface"
 dependencies = [
     "click",
     "numpy",
+    "immutabledict",
     "huggingface_hub",
     "requests",
-    "sentencepiece",
     "ai-edge-litert",
-    "ai-edge-quantizer",
     "Pillow",
-    "ai-edge-litert-sdk-qualcomm-nightly",
-    "ai-edge-litert-sdk-mediatek-nightly",
 ]
 
 [project.optional-dependencies]
 test = [
     "absl-py",
+]
+compile = [
+    "ai-edge-litert-sdk-qualcomm-nightly",
+    "ai-edge-litert-sdk-mediatek-nightly",
+    "ai-edge-litert-sdk-google-nightly",
 ]
 convert = [
     "litert-torch-nightly",
@@ -32,6 +34,9 @@ convert = [
     "torchvision",
     "sentencepiece",
 ]
+quantize = [
+    "ai-edge-quantizer",
+]
 visualize = [
     "ai-edge-model-explorer"
 ]
@@ -39,7 +44,7 @@ lm = [
     "litert-lm-nightly",
 ]
 all = [
-    "litert-cli[convert,visualize,lm]"
+    "litert-cli[compile,quantize,convert,visualize,lm]"
 ]
 
 [project.scripts]
