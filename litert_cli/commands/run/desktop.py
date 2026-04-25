@@ -37,7 +37,7 @@ import numpy as np
 if TYPE_CHECKING:
   # Import heavy dependencies only for type hinting to improve CLI startup
   # performance. These are not imported at runtime.
-  from ai_edge_litert.litert_wrapper.compiled_model_wrapper import compiled_model  # pylint: disable=g-import-not-at-top
+  from ai_edge_litert.compiled_model import CompiledModel  # pylint: disable=g-import-not-at-top
 
 
 def _parse_inputs_dict(inputs: Sequence[str]) -> dict[str, str]:
@@ -62,7 +62,7 @@ def _parse_inputs_dict(inputs: Sequence[str]) -> dict[str, str]:
 
 def _prepare_inputs(
     *,
-    cm: compiled_model.CompiledModel,
+    cm: CompiledModel,
     sig_key: str,
     parsed_inputs: dict[str, str],
 ) -> dict[str, Any]:
@@ -230,12 +230,12 @@ def run_desktop(
   )
 
   # pylint: disable=g-import-not-at-top,reimported
-  from ai_edge_litert.litert_wrapper.compiled_model_wrapper import compiled_model
-  from ai_edge_litert.litert_wrapper.compiled_model_wrapper import hardware_accelerator
+  from ai_edge_litert.compiled_model import CompiledModel
+  from ai_edge_litert.hardware_accelerator import HardwareAccelerator
 
-  hw_accel = hardware_accelerator.HardwareAccelerator.CPU
+  hw_accel = HardwareAccelerator.CPU
   if accelerator == "gpu":
-    hw_accel = hardware_accelerator.HardwareAccelerator.GPU
+    hw_accel = HardwareAccelerator.GPU
   elif accelerator == "npu":
     raise click.ClickException(
         "NPU accelerator is not yet formally supported via desktop API."
@@ -250,7 +250,7 @@ def run_desktop(
         # loading GPU accelerators in hermetic .par file. Otherwise, use
         # default path.
         env = compiled_model.Environment.create(runtime_path="")
-      cm = compiled_model.CompiledModel.from_file(
+      cm = CompiledModel.from_file(
           model_path, hw_accel, environment=env
       )
       signatures = cm.get_signature_list()

@@ -69,9 +69,9 @@ def _prepare_inputs_on_device(
 
   try:
     click.echo("Parsing inputs locally before pushing to device...")
-    from ai_edge_litert.litert_wrapper.compiled_model_wrapper import compiled_model  # pylint: disable=g-import-not-at-top
+    from ai_edge_litert.compiled_model import CompiledModel  # pylint: disable=g-import-not-at-top
 
-    cm = compiled_model.CompiledModel.from_file(str(model_path))
+    cm = CompiledModel.from_file(str(model_path))
     signatures = cm.get_signature_list()
     if not signatures:
       click.secho("No signatures found in the model for inputs.", fg="yellow")
