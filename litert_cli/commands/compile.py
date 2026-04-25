@@ -11,10 +11,8 @@ import shutil
 import textwrap
 
 import click
+from litert_cli.core import deps
 from litert_cli.core import npu_utils
-
-from ai_edge_litert.aot import aot_compile as aot_lib
-from ai_edge_litert.aot.ai_pack import export_lib as ai_pack_export
 
 
 @click.command(
@@ -77,6 +75,7 @@ from ai_edge_litert.aot.ai_pack import export_lib as ai_pack_export
         " directory."
     ),
 )
+@deps.require_extra("compile")
 def compile_cmd(
     model_path: pathlib.Path,
     target: Sequence[str],
@@ -94,6 +93,9 @@ def compile_cmd(
   Raises:
     click.ClickException: If compilation or export fails.
   """
+  from ai_edge_litert.aot import aot_compile as aot_lib
+  from ai_edge_litert.aot.ai_pack import export_lib as ai_pack_export
+
 
   click.echo(f"Compiling model {model_path} for targets: {', '.join(target)}")
 

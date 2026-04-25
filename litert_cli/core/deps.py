@@ -27,6 +27,7 @@ _MODULE_BY_EXTRA = immutabledict({
     "lm": "litert_lm",
     "download": "huggingface_hub",
     "run": "ai_edge_litert",
+    "compile": "ai_edge_litert",
     "visualize": "model_explorer",
     "quantize": "ai_edge_quantizer",
     "image": "PIL",
