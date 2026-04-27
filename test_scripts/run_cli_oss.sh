@@ -28,7 +28,6 @@ mkdir -p $MODEL_DIR
 export TEST_DATA_DIR="$REPO_ROOT/litert_cli/test_data"
 
 # Install litert-cli from source
-# pip install -e "$REPO_ROOT[test,lm,convert,visualize]"
 pip install -e "$REPO_ROOT"
 # Or install from pip
 # pip install litert-cli
