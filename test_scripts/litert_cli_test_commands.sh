@@ -78,15 +78,29 @@ function test_quantize() {
     litert quantize "$mobilenet" --recipe "$TEST_DATA_DIR/quantize_recipe.json" --output "$MODEL_DIR/recipe.tflite"
 }
 
+function skip_compile() {
+    if [[ -n "$SKIP_COMPILE" ]]; then
+        echo "Skipping compile test as requested by SKIP_COMPILE flag."
+        return 0
+    fi
+    
+    if [[ "$(uname)" != "Linux" ]]; then
+        echo "Skipping compile test on non-Linux platform ($(uname))"
+        return 0
+    fi
+    
+    return 1
+}
+
 function test_compile() {
     log_section "Testing: litert compile"
     local efficientnet=$(get_efficientnet)
     
-    if [[ "$(uname)" == "Linux" ]]; then
-        litert compile "$efficientnet" --target sm8750 --output-dir "$MODEL_DIR"
-    else
-        echo "Skipping compile test on non-Linux platform ($(uname))"
+    if skip_compile; then
+        return 0
     fi
+    
+    litert compile "$efficientnet" --target sm8750 --output-dir "$MODEL_DIR"
 }
 
 
@@ -112,7 +126,11 @@ function test_run() {
             adb shell rm -f "$LITERT_CLI_ANDROID_ROOT/libQnn*" "$LITERT_CLI_ANDROID_ROOT/libLiteRtDispatch_Qualcomm.so"
 
             echo "Running NPU compatible model on Android NPU..."
-            litert run "$compiled_model" --android --npu
+            if [ -f "$compiled_model" ]; then
+                litert run "$compiled_model" --android --npu
+            else
+                echo "Compiled model not found: $compiled_model. Skipping NPU run."
+            fi
         else
             echo "Skipping Android NPU run test on non-Linux platform ($(uname))"
         fi
@@ -159,6 +177,8 @@ function test_benchmark() {
         litert benchmark "$efficientnet" --android --gpu
         if [ -f "$compiled_model" ]; then
             litert benchmark "$compiled_model" --android --npu
+        else
+            echo "Compiled model not found: $compiled_model. Skipping NPU benchmark."
         fi
     else
         echo "No Android device detected. Skipping Android benchmarks."
