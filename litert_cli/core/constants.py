@@ -53,13 +53,10 @@ LITERT_CLI_DOWNLOAD_BASE_URL: str = (
 )
 
 # NPU and AOT Configuration
-# TODO b/493604945: Keep updating the version in sync with LiteRT latest
+# Keep updating the version in sync with LiteRT latest
 # release, and reference to the version in
 # https://github.com/google-ai-edge/LiteRT/blob/main/third_party/qairt/workspace.bzl#L25
-if IN_GOOGLE3:
-  QAIRT_SDK_VERSION: str = "2.44.0.260225"
-else:
-  QAIRT_SDK_VERSION: str = "2.42.0.251225"
+QAIRT_SDK_VERSION: str = "2.44.0.260225"
 
 QAIRT_SDK_URL: str = (
     "https://softwarecenter.qualcomm.com/api/download/software/sdks/"

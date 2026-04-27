@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import functools
+import importlib.metadata
 import importlib.util
 import pathlib
 import subprocess
@@ -21,16 +22,16 @@ from litert_cli.core import constants
 
 # Map extra names to Python module names to check if the optional
 # dependency is already installed.
-_MODULE_BY_EXTRA = immutabledict({
-    "convert": "litert_torch",
-    "torch": "litert_torch",
-    "lm": "litert_lm",
-    "download": "huggingface_hub",
-    "run": "ai_edge_litert",
-    "compile": "ai_edge_litert",
-    "visualize": "model_explorer",
-    "quantize": "ai_edge_quantizer",
-    "image": "PIL",
+_PACKAGE_BY_EXTRA = immutabledict({
+    "convert": "litert-torch",
+    "torch": "litert-torch",
+    "lm": "litert-lm",
+    "download": "huggingface-hub",
+    "run": "ai-edge-litert",
+    "compile": "ai-edge-litert-sdk-qualcomm-nightly",
+    "visualize": "model-explorer",
+    "quantize": "ai-edge-quantizer",
+    "image": "Pillow",
 })
 
 
@@ -52,16 +53,19 @@ def ensure_extra(extra_name: str, *, silent: bool = False) -> bool:
   if constants.IN_GOOGLE3:
     return True
 
-  module_to_check = _MODULE_BY_EXTRA.get(extra_name)
+  package_to_check = _PACKAGE_BY_EXTRA.get(extra_name)
 
-  if not module_to_check:
+  if not package_to_check:
     if not silent:
       click.secho(f"Internal error: Unknown extra '{extra_name}'", fg="red")
       raise click.Abort()
     return False
 
-  if importlib.util.find_spec(module_to_check) is not None:
+  try:
+    importlib.metadata.version(package_to_check)
     return True
+  except importlib.metadata.PackageNotFoundError:
+    pass
 
   if not silent:
     click.secho(
