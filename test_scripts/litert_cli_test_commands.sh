@@ -78,28 +78,15 @@ function test_quantize() {
     litert quantize "$mobilenet" --recipe "$TEST_DATA_DIR/quantize_recipe.json" --output "$MODEL_DIR/recipe.tflite"
 }
 
-function skip_compile() {
-    if [[ -n "$SKIP_COMPILE" ]]; then
-        echo "Skipping compile test as requested by SKIP_COMPILE flag."
-        return 0
-    fi
-    
+function test_compile() {
+    log_section "Testing: litert compile"
+    local efficientnet=$(get_efficientnet)
+
     if [[ "$(uname)" != "Linux" ]]; then
         echo "Skipping compile test on non-Linux platform ($(uname))"
         return 0
     fi
-    
-    return 1
-}
 
-function test_compile() {
-    log_section "Testing: litert compile"
-    local efficientnet=$(get_efficientnet)
-    
-    if skip_compile; then
-        return 0
-    fi
-    
     litert compile "$efficientnet" --target sm8750 --output-dir "$MODEL_DIR"
 }
 

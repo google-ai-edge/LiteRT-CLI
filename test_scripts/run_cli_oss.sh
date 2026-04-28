@@ -37,7 +37,5 @@ function generate_test_inputs() {
     python3 "$TEST_DATA_DIR/generate_test_inputs.py" "$LITERT_CLI_ROOT"
 }
 
-# skip compile for now, given some recent bug.
-export SKIP_COMPILE="1"
 # Run test commands in the same shell.
 source "$SCRIPT_DIR/litert_cli_test_commands.sh"
