@@ -13,7 +13,7 @@ dependencies = [
     "immutabledict",
     "huggingface_hub",
     "requests",
-    "ai-edge-litert",
+    "ai-edge-litert-nightly",
     "Pillow",
 ]
 
@@ -24,7 +24,6 @@ test = [
 compile = [
     "ai-edge-litert-sdk-qualcomm-nightly",
     "ai-edge-litert-sdk-mediatek-nightly",
-    "ai-edge-litert-sdk-google-nightly",
 ]
 convert = [
     "litert-torch-nightly",
