@@ -1,4 +1,4 @@
-import importlib.util
+import importlib.metadata
 import subprocess
 from unittest import mock
 
@@ -14,38 +14,38 @@ class DepsTest(absltest.TestCase):
     super().setUp()
     self.enter_context(mock.patch.object(constants, 'IN_GOOGLE3', False))
 
-  @mock.patch.object(importlib.util, 'find_spec', autospec=True)
-  def test_ensure_extra_already_installed(self, mock_find_spec):
-    # Simulate module is already installed
-    mock_find_spec.return_value = object()
+  @mock.patch.object(importlib.metadata, 'version', autospec=True)
+  def test_ensure_extra_already_installed(self, mock_version):
+    # Simulate package is already installed
+    mock_version.return_value = '0.1.0'
 
     result = deps.ensure_extra('torch')
 
     self.assertTrue(result)
-    mock_find_spec.assert_called_once_with('litert_torch')
+    mock_version.assert_called_once_with('litert-torch')
 
   @mock.patch.object(subprocess, 'check_call', autospec=True)
-  @mock.patch.object(importlib.util, 'find_spec', autospec=True)
+  @mock.patch.object(importlib.metadata, 'version', autospec=True)
   def test_ensure_extra_not_installed_success(
-      self, mock_find_spec, mock_check_call
+      self, mock_version, mock_check_call
   ):
-    # Simulate module is NOT installed
-    mock_find_spec.return_value = None
+    # Simulate package is NOT installed
+    mock_version.side_effect = importlib.metadata.PackageNotFoundError
     mock_check_call.return_value = 0
 
     result = deps.ensure_extra('torch')
 
     self.assertTrue(result)
-    mock_find_spec.assert_called_once_with('litert_torch')
+    mock_version.assert_called_once_with('litert-torch')
     mock_check_call.assert_called_once()
 
   @mock.patch.object(subprocess, 'check_call', autospec=True)
-  @mock.patch.object(importlib.util, 'find_spec', autospec=True)
+  @mock.patch.object(importlib.metadata, 'version', autospec=True)
   def test_ensure_extra_not_installed_failure(
-      self, mock_find_spec, mock_check_call
+      self, mock_version, mock_check_call
   ):
-    # Simulate module is NOT installed and pip install fails
-    mock_find_spec.return_value = None
+    # Simulate package is NOT installed and pip install fails
+    mock_version.side_effect = importlib.metadata.PackageNotFoundError
     mock_check_call.side_effect = subprocess.CalledProcessError(
         1, 'pip install'
     )
@@ -54,10 +54,10 @@ class DepsTest(absltest.TestCase):
       deps.ensure_extra('torch')
 
   @mock.patch.object(subprocess, 'check_call', autospec=True)
-  @mock.patch.object(importlib.util, 'find_spec', autospec=True)
-  def test_ensure_extra_silent_failure(self, mock_find_spec, mock_check_call):
-    # Simulate module is NOT installed and pip install fails, but silent=True
-    mock_find_spec.return_value = None
+  @mock.patch.object(importlib.metadata, 'version', autospec=True)
+  def test_ensure_extra_silent_failure(self, mock_version, mock_check_call):
+    # Simulate package is NOT installed and pip install fails, but silent=True
+    mock_version.side_effect = importlib.metadata.PackageNotFoundError
     mock_check_call.side_effect = subprocess.CalledProcessError(
         1, 'pip install'
     )
