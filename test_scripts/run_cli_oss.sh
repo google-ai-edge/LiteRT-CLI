@@ -38,6 +38,6 @@ function generate_test_inputs() {
 }
 
 # skip compile for now, given some recent bug.
-export SKIP_COMPILE="1"
+export SKIP_COMPILE="0"
 # Run test commands in the same shell.
 source "$SCRIPT_DIR/litert_cli_test_commands.sh"
