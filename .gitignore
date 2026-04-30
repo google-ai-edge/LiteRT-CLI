@@ -24,6 +24,7 @@ wheels/
 venv/
 venv_test/
 ENV/
+*~
 
 # Bazel artifacts
 bazel-*
