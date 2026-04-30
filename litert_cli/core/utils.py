@@ -19,3 +19,10 @@ def silence_stderr() -> Iterator[None]:
   finally:
     os.dup2(old_stderr, 2)
     os.close(old_stderr)
+
+
+def enable_quiet_mode() -> None:
+  """Directly silences file descriptor 2 (stderr) for the rest of the process."""
+  new_target = os.open(os.devnull, os.O_WRONLY)
+  os.dup2(new_target, 2)
+  os.close(new_target)

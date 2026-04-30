@@ -231,6 +231,7 @@ def run_desktop(
 
   # pylint: disable=g-import-not-at-top,reimported
   from ai_edge_litert.compiled_model import CompiledModel
+  from ai_edge_litert.compiled_model import Environment
   from ai_edge_litert.hardware_accelerator import HardwareAccelerator
 
   hw_accel = HardwareAccelerator.CPU
@@ -249,7 +250,7 @@ def run_desktop(
         # In Google3 environment, we need to fallback to LD_LIBRARY_PATH for
         # loading GPU accelerators in hermetic .par file. Otherwise, use
         # default path.
-        env = compiled_model.Environment.create(runtime_path="")
+        env = Environment.create(runtime_path="")
       cm = CompiledModel.from_file(
           model_path, hw_accel, environment=env
       )

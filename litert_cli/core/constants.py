@@ -17,6 +17,9 @@ except ImportError:
 ENV_LITERT_CLI_ROOT: str = "LITERT_CLI_ROOT"
 ENV_LITERT_CLI_ANDROID_ROOT: str = "LITERT_CLI_ANDROID_ROOT"
 ENV_LITERT_CLI_FORCE_OSS: str = "LITERT_CLI_FORCE_OSS"
+ENV_LITERT_VERBOSE: str = "LITERT_VERBOSE"
+
+DEFAULT_QUIET: bool = os.environ.get(ENV_LITERT_VERBOSE, "0") != "1"
 
 _FORCE_OSS = os.environ.get(ENV_LITERT_CLI_FORCE_OSS, "").lower() in (
     "1",
@@ -30,6 +33,8 @@ IN_GOOGLE3: bool = _AUTO_IN_GOOGLE3 and not _FORCE_OSS
 LITERT_CLI_CACHE_DIR: str = os.path.join(
     os.path.expanduser("~"), ".cache", "litert-cli"
 )
+
+LITERT_MODELS_CACHE_DIR: str = os.path.join(LITERT_CLI_CACHE_DIR, "models")
 
 # Default values
 _DEFAULT_CLI_ROOT: str = os.path.join(LITERT_CLI_CACHE_DIR, "root")

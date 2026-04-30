@@ -15,11 +15,12 @@ Key Features:
 from __future__ import annotations
 
 from collections.abc import Sequence
-import pathlib
 import textwrap
 
 import click
+from litert_cli.core import constants
 from litert_cli.core import deps
+from litert_cli.core import utils
 
 
 @click.command(
@@ -27,7 +28,7 @@ from litert_cli.core import deps
     help=textwrap.dedent("""\
         Run LiteRT models locally or on device.
 
-        MODEL: Path to the LiteRT model (.tflite).
+        MODEL: Path to the LiteRT model (.tflite) or a Model Reference (e.g., nvidia/parakeet-ctc-0.6b).
 
         Examples:
 
@@ -65,12 +66,7 @@ from litert_cli.core import deps
         """),
 )
 @deps.require_extra("run")
-@click.argument(
-    "model",
-    type=click.Path(
-        exists=True, dir_okay=False, resolve_path=True, path_type=pathlib.Path
-    ),
-)
+@click.argument("model", type=str)
 @click.option(
     "--input",
     "inputs",
@@ -81,6 +77,18 @@ from litert_cli.core import deps
         "You can specify multiple inputs using format: --input name=value "
         "or just --input value if the model has only one input."
     ),
+)
+@click.option(
+    "--model-params",
+    "model_params",
+    multiple=True,
+    help="Model specific parameters in format key=value.",
+)
+@click.option(
+    "--model-help",
+    is_flag=True,
+    default=False,
+    help="Show help specific to the matched model plugin.",
 )
 @click.option(
     "--desktop",
@@ -138,54 +146,97 @@ from litert_cli.core import deps
     default=5,
     help="Number of sample elements to print from tensors. Default is 5.",
 )
-@click.option(
-    "--quiet",
-    is_flag=True,
-    default=False,
-    help="Silence C++ INFO and WARNING logs during execution.",
-)
+@click.pass_context
 def run_cmd(
-    model: pathlib.Path,
+    unused_ctx: click.Context,
+    model: str,
     inputs: Sequence[str],
+    model_params: Sequence[str],
+    model_help: bool,
     target: str,
     accelerator: str,
     signature_index: int,
     iterations: int,
     print_tensors: bool,
     sample_size: int,
-    quiet: bool,
 ) -> None:
   r"""Runs LiteRT models locally or on device.
 
   Args:
+    unused_ctx: Click context.
     model: Path to the LiteRT model (.tflite).
     inputs: Tuple of input assignments (e.g., 'name=value' or just 'value').
+    model_params: Model specific parameters.
+    model_help: Show help specific to the matched model plugin.
     target: Execution target ('desktop' or 'android').
     accelerator: Hardware accelerator ('cpu', 'gpu', or 'npu').
     signature_index: Index of model signature to run.
     iterations: Number of times to execute the model for benchmarking.
     print_tensors: Whether to print output tensor elements.
     sample_size: Number of sample elements to print from tensors.
-    quiet: Whether to silence stderr output.
   """
+  # Quiet if default is true
+  if constants.DEFAULT_QUIET:
+
+    utils.enable_quiet_mode()
+
+  # --- Model Reference and Cache Resolution ---
+  from litert_cli.core import models as core_models  # pylint: disable=g-import-not-at-top
+
+  resolved_model_path, resolved_hf_id = core_models.resolve_model_reference(
+      model
+  )
+
+  if resolved_model_path != model:
+    click.echo(f"Resolved model '{model}' to '{resolved_model_path}'")
+
+  # --- Plugin Dispatch Mechanism ---
+  # Try to delegate to a model-specific plugin first.
+  from litert_cli import models  # pylint: disable=g-import-not-at-top
+
+  # Parse model-params into a dictionary
+  parsed_model_params = {}
+  if model_params:
+    for p in model_params:
+      if "=" in p:
+        k, v = p.split("=", 1)
+        parsed_model_params[k] = v
+
+  # Pass the resolved hf_id as model_id to dispatch, and the actual file path
+  # in kwargs
+  plugin_result = models.dispatch_model_intent(
+      intent="run",
+      model_id=resolved_hf_id or str(model),
+      inputs=inputs,
+      model_help=model_help,
+      model_params=parsed_model_params,
+      target=target,
+      accelerator=accelerator,
+      model_path=resolved_model_path,  # Pass the actual file path here!
+  )
+
+  if plugin_result is not None:
+    # If the plugin handled it or showed help, we exit
+    return
+  # ----------------------------------
+
   if target == "desktop":
     from litert_cli.commands.run import desktop  # pylint: disable=g-import-not-at-top
 
     desktop.run_desktop(
-        model_path=str(model),
+        model_path=str(resolved_model_path),
         inputs=inputs,
         accelerator=accelerator,
         signature_index=signature_index,
         iterations=iterations,
         print_tensors=print_tensors,
         sample_size=sample_size,
-        quiet=quiet,
     )
   elif target == "android":
     from litert_cli.commands.run import android  # pylint: disable=g-import-not-at-top
 
     android.run_android(
-        model_path=str(model),
+        model_path=str(resolved_model_path),
         inputs=inputs,
         accelerator=accelerator,
         signature_index=signature_index,

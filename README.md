@@ -12,7 +12,7 @@ Install `litert-cli` with pip from the local source or PyPI.
 pip install -e .
 
 # Install from Test PyPI (verified in linux and macbook, with Python 3.13)
-pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple litert-cli==0.1.1.dev17
+pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple litert-cli==0.1.1.dev22
 ```
 
 ### Common Commands
@@ -27,6 +27,12 @@ litert download litert-community/MobileNet-v3-large \
 # Download full repository
 litert download litert-community/MobileNet-v3-large \
   --output mobilenet_full
+
+# Download models from huggingface id with model reference as hf id too.
+litert download litert-community/MobileNet-v3-large
+
+# Download models from huggingface id with my own model reference
+litert download litert-community/MobileNet-v3-large --model_ref my_model_ref
 ```
 
 **2. Convert a PyTorch model into a LiteRT model:**
@@ -81,6 +87,9 @@ litert compile model.tflite --target sm8550 --target mt6989 --export-aipack my_n
 # Run locally on desktop (CPU)
 litert run model.tflite --desktop --cpu
 
+# Run locally on desktop (CPU)
+litert run my_model_ref --desktop --cpu
+
 # Run with GPU acceleration
 litert run model.tflite --gpu
 
@@ -104,6 +113,7 @@ litert run model.tflite \
 **6. Benchmark a model performance:**
 ```bash
 # Benchmark on Android (CPU side)
+litert benchmark my_model_ref --android --cpu
 litert benchmark model.tflite --android --cpu
 
 # Benchmark AOT compiled model on Android NPU
@@ -111,6 +121,9 @@ litert benchmark model_sm8450.tflite --android --npu
 
 # Benchmark on Android GPU
 litert benchmark model.tflite --android --gpu
+
+# Benchmark on Macbook (CPU)
+litert benchmark my_model_ref --desktop --cpu
 ```
 
 **7. Visualize a model architecture:**
@@ -122,13 +135,41 @@ litert visualize model.tflite
 litert visualize --stop_all
 ```
 
-**7. Visualize a model architecture:**
+**8. Import a local model:**
 ```bash
-# Open in Model Explorer graph
-litert visualize model.tflite
+# Import a local file into the centralized cache
+litert import my_model.tflite --model_ref my_model
+
+# Import a directory and associate with Hugging Face ID.
+litert import ./my_model_dir --model_ref my_model --hf_id my_org_name/my_model
 ```
 
-**8. Clean up all caches:**
+**9. List managed models:**
+```bash
+# List all managed models
+litert list
+
+# Show detailed contents of a specific model
+litert list my_model
+```
+
+**10. Delete a managed model:**
+```bash
+# Delete a model from cache
+litert delete my_model
+```
+
+**11. Run a generative LLM model using LiteRT-LM CLI:**
+```bash
+# Run a generative LLM model by profixing to LiteRT-LM CLI.
+# Example: gemma3-1b is a model refere from HuggingFace Hub, and you have already download it.
+litert lm run gemma3-1b
+
+# Example with custom prompt
+litert lm run gemma3-1b --prompt "Hello, how are you?"
+```
+
+**12. Clean up all caches:**
 ```bash
 # Clean up model cache, etc.
 litert clean
