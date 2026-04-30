@@ -7,8 +7,8 @@ name: Unit Tests (nightly)
 
 on:
   schedule:
-    # 10 am UTC is 3am or 4am PT depending on daylight savings.
-    - cron: '0 10 * * *'
+    - cron: '0 5 * * *'
+      timezone: 'America/Los_Angeles'
 
   workflow_dispatch: {}
 
