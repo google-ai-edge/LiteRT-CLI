@@ -36,7 +36,7 @@ if ! command -v litert &> /dev/null; then
   if [ -f "pyproject.toml" ]; then
     pip install -e .
   else
-    pip install -q -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple litert-cli==0.1.1.dev17
+    pip install -q -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple litert-cli==0.1.1.dev22
   fi
 fi
 ```
@@ -93,28 +93,57 @@ litert visualize --stop_all
 
 ### 4. Download
 
-Download public LiteRT models from HuggingFace Hub.
+Download public LiteRT models from HuggingFace Hub or direct URL.
 
 ```bash
-litert download <repo_id_or_model_name> --output <output_dir>
+litert download <repo_id_or_url> --output <output_dir>
 ```
 
-**Filter by File Type:** `litert download
-litert-community/MobileNet-v3-large --file "*.tflite" --output ./models`
+**Filter by File Type:**
+```bash
+litert download litert-community/MobileNet-v3-large --file "*.tflite" --output ./models
+```
 
-### 5. Convert (PyTorch to LiteRT)
+**With Custom Model Reference:**
+```bash
+litert download litert-community/MobileNet-v3-large --model_ref my_model_ref
+```
+
+### 5. Import
+
+Import a local file or directory into the centralized cache.
+
+```bash
+litert import my_model.tflite --model_ref my_model
+```
+
+### 6. List
+
+List all managed models or detailed contents of a specific model.
+
+```bash
+litert list
+litert list my_model
+```
+
+### 7. Convert (PyTorch to LiteRT)
 
 Convert a PyTorch or HuggingFace model into a LiteRT model.
 
-**From HuggingFace Model Hub:** `litert convert Qwen/Qwen1.5-0.5B-Chat
---output /tmp/qwen`
+**From HuggingFace Model Hub:**
+```bash
+litert convert Qwen/Qwen1.5-0.5B-Chat --output /tmp/qwen
+```
 
-**From Generic Python Script:** `litert convert my_model.py --output
-/tmp/mymodel` * `--model-func`: Name of function that returns the model
-(`torch.nn.Module`). Default: `get_model`. * `--input-func`: Name of function
-that returns sample inputs. Default: `get_args`.
+**From Generic Python Script:**
+```bash
+litert convert my_model.py --output /tmp/mymodel
+```
+*   `--model-func`: Name of function that returns the model
+    (`torch.nn.Module`). Default: `get_model`.
+*   `--input-func`: Name of function that returns sample inputs. Default: `get_args`.
 
-### 6. Large Language Models (LM)
+### 8. Large Language Models (LM)
 
 Interact with LLM generative models using native `litert-lm-cli` or python
 fallback.
@@ -124,22 +153,62 @@ litert lm run <model_path_or_repo_id>
 ```
 
 ```bash
-litert lm run <model_path_or_repo_id> "What is a neural network?"
+litert lm run <model_path_or_repo_id> --prompt "What is a neural network?"
 ```
 
-### 7. Benchmark
+### 9. Benchmark
 
-Benchmark LiteRT models on different platforms (Android or Google Cloud).
+Benchmark LiteRT models on different platforms (Android, Google Cloud, or
+Desktop).
 
-**On connected Android device via ADB:** `litert benchmark model.tflite
---android --cpu`
+**On connected Android device via ADB:**
+```bash
+litert benchmark model.tflite --android --cpu
+```
 
-**On Google Cloud AI Edge Portal devices (e.g., Pixel 7):** `litert
-benchmark model.tflite --gcp --device "pixel 7"`
+**On Macbook (CPU):**
+```bash
+litert benchmark my_model_ref --desktop --cpu
+```
+
+**On Google Cloud AI Edge Portal devices (e.g., Pixel 7):**
+```bash
+litert benchmark model.tflite --gcp --device "pixel 7"
+```
+
+### 10. Delete
+
+Delete a managed model from the centralized cache.
+
+```bash
+litert delete my_model
+```
+
+### 11. Clean
+
+Clean up model cache, etc.
+
+```bash
+litert clean
+```
+
+## 🧪 Testing
+
+Agents should run tests after modifying code to ensure no regressions.
+
+To run unit tests locally:
+```bash
+python litert_test.py
+python litert_help_test.py
+```
+
+To run tests in Google3:
+```bash
+blaze test //third_party/py/litert_cli:litert_test
+blaze test //third_party/py/litert_cli:litert_help_test
+```
 
 ## Best Practices for Agents
 
-*   Always use the `--quiet` flag when running `litert run` to keep the terminal
-    output clean and easy to parse for automated checks.
 *   Pipe outputs to text files or grep them if you are looking for specific
     tensor shapes or runtime metrics.

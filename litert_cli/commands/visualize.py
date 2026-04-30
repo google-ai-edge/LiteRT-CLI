@@ -90,7 +90,7 @@ def _find_available_port(start_port: int, max_attempts: int = 20) -> int:
 )
 @click.argument(
     'model_path',
-    type=click.Path(exists=True, dir_okay=False, path_type=pathlib.Path),
+    type=str,
     required=False,
 )
 @click.option(
@@ -105,15 +105,18 @@ def _find_available_port(start_port: int, max_attempts: int = 20) -> int:
 )
 @deps.require_extra('visualize')
 def visualize_cmd(
-    model_path: pathlib.Path | None, *, reuse_server: bool, stop_all: bool
+    model_path: str | None, *, reuse_server: bool, stop_all: bool
 ) -> None:
   """Runs model explorer to visualize the model architecture.
 
   Args:
-    model_path: Path to the LiteRT model (.tflite) to visualize.
+    model_path: Path to the LiteRT model (.tflite) or Model Reference to
+      visualize.
     reuse_server: Whether to reuse an already running Model Explorer server.
     stop_all: If True, stops all running Model Explorer servers instead.
   """
+  from litert_cli.core import models as core_models
+
   if stop_all:
     click.echo('Attempting to stop all running Model Explorer servers...')
     try:
@@ -135,8 +138,14 @@ def visualize_cmd(
   if not model_path:
     raise click.UsageError('Missing argument "MODEL_PATH".')
 
+  resolved_model_path, _ = core_models.resolve_model_reference(model_path)
+  if str(resolved_model_path) != str(model_path):
+    click.echo(f"Resolved model '{model_path}' to '{resolved_model_path}'")
+
+  resolved_model_path = pathlib.Path(resolved_model_path)
+
   click.echo(
-      f'Starting Model Explorer visualization for {model_path} in the'
+      f'Starting Model Explorer visualization for {resolved_model_path} in the'
       ' background...'
   )
   # Check for available port so we can print the exact URL
@@ -147,7 +156,7 @@ def visualize_cmd(
   )
 
   # Build the exact model explorer data URL
-  data = {'models': [{'url': str(model_path)}]}
+  data = {'models': [{'url': str(resolved_model_path)}]}
   data_param = urllib.parse.quote(json.dumps(data))
   url = f'http://localhost:{port}/?data={data_param}'
 
@@ -161,7 +170,7 @@ def visualize_cmd(
       str(model_explorer_bin)
       if model_explorer_bin and model_explorer_bin.exists()
       else 'model-explorer',
-      str(model_path),
+      str(resolved_model_path),
       '--no_open_in_browser',
   ]
   if reuse_server:

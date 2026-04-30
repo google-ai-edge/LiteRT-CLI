@@ -35,12 +35,7 @@ import click
             $ litert benchmark model.tflite --gcp --device "pixel 7"
         """),
 )
-@click.argument(
-    "model",
-    type=click.Path(
-        exists=False, dir_okay=False, resolve_path=True, path_type=pathlib.Path
-    ),
-)
+@click.argument("model", type=str)
 @click.option(
     "--android",
     "target",
@@ -80,7 +75,7 @@ import click
     help="Target device model (e.g., 'pixel 7'). Default is 'pixel 7'",
 )
 def benchmark_cmd(
-    model: pathlib.Path,
+    model: str,
     target: str,
     accelerator: str,
     device: str,
@@ -88,26 +83,34 @@ def benchmark_cmd(
   """Benchmarks LiteRT models on different platforms.
 
   Args:
-    model: Path to the LiteRT model file.
+    model: Path to the LiteRT model file or Model Reference.
     target: Target platform for benchmark (android, gcp).
     accelerator: Accelerator to use (cpu, gpu, npu).
     device: Target device model (e.g., 'pixel 7').
   """
+  from litert_cli.core import models as core_models
+
+  resolved_model_path, _ = core_models.resolve_model_reference(model)
+
+  if resolved_model_path != model:
+    click.echo(f"Resolved model '{model}' to '{resolved_model_path}'")
+
+  model_path = pathlib.Path(resolved_model_path)
+
   if target == "android":
     # pylint: disable=g-import-not-at-top
     from litert_cli.commands.benchmark import android
 
-    if not model.exists():
-      click.secho(f"Error: Local model file not found: {model}", fg="red")
-      return
+    if not model_path.exists():
+      raise click.ClickException(f"Local model file not found: {model_path}")
 
-    android.run_android(model_path=model, accelerator=accelerator)
+    android.run_android(model_path=model_path, accelerator=accelerator)
   elif target == "gcp":
     # pylint: disable=g-import-not-at-top
     from litert_cli.commands.benchmark import gcp
 
     gcp.run_gcp(
-        str(model),
+        str(model_path),
         accelerator,
         device,
     )

@@ -39,12 +39,7 @@ from litert_cli.core import deps
                 --output quant_model.tflite
         """),
 )
-@click.argument(
-    "model",
-    type=click.Path(
-        exists=True, dir_okay=False, resolve_path=True, path_type=pathlib.Path
-    ),
-)
+@click.argument("model", type=str)
 @click.option(
     "--output",
     type=click.Path(dir_okay=False, writable=True, path_type=pathlib.Path),
@@ -80,7 +75,7 @@ from litert_cli.core import deps
 )
 @deps.require_extra("quantize")
 def quantize_cmd(
-    model: pathlib.Path,
+    model: str,
     output: pathlib.Path | None,
     quant_type: str,
     calibration_data: pathlib.Path | None,
@@ -89,7 +84,7 @@ def quantize_cmd(
   r"""Quantize a LiteRT model.
 
   Args:
-    model: Path to the input .tflite model.
+    model: Path to the input .tflite model or Model Reference.
     output: Path to save the output quantized .tflite model.
     quant_type: Type of quantization to apply.
     calibration_data: Path to Python script providing calibration data.
@@ -102,15 +97,26 @@ def quantize_cmd(
   from ai_edge_quantizer import quantizer as aeq  # pylint: disable=g-import-not-at-top
   from ai_edge_quantizer import qtyping  # pylint: disable=g-import-not-at-top
 
+  from litert_cli.core import models as core_models
+
+  resolved_model_path, _ = core_models.resolve_model_reference(model)
+
+  if str(resolved_model_path) != str(model):
+    click.echo(f"Resolved model '{model}' to '{resolved_model_path}'")
+
+  model_path = pathlib.Path(resolved_model_path)
+
   if quant_type == "static" and calibration_data is None:
     raise click.UsageError(
         "--calibration-data is required when --type is 'static'."
     )
 
-  resolved_output = output or model.with_name(f"{model.stem}_quant.tflite")
+  resolved_output = output or model_path.with_name(
+      f"{model_path.stem}_quant.tflite"
+  )
 
-  click.echo(f"Quantizing '{model}' to '{resolved_output}'...")
-  quantizer = aeq.Quantizer(str(model))
+  click.echo(f"Quantizing '{model_path}' to '{resolved_output}'...")
+  quantizer = aeq.Quantizer(str(model_path))
 
   if recipe:
     click.echo(f"Loading recipe from '{recipe}'...")

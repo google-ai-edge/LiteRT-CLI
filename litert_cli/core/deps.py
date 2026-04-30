@@ -32,6 +32,7 @@ _PACKAGE_BY_EXTRA = immutabledict({
     "visualize": "model-explorer",
     "quantize": "ai-edge-quantizer",
     "image": "Pillow",
+    "asr": "librosa",
 })
 
 

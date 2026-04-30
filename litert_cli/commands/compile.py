@@ -34,10 +34,7 @@ from litert_cli.core import npu_utils
                --export-aipack my_npu_models
         """),
 )
-@click.argument(
-    "model_path",
-    type=click.Path(exists=True, dir_okay=False, path_type=pathlib.Path),
-)
+@click.argument("model_path", type=str)
 @click.option(
     "--target",
     type=str,
@@ -77,7 +74,7 @@ from litert_cli.core import npu_utils
 )
 @deps.require_extra("compile")
 def compile_cmd(
-    model_path: pathlib.Path,
+    model_path: str,
     target: Sequence[str],
     export_aipack: pathlib.Path | None,
     output_dir: pathlib.Path | None,
@@ -85,7 +82,7 @@ def compile_cmd(
   """Compiles a tflite model with NPU AOT backends.
 
   Args:
-    model_path: Path to the input tflite model.
+    model_path: Path to the input tflite model or Model Reference.
     target: List of target SoCs or acceleration backends.
     export_aipack: Path to export the compiled model as an AI Pack.
     output_dir: Directory to save the compiled TFLite model.
@@ -95,20 +92,29 @@ def compile_cmd(
   """
   from ai_edge_litert.aot import aot_compile as aot_lib
   from ai_edge_litert.aot.ai_pack import export_lib as ai_pack_export
+  from litert_cli.core import models as core_models
 
-  click.echo(f"Compiling model {model_path} for targets: {', '.join(target)}")
+  resolved_model_path, _ = core_models.resolve_model_reference(model_path)
+  if str(resolved_model_path) != str(model_path):
+    click.echo(f"Resolved model '{model_path}' to '{resolved_model_path}'")
+
+  resolved_model_path = pathlib.Path(resolved_model_path)
+
+  click.echo(
+      f"Compiling model {resolved_model_path} for targets: {', '.join(target)}"
+  )
 
   aot_targets = [npu_utils.get_aot_target(t) for t in target]
 
   try:
     compiled_models = aot_lib.aot_compile(
-        str(model_path),
+        str(resolved_model_path),
         target=aot_targets,
         keep_going=False,
     )
     resolved_output_dir = output_dir or pathlib.Path.cwd()
 
-    base_name = model_path.stem
+    base_name = resolved_model_path.stem
 
     if export_aipack:
       click.echo(f"Exporting AI Pack to: {export_aipack}")
@@ -134,8 +140,8 @@ def compile_cmd(
     raise
   except Exception as e:
     raise click.ClickException(
-        f"AOT Compilation of '{model_path}' for targets {', '.join(target)} "
-        f"failed: {e!r}"
+        f"AOT Compilation of '{resolved_model_path}' for targets"
+        f" {', '.join(target)} failed: {e!r}"
     ) from e
 
   click.secho("AOT Compilation Completed Successfully!", fg="green")

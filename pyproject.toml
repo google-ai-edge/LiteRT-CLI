@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "litert-cli"
-version = "0.1.1.dev17"
+version = "0.1.1.dev22"
 
 description = "LiteRT Toolkit Command Line Interface"
 dependencies = [
@@ -42,15 +42,21 @@ visualize = [
 lm = [
     "litert-lm-nightly",
 ]
+asr = [
+    "librosa",
+    "transformers<5.0.0",
+    "sounddevice",
+    "torch",
+]
 all = [
-    "litert-cli[compile,quantize,convert,visualize,lm]"
+    "litert-cli[compile,quantize,convert,visualize,lm,asr]"
 ]
 
 [project.scripts]
 litert = "litert_cli.litert:cli"
 
 [tool.setuptools]
-packages = ["litert_cli", "litert_cli.commands", "litert_cli.core"]
+packages = {find = {}}
 
 [tool.setuptools.package-data]
 "litert_cli" = ["test_data/*"]
