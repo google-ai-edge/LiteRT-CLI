@@ -15,11 +15,11 @@ dependencies = [
     "requests",
     "ai-edge-litert-nightly",
     "Pillow",
+    "absl-py",
 ]
 
 [project.optional-dependencies]
 test = [
-    "absl-py",
 ]
 compile = [
     "ai-edge-litert-sdk-qualcomm-nightly",
