@@ -1,0 +1,50 @@
+# YAML schema for GitHub Actions:
+# https://help.github.com/en/actions/automating-your-workflow-with-github-actions/workflow-syntax-for-github-actions
+#
+# Helpful YAML parser to clarify YAML syntax:
+# https://yaml-online-parser.appspot.com/
+
+name: Unit Tests Python
+
+on:
+  workflow_call:
+    inputs:
+      trigger-sha:
+        type: string
+        required: true
+jobs:
+  prepare-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      os: ${{ steps.set-matrix.outputs.os }}
+    steps:
+      - name: Set matrix
+        id: set-matrix
+        run: |
+          os=("ubuntu-latest macos-latest")
+          os=$(jq -c -n '$ARGS.positional' --args "${os[@]}")
+          echo "os=${os}"
+          echo "os=${os}" >> $GITHUB_OUTPUT
+  test:
+    needs: prepare-matrix
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        os: ${{ fromJson(needs.prepare-matrix.outputs.os) }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.trigger-sha }}
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install .
+
+      - name: Run Tests
+        run: |
+          python -m pytest .
