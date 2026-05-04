@@ -21,7 +21,7 @@ jobs:
       - name: Set matrix
         id: set-matrix
         run: |
-          os=("ubuntu-latest macos-latest")
+          os=(ubuntu-latest macos-latest)
           os=$(jq -c -n '$ARGS.positional' --args "${os[@]}")
           echo "os=${os}"
           echo "os=${os}" >> $GITHUB_OUTPUT
