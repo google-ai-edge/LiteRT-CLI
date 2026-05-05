@@ -1,6 +1,14 @@
 # LiteRT CLI (Alpha)
 
-A Python-based command-line toolkit for managing, converting, running and benchmarking LiteRT (TFLite) models.
+A convenient command-line toolkit to streamline LiteRT development workflow, including converting, quantizing,
+compiling, manging, running and benchmarking LiteRT (TFLite) model on various hardware (CPU / GPU / NPU)
+across platform (desktop, mobile or cloud)
+
+## Use in Coding Agent
+Add LiteRT CLI skills .agents/skills/litert_cli/SKILL.md into your AI coding agent like Antigravity or Gemini CLI,
+then you can use prompts like:
+- Download LiteRT model litert-community/efficient_b1 and run it on CPU
+- Benchmark LiteRT model litert-community/efficient_b1 on my Android GPU
 
 ## 🚀 Installation
 
