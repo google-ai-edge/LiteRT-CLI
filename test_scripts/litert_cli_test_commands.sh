@@ -162,6 +162,7 @@ function test_benchmark() {
     if has_android_device; then
         litert benchmark "$mobilenet_quant" --android
         litert benchmark "$efficientnet" --android --gpu
+        litert benchmark "$efficientnet" --android --npu
         if [ -f "$compiled_model" ]; then
             litert benchmark "$compiled_model" --android --npu
         else
