@@ -25,10 +25,10 @@ from litert_cli.core import constants
 _PACKAGE_BY_EXTRA = immutabledict({
     "convert": "litert-torch",
     "torch": "litert-torch",
-    "lm": "litert-lm",
+    "lm": "litert-lm-nightly",
     "download": "huggingface-hub",
-    "run": "ai-edge-litert",
-    "compile": "ai-edge-litert-sdk-qualcomm",
+    "run": "ai-edge-litert-nightly",
+    "compile": "ai-edge-litert-sdk-qualcomm-nightly",
     "visualize": "model-explorer",
     "quantize": "ai-edge-quantizer",
     "image": "Pillow",

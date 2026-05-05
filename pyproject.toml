@@ -13,7 +13,7 @@ dependencies = [
     "immutabledict",
     "huggingface_hub",
     "requests",
-    "ai-edge-litert",
+    "ai-edge-litert-nightly",
     "Pillow",
     "absl-py",
 ]
@@ -22,11 +22,11 @@ dependencies = [
 test = [
 ]
 compile = [
-    "ai-edge-litert-sdk-qualcomm",
-    "ai-edge-litert-sdk-mediatek",
+    "ai-edge-litert-sdk-qualcomm-nightly",
+    "ai-edge-litert-sdk-mediatek-nightly",
 ]
 convert = [
-    "litert-torch",
+    "litert-torch-nightly",
     "torch",
     # Latest transformers break litert-torch-nightly
     "transformers<5.0.0",
@@ -40,7 +40,7 @@ visualize = [
     "ai-edge-model-explorer"
 ]
 lm = [
-    "litert-lm",
+    "litert-lm-nightly",
 ]
 asr = [
     "librosa",
