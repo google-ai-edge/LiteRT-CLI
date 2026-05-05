@@ -19,7 +19,7 @@ ENV_LITERT_CLI_ANDROID_ROOT: str = "LITERT_CLI_ANDROID_ROOT"
 ENV_LITERT_CLI_FORCE_OSS: str = "LITERT_CLI_FORCE_OSS"
 ENV_LITERT_VERBOSE: str = "LITERT_VERBOSE"
 
-DEFAULT_QUIET: bool = os.environ.get(ENV_LITERT_VERBOSE, "0") != "1"
+DEFAULT_QUIET: bool = os.environ.get(ENV_LITERT_VERBOSE, "1") != "1"
 
 _FORCE_OSS = os.environ.get(ENV_LITERT_CLI_FORCE_OSS, "").lower() in (
     "1",
@@ -48,13 +48,11 @@ LITERT_CLI_ANDROID_ROOT: str = os.environ.get(
 
 # Downloads and Caching
 LITERT_BINARIES_BASE_URL: str = (
-    "https://storage.googleapis.com/litert/binaries/latest"
+    # "https://storage.googleapis.com/litert/binaries/latest"
+    "https://storage.googleapis.com/litert/binaries/2.1.4"
 )
 LITERT_BINARIES_BASE_URL_ANDROID: str = (
     f"{LITERT_BINARIES_BASE_URL}/android_arm64"
-)
-LITERT_CLI_DOWNLOAD_BASE_URL: str = (
-    "https://storage.googleapis.com/litert/tools/cli"
 )
 
 # NPU and AOT Configuration

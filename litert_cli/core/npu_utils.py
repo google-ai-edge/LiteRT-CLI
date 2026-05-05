@@ -188,6 +188,7 @@ def push_npu_runtime_libraries(
         src_dir / "libQnnSystem.so",
         src_dir / "libQnnHtp.so",
         src_dir / f"libQnnHtpV{best_version}Stub.so",
+        src_dir / "libQnnHtpPrepare.so",
     ]
 
     skel_file = skel_dir / f"libQnnHtpV{best_version}Skel.so"

@@ -43,10 +43,11 @@ def run_android(*, model_path: pathlib.Path, accelerator: str) -> None:
   if accelerator == "npu":
     remote_dispatch_dir = npu.push_npu_runtime_libraries(None, cli_android_root)
 
-    # Download and push SOC-specific LiteRT dispatch library
+    # Download and push SOC-specific LiteRT dispatch and compiler plugin libraries
     target_model = npu.get_soc_target_model(None)
     soc_vendor = "mediatek" if "mt" in target_model else "qualcomm"
     lib_dispatch = android_utils.find_npu_dispatch_lib(soc_vendor, abi)
+    lib_compiler = android_utils.find_npu_compiler_plugin_lib(soc_vendor, abi)
 
     remote_lib_dispatch = f"{cli_android_root}/{lib_dispatch.name}"
     if (
@@ -60,6 +61,20 @@ def run_android(*, model_path: pathlib.Path, accelerator: str) -> None:
       click.echo(f"Pushing {lib_dispatch.name} to device...")
       subprocess.run(
           ["adb", "push", str(lib_dispatch), remote_lib_dispatch], check=True
+      )
+
+    remote_lib_compiler = f"{cli_android_root}/{lib_compiler.name}"
+    if (
+        subprocess.run(
+            ["adb", "shell", f"[ -f {remote_lib_compiler} ]"], check=False
+        ).returncode
+        == 0
+    ):
+      click.echo(f"  Skipping {lib_compiler.name} (already on device)")
+    else:
+      click.echo(f"Pushing {lib_compiler.name} to device...")
+      subprocess.run(
+          ["adb", "push", str(lib_compiler), remote_lib_compiler], check=True
       )
 
   click.echo(f"Pushing model {model_name} to device...")
@@ -94,6 +109,9 @@ def run_android(*, model_path: pathlib.Path, accelerator: str) -> None:
     elif accelerator == "npu":
       bench_args.append("--use_npu=true")
       bench_args.append(f"--dispatch_library_path={shlex.quote(cli_android_root)}")
+      bench_args.append(
+          f"--compiler_plugin_library_path={shlex.quote(cli_android_root)}"
+      )
 
     env_vars = ""
     if remote_dispatch_dir:

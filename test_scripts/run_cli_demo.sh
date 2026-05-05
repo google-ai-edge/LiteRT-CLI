@@ -13,7 +13,7 @@ fi
 source venv/bin/activate
 
 # Install litert-cli with ASR extras
-pip install -e "$REPO_ROOT[asr]"
+pip install -e "$REPO_ROOT"
 
 # Helper for dynamic Android check
 function has_android_device() {
@@ -46,7 +46,6 @@ function download_if_not_exists() {
 
 download_if_not_exists "mobilenetv3" "litert-community/MobileNet-v3-large" "*.tflite"
 download_if_not_exists "efficientnet:gpu" "litert-community/efficientnet_b1" "*.tflite"
-download_if_not_exists "parakeet:main" "litert-community/parakeet-ctc-0.6b" "*i8.tflite"
 
 echo "Running mobilenetv3 on desktop..."
 litert run mobilenetv3
@@ -54,13 +53,14 @@ litert run mobilenetv3
 if has_android_device; then
     echo "Running efficientnet:gpu on Android (GPU)..."
     litert run efficientnet:gpu --android --gpu
+    litert run efficientnet:gpu --android --npu
 
-    echo "Benchmarking mobilenetv3 on Android..."
-    litert benchmark mobilenetv3 --android
+    echo "Benchmarking  on Android..."
+    litert benchmark efficientnet:gpu --android
+    litert benchmark mobilenetv3 --android --npu
 fi
 
-echo -e "\n=== ASR Models Test ==="
-echo "Running parakeet:main on desktop with stream..."
-litert run parakeet:main
+echo "Running mobilenetv3 on GCP..."
+litert benchmark mobilenetv3 --gcp --devices "pixel 8, sm-s931u1" --gpu
 
 echo -e "\n\033[32mDemo completed successfully!\033[0m"
