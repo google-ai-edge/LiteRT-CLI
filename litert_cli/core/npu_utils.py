@@ -178,6 +178,7 @@ def push_npu_runtime_libraries(
         runtime_dir / f"qairt/{constants.QAIRT_SDK_VERSION}/lib/aarch64-android"
     )
     skel_dir = (
+
         runtime_dir
         / f"qairt/{constants.QAIRT_SDK_VERSION}/lib/hexagon-v{best_version}/unsigned"
     )
@@ -188,6 +189,7 @@ def push_npu_runtime_libraries(
         src_dir / "libQnnSystem.so",
         src_dir / "libQnnHtp.so",
         src_dir / f"libQnnHtpV{best_version}Stub.so",
+        src_dir / "libQnnHtpPrepare.so",
     ]
 
     skel_file = skel_dir / f"libQnnHtpV{best_version}Skel.so"

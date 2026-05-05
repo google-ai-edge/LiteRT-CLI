@@ -13,9 +13,7 @@ import uuid
 
 import click
 
-# This is internal experimental code, not ready for general public.
-# TODO: b/493604945 - change this as public APIs later.
-_DEFAULT_GCP_PROJECT = "aep-e2e-test"
+_DEFAULT_GCP_PROJECT = os.environ.get("LITERT_GCP_PROJECT", "aep-e2e-test")
 _DEFAULT_GCP_LOCATION = "us-central1"
 _GCP_BUCKET = os.environ.get("LITERT_GCP_BUCKET", "litert-cli-test")
 _DEFAULT_PORTAL_ENDPOINT = "https://aiedgeportal.googleapis.com/v1alpha"
@@ -49,7 +47,8 @@ def _get_console_url(
 def run_gcp(
     model_path_str: str,
     accelerator: str,
-    device: str,
+    devices: list[str],
+    gcp_project: str | None = None,
 ) -> None:
   """Runs the model on GCP via AI Edge Portal Cloud API.
 
@@ -60,8 +59,33 @@ def run_gcp(
   Args:
     model_path_str: Path to the LiteRT model file (local or gs://).
     accelerator: Hardware accelerator to use (cpu, gpu, npu).
-    device: Target device model (e.g., 'pixel 7').
+    devices: Target device model(s) (e.g., 'pixel 7', 'pixel 8').
+    gcp_project: GCP project ID for benchmarking.
   """
+  if accelerator.lower() == "npu":
+    click.secho(
+        "Warning: NPU benchmarking on GCP is not fully implemented via CLI yet. "
+        "Please use the Google AI Edge Portal web UI to run and test NPU benchmarks.",
+        fg="yellow",
+    )
+    return
+
+  device_list = []
+  if isinstance(devices, str):
+    items = [devices]
+  else:
+    items = devices
+
+  for item in items:
+    if item:
+      parts = [p.strip() for p in item.split(",") if p.strip()]
+      device_list.extend(parts)
+
+  if not device_list:
+    device_list = ["pixel 7"]
+
+  if not gcp_project:
+    gcp_project = _DEFAULT_GCP_PROJECT
   model_path = model_path_str
   # Upload model to GCS if it's not already there.
   if not model_path.startswith("gs://"):
@@ -114,20 +138,21 @@ def run_gcp(
       "AI_EDGE_PORTAL_ENDPOINT", _DEFAULT_PORTAL_ENDPOINT
   ).rstrip("/")
   url = _get_submission_url(
-      portal_endpoint, _DEFAULT_GCP_PROJECT, _DEFAULT_GCP_LOCATION, job_id
+      portal_endpoint, gcp_project, _DEFAULT_GCP_LOCATION, job_id
   )
   headers = {
       "Authorization": f"Bearer {token}",
       "Content-Type": "application/json",
+      "X-Goog-User-Project": gcp_project
   }
 
   accel_name = accelerator.upper()
 
   body = {
       "display_name": job_id,
-      "device_configs": [{
-          "device_model": device,
-      }],
+      "device_configs": [
+          {"device_model": d} for d in device_list
+      ],
       "run_specs": [{
           "accelerator": accel_name,
           "model_path": model_path.replace("gs://", ""),
@@ -136,13 +161,20 @@ def run_gcp(
       }],
   }
 
+  if gcp_project == "aep-e2e-test":
+    click.secho(
+        "Warning: You need to specify your own GCP project by passing '--gcp-project <PROJECT_ID>' "
+        "or by setting the 'LITERT_GCP_PROJECT' environment variable.",
+        fg="yellow",
+    )
+
   # Submit the benchmark job via http requests to AI Edge Portal Cloud API.
   req = urllib.request.Request(
       url, data=json.dumps(body).encode("utf-8"), headers=headers, method="POST"
   )
   click.echo(
       f"Submitting '{accelerator}' benchmark job '{job_id}' to AI Edge Portal"
-      f" (Project: {_DEFAULT_GCP_PROJECT}, Location:"
+      f" (Project: {gcp_project}, Location:"
       f" {_DEFAULT_GCP_LOCATION})..."
   )
 
@@ -155,7 +187,7 @@ def run_gcp(
       if op_name and "operations" in op_name:
         op_url = _get_operation_url(portal_endpoint, op_name)
         console_url = _get_console_url(
-            _DEFAULT_GCP_PROJECT, _DEFAULT_GCP_LOCATION, job_id
+            gcp_project, _DEFAULT_GCP_LOCATION, job_id
         )
         click.echo(
             f"Waiting for benchmark to complete (Operation: {op_name}). This"

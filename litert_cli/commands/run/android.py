@@ -260,10 +260,11 @@ def run_android(
   )
 
   if accelerator == "npu":
-    # Download and push SOC-specific LiteRT dispatch library
+    # Download and push SOC-specific LiteRT dispatch and compiler plugin libraries
     target_model = npu.get_soc_target_model(None)
     soc_vendor = "mediatek" if "mt" in target_model else "qualcomm"
     lib_dispatch = android_utils.find_npu_dispatch_lib(soc_vendor, abi)
+    lib_compiler = android_utils.find_npu_compiler_plugin_lib(soc_vendor, abi)
 
     remote_lib_dispatch = f"{android_root}/{lib_dispatch.name}"
     if (
@@ -280,6 +281,21 @@ def run_android(
           ["adb", "push", lib_dispatch, remote_lib_dispatch], check=True
       )
 
+    remote_lib_compiler = f"{android_root}/{lib_compiler.name}"
+    if (
+        subprocess.run(
+            ["adb", "shell", f"[ -f {shlex.quote(remote_lib_compiler)} ]"],
+            check=False,
+        ).returncode
+        == 0
+    ):
+      click.echo(f"  Skipping {lib_compiler.name} (already on device)")
+    else:
+      click.echo(f"Pushing {lib_compiler.name} to device...")
+      subprocess.run(
+          ["adb", "push", lib_compiler, remote_lib_compiler], check=True
+      )
+
   click.echo("Executing on device...\n")
 
   # Need to make the binary executable before running the model
@@ -294,6 +310,7 @@ def run_android(
     run_cmd_args.append(f"--accelerator={accelerator}")
   if remote_dispatch_dir:
     run_cmd_args.append(f"--dispatch_library_dir={remote_dispatch_dir}")
+    run_cmd_args.append(f"--compiler_plugin_library_dir={remote_dispatch_dir}")
   if iterations > 1:
     run_cmd_args.append(f"--iterations={iterations}")
   if signature_index != 0:

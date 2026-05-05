@@ -15,25 +15,34 @@ import click
 
 @click.command(
     "benchmark",
-    help=textwrap.dedent("""\
-        Benchmark LiteRT models on different platforms.
-
-        MODEL: Path to the LiteRT model file.
-
-        Examples:
-
-          # Benchmark on Android with CPU (Default)
-
-            $ litert benchmark model.tflite
-
-          # Benchmark on Android with GPU
-
-            $ litert benchmark model.tflite --gpu
-
-          # Benchmark on Google AI Edge Portal in Google Cloud, using Pixel 7 devices.
-
-            $ litert benchmark model.tflite --gcp --device "pixel 7"
-        """),
+    help="""\b
+Benchmark LiteRT models on different platforms.
+\b
+MODEL: Path to the LiteRT model file.
+\b
+Examples:
+\b
+  # Benchmark on Desktop with CPU (Default) or GPU
+\b
+    $ litert benchmark model.tflite
+    $ litert benchmark model.tflite --gpu
+\b
+  # Benchmark on Android with CPU (Default) or GPU or NPU
+    $ litert benchmark model.tflite --android
+    $ litert benchmark model.tflite --android --gpu
+    $ litert benchmark model.tflite --android --npu
+\b
+  # Benchmark on Google AI Edge Portal in Google Cloud. Prerequisites:
+  # - Set up your Google AI Edge Portal account by following up the instructions at:
+  #   https://ai.google.dev/edge/ai-edge-portal
+  # - Set up authentication by running: gcloud auth login
+  # - You can set the default GCP project by setting the environment variable LITERT_GCP_PROJECT,
+  #  or by providing the --gcp-project option.
+  # 
+    $ litert benchmark model.tflite --gcp --device "pixel 7"
+    $ litert benchmark model.tflite --gcp --device "pixel 7" --gcp-project "your-gcp-project-id"
+    $ litert benchmark model.tflite --gcp --devices "pixel 7, sm-s931u1" --gpu
+""",
 )
 @click.argument("model", type=str)
 @click.option(
@@ -70,15 +79,25 @@ import click
 )
 @click.option(
     "--device",
+    "--devices",
+    "devices",
     type=str,
-    default="pixel 7",
-    help="Target device model (e.g., 'pixel 7'). Default is 'pixel 7'",
+    multiple=True,
+    default=["pixel 7"],
+    help="Target device model name(s) (e.g., 'pixel 7'). Can be specified --device "
+    "multiple times or use --devices 'pixel 7, sm-s931u1'. Default is 'pixel 7'",
+)
+@click.option(
+    "--gcp-project",
+    type=str,
+    help="GCP project ID for benchmarking (Only for GCP target).",
 )
 def benchmark_cmd(
     model: str,
     target: str,
     accelerator: str,
-    device: str,
+    devices: tuple[str, ...],
+    gcp_project: str | None = None,
 ) -> None:
   """Benchmarks LiteRT models on different platforms.
 
@@ -86,7 +105,8 @@ def benchmark_cmd(
     model: Path to the LiteRT model file or Model Reference.
     target: Target platform for benchmark (android, gcp).
     accelerator: Accelerator to use (cpu, gpu, npu).
-    device: Target device model (e.g., 'pixel 7').
+    devices: Target device model(s) (e.g., 'pixel 7').
+    gcp_project: GCP project ID for benchmarking.
   """
   from litert_cli.core import models as core_models
 
@@ -112,7 +132,8 @@ def benchmark_cmd(
     gcp.run_gcp(
         str(model_path),
         accelerator,
-        device,
+        devices,
+        gcp_project,
     )
   else:
     click.secho(f"Target '{target}' is not yet supported.", fg="red")

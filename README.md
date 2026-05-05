@@ -1,19 +1,26 @@
-# LiteRT CLI
+# LiteRT CLI (Alpha)
 
-A Python-based command-line toolkit for managing, converting, quantizing, and
-executing LiteRT (TFLite) models.
+A Python-based command-line toolkit for managing, converting, running and benchmarking LiteRT (TFLite) models.
 
 ## 🚀 Installation
 
-Install `litert-cli` with pip from the local source or PyPI.
+Install `litert-cli` with pip from the local source or PyPI in a Python virtual environment.
 
 ```bash
+# Create and activate a Python virtual environment
+python3 -m venv .litert_cli_venv
+source .litert_cli_venv/bin/activate
+
 # Installation from local source (recommended for development)
 pip install -e .
 
-# Install from Test PyPI (verified in linux and macbook, with Python 3.13)
+# Install from Test PyPI
 pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple litert-cli==0.1.1.dev22
 ```
+
+Tested platforms:
+- Host machines: Linux (Ubuntu) and Macbook (with Apple Silicon chip), with Python 3.13.
+- Android devices: Xiaomi 15 Pro (Qualcomm Snapdragon 8450).
 
 ### Common Commands
 

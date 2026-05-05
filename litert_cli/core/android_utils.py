@@ -217,7 +217,7 @@ def find_android_lib(
   Always downloads from a fixed URL (cached locally).
 
   Args:
-    lib_name: Binary name (e.g. 'run_model').
+    lib_name: library name (e.g. 'libLiteRt.so').
     abi: Target Android CPU ABI.
     base_url: The base URL to download the library from.
 
@@ -225,7 +225,7 @@ def find_android_lib(
     The absolute path to the library.
 
   Raises:
-    click.ClickException: If the binary could not be found or downloaded.
+    click.ClickException: If the library could not be found or downloaded.
   """
   try:
     downloaded_bin = _ensure_downloaded_library(abi, lib_name, base_url)
@@ -261,5 +261,29 @@ def find_npu_dispatch_lib(soc_vendor: str, abi: str) -> pathlib.Path:
     )
 
   return find_android_lib(
-      lib_name, abi, base_url=constants.LITERT_CLI_DOWNLOAD_BASE_URL
+      lib_name, abi, base_url=constants.LITERT_BINARIES_BASE_URL_ANDROID
+  )
+
+
+def find_npu_compiler_plugin_lib(soc_vendor: str, abi: str) -> pathlib.Path:
+  """Finds and downloads the NPU compiler plugin library for the given SoC vendor.
+
+  Args:
+    soc_vendor: The NPU vendor ("qualcomm" or "mediatek").
+    abi: Target Android CPU ABI.
+
+  Returns:
+    The absolute path to the local downloaded backend compiler plugin library.
+  """
+  if soc_vendor == "qualcomm":
+    lib_name = "libLiteRtCompilerPlugin_Qualcomm.so"
+  elif soc_vendor == "mediatek":
+    lib_name = "libLiteRtCompilerPlugin_MediaTek.so"
+  else:
+    raise click.ClickException(
+        f"Unsupported NPU vendor for compiler plugin: {soc_vendor!r}"
+    )
+
+  return find_android_lib(
+      lib_name, abi, base_url=constants.LITERT_BINARIES_BASE_URL_ANDROID
   )
