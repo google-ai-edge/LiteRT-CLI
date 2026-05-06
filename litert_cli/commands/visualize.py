@@ -142,7 +142,7 @@ def visualize_cmd(
   if str(resolved_model_path) != str(model_path):
     click.echo(f"Resolved model '{model_path}' to '{resolved_model_path}'")
 
-  resolved_model_path = pathlib.Path(resolved_model_path).resolve()
+  resolved_model_path = pathlib.Path(resolved_model_path)
 
   click.echo(
       f'Starting Model Explorer visualization for {resolved_model_path} in the'
@@ -150,14 +150,14 @@ def visualize_cmd(
   )
   # Check for available port so we can print the exact URL
   port = (
-      8081
-      if reuse_server and _is_port_in_use(8081)
-      else _find_available_port(8081)
+      8080
+      if reuse_server and _is_port_in_use(8080)
+      else _find_available_port(8080)
   )
 
   # Build the exact model explorer data URL
   data = {'models': [{'url': str(resolved_model_path)}]}
-  data_param = urllib.parse.quote(json.dumps(data, separators=(',', ':')), safe=':,')
+  data_param = urllib.parse.quote(json.dumps(data))
   url = f'http://localhost:{port}/?data={data_param}'
 
   model_explorer_bin = None
@@ -172,11 +172,9 @@ def visualize_cmd(
       else 'model-explorer',
       str(resolved_model_path),
       '--no_open_in_browser',
-      f'--port={port}',
   ]
   if reuse_server:
     cmd.append('--reuse_server')
-    cmd.append(f'--reuse_server_port={port}')
 
   # Launch as a fully detached daemon so the terminal isn't blocked.
   try:
