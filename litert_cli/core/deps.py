@@ -23,8 +23,8 @@ from litert_cli.core import constants
 # Map extra names to Python module names to check if the optional
 # dependency is already installed.
 _PACKAGE_BY_EXTRA = immutabledict({
-    "convert": "litert-torch",
-    "torch": "litert-torch",
+    "convert": "litert-torch-nightly",
+    "torch": "litert-torch-nightly",
     "lm": "litert-lm-nightly",
     "download": "huggingface-hub",
     "run": "ai-edge-litert-nightly",

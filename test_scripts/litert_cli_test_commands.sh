@@ -2,6 +2,12 @@
 # Shared test commands for LiteRT CLI demo.
 # This file should be sourced by driver script which setup environments first.
 
+# Initialize test tracking variables
+TOTAL_CASES=0
+TOTAL_PASSED=0
+TOTAL_FAILED=0
+FAILED_CASES=()
+
 # Helper for dynamic Android check
 function has_android_device() {
   adb devices | grep -q "[0-9a-zA-Z]\+.*device$"
@@ -9,8 +15,57 @@ function has_android_device() {
 
 function log_section() {
   echo -e "\n=================================================================="
-  echo -e ">>> $1"
+  echo -e ">>> \e[1m$1\e[0m"
   echo -e "=================================================================="
+}
+
+# Helper to run a test case with isolation, timing, and status reporting
+function run_case() {
+    local title="$1"
+    shift
+    
+    echo -e "\n\e[34m▶ Running:\e[0m \e[1;37m$title\e[0m"
+    echo -e "\e[90mCommand: $*\e[0m"
+    echo -e "\e[90m------------------------------------------------------------\e[0m"
+    
+    # Execute the command (disabling immediate exit on failure just for the test command)
+    set +e
+    "$@"
+    local status=$?
+    set -e
+    
+    echo -e "\e[90m------------------------------------------------------------\e[0m"
+    if [ $status -eq 0 ]; then
+        echo -e "\e[32m✔ SUCCESS:\e[0m \e[1;32m$title\e[0m"
+        TOTAL_PASSED=$((TOTAL_PASSED + 1))
+    else
+        echo -e "\e[31m✘ FAILED (Exit Code: $status):\e[0m \e[1;31m$title\e[0m"
+        TOTAL_FAILED=$((TOTAL_FAILED + 1))
+        FAILED_CASES+=("$title")
+    fi
+    TOTAL_CASES=$((TOTAL_CASES + 1))
+    return $status
+}
+
+function print_test_summary() {
+    echo -e "\n=================================================================="
+    echo -e ">>> \e[1mTEST SUMMARY\e[0m"
+    echo -e "=================================================================="
+    echo -e "Total Test Cases Run: \e[1m$TOTAL_CASES\e[0m"
+    echo -e "Passed:              \e[1;32m$TOTAL_PASSED\e[0m"
+    echo -e "Failed:              \e[1;31m$TOTAL_FAILED\e[0m"
+    
+    if [ $TOTAL_FAILED -gt 0 ]; then
+        echo -e "\n\e[1;31mFailed Test Cases:\e[0m"
+        for case in "${FAILED_CASES[@]}"; do
+            echo -e "  - \e[1;31m$case\e[0m"
+        done
+        echo -e "=================================================================="
+        return 1
+    fi
+    echo -e "\e[1;32mAll tests completed successfully!\e[0m"
+    echo -e "=================================================================="
+    return 0
 }
 
 # --- Model Helper Functions ---
@@ -53,29 +108,31 @@ function get_compiled_model() {
 function test_download() {
     log_section "Testing: litert download"
 
-    echo "--- Specific file pattern (*.tflite) ---"
-    litert download litert-community/MobileNet-v3-large --file "*.tflite" --output "$MODEL_DIR/mobilenet"
+    run_case "Download MobileNet-v3-large (*.tflite only)" \
+        litert download litert-community/MobileNet-v3-large --file "*.tflite" --output "$MODEL_DIR/mobilenet"
 
-    echo "--- Full repository download ---"
-    litert download litert-community/MobileNet-v3-large --output "$MODEL_DIR/mobilenet_full"
-    litert download litert-community/efficientnet_b1 --output "$MODEL_DIR/efficientnet"
+    run_case "Download MobileNet-v3-large (Full Repo)" \
+        litert download litert-community/MobileNet-v3-large --output "$MODEL_DIR/mobilenet_full"
+
+    run_case "Download EfficientNet-B1 (Full Repo)" \
+        litert download litert-community/efficientnet_b1 --output "$MODEL_DIR/efficientnet"
 }
 
 function test_quantize() {
     log_section "Testing: litert quantize"
     local mobilenet=$(get_mobilenet)
 
-    echo "--- Dynamic Quantization ---"
-    litert quantize "$mobilenet" --type int8_dynamic --output "$MODEL_DIR/dynamic.tflite"
+    run_case "Quantize: Dynamic Range INT8" \
+        litert quantize "$mobilenet" --type int8_dynamic --output "$MODEL_DIR/dynamic.tflite"
 
-    echo "--- Weight-Only Quantization ---"
-    litert quantize "$mobilenet" --type int8_weight_only --output "$MODEL_DIR/weight_only.tflite"
+    run_case "Quantize: Weight-Only INT8" \
+        litert quantize "$mobilenet" --type int8_weight_only --output "$MODEL_DIR/weight_only.tflite"
 
-    echo "--- Static Range Quantization with calibration data ---"
-    litert quantize "$mobilenet" --type static --calibration-data "$TEST_DATA_DIR/mobilenet_v3_calib_data.py" --output "$MODEL_DIR/static.tflite"
+    run_case "Quantize: Static Range with Calibration Data" \
+        litert quantize "$mobilenet" --type static --calibration-data "$TEST_DATA_DIR/mobilenet_v3_calib_data.py" --output "$MODEL_DIR/static.tflite"
 
-    echo "--- Recipe-based Quantization ---"
-    litert quantize "$mobilenet" --recipe "$TEST_DATA_DIR/quantize_recipe.json" --output "$MODEL_DIR/recipe.tflite"
+    run_case "Quantize: Recipe-based" \
+        litert quantize "$mobilenet" --recipe "$TEST_DATA_DIR/quantize_recipe.json" --output "$MODEL_DIR/recipe.tflite"
 }
 
 function test_compile() {
@@ -87,9 +144,9 @@ function test_compile() {
         return 0
     fi
 
-    litert compile "$efficientnet" --target sm8750 --output-dir "$MODEL_DIR"
+    run_case "Compile EfficientNet-B1 for Qualcomm sm8750" \
+        litert compile "$efficientnet" --target sm8750 --output-dir "$MODEL_DIR"
 }
-
 
 function test_run() {
     log_section "Testing: litert run"
@@ -99,43 +156,43 @@ function test_run() {
 
     TEST_MODEL="$TEST_DATA_DIR/dummy_cv_model.tflite"
 
-    echo "--- Desktop Run ---"
-    litert run "$mobilenet_quant" --desktop --cpu
-    litert run "$efficientnet" --desktop --cpu
+    run_case "Run: MobileNet Quant on Desktop (CPU)" \
+        litert run "$mobilenet_quant" --desktop --cpu
 
-    echo "--- Android Run (Requires connected device) ---"
+    run_case "Run: EfficientNet on Desktop (CPU)" \
+        litert run "$efficientnet" --desktop --cpu
+
     if has_android_device; then
-        litert run "$mobilenet_quant" --android --cpu
-        litert run "$efficientnet" --android --gpu
+        run_case "Run: MobileNet Quant on Android (CPU)" \
+            litert run "$mobilenet_quant" --android --cpu
+
+        run_case "Run: EfficientNet on Android (GPU)" \
+            litert run "$efficientnet" --android --gpu
 
         if [[ "$(uname)" == "Linux" ]]; then
             echo "Removing old NPU runtime libraries on device..."
             adb shell rm -f "$LITERT_CLI_ANDROID_ROOT/libQnn*" "$LITERT_CLI_ANDROID_ROOT/libLiteRtDispatch_Qualcomm.so"
 
-            echo "Running NPU compatible model on Android NPU..."
             if [ -f "$compiled_model" ]; then
-                litert run "$compiled_model" --android --npu
+                run_case "Run: Compiled EfficientNet on Android (NPU)" \
+                    litert run "$compiled_model" --android --npu
             else
                 echo "Compiled model not found: $compiled_model. Skipping NPU run."
             fi
-        else
-            echo "Skipping Android NPU run test on non-Linux platform ($(uname))"
         fi
-    else
-        echo "No Android device detected or skipped via flag. Skipping Android execution."
     fi
 
-    echo "--- Multi-Input Formats (Strings, Arrays) ---"
     for target in "--desktop" "--android"; do
         if [ "$target" == "--android" ] && ! has_android_device; then
             continue
         fi
-        echo "Running Multi-Input strings/scalars on $target..."
-        litert run "$TEST_MODEL" $target --input inputs="0.5" --print-tensors --iterations 1
-        litert run "$TEST_MODEL" $target --input inputs="[0.5, 0.5, 0.5]" --print-tensors --iterations 1
+        run_case "Run: Multi-Input String Scalar ($target)" \
+            litert run "$TEST_MODEL" $target --input inputs="0.5" --print-tensors --iterations 1
+
+        run_case "Run: Multi-Input String Array ($target)" \
+            litert run "$TEST_MODEL" $target --input inputs="[0.5, 0.5, 0.5]" --print-tensors --iterations 1
     done
 
-    echo "--- Multi-Input Formats (Files) ---"
     echo "Generating test input files..."
     generate_test_inputs
 
@@ -143,13 +200,19 @@ function test_run() {
         if [ "$target" == "--android" ] && ! has_android_device; then
             continue
         fi
-        echo "Running Multi-Input files on $target..."
-        litert run "$TEST_MODEL" $target --input inputs="$LITERT_CLI_ROOT/test_input.npy" --print-tensors --iterations 1
-        litert run "$TEST_MODEL" $target --input inputs="$LITERT_CLI_ROOT/test_input.raw" --print-tensors --iterations 1
+        run_case "Run: Multi-Input .npy file ($target)" \
+            litert run "$TEST_MODEL" $target --input inputs="$LITERT_CLI_ROOT/test_input.npy" --print-tensors --iterations 1
+
+        run_case "Run: Multi-Input .raw file ($target)" \
+            litert run "$TEST_MODEL" $target --input inputs="$LITERT_CLI_ROOT/test_input.raw" --print-tensors --iterations 1
+
         if [ -f "$LITERT_CLI_ROOT/test_input.png" ]; then
-            litert run "$TEST_MODEL" $target --input inputs="$LITERT_CLI_ROOT/test_input.png" --print-tensors --iterations 1
+            run_case "Run: Multi-Input .png file ($target)" \
+                litert run "$TEST_MODEL" $target --input inputs="$LITERT_CLI_ROOT/test_input.png" --print-tensors --iterations 1
         fi
-        litert run "$TEST_MODEL" $target --input "$LITERT_CLI_ROOT/test_input.npy" --print-tensors --iterations 1
+
+        run_case "Run: Direct positional input ($target)" \
+            litert run "$TEST_MODEL" $target --input "$LITERT_CLI_ROOT/test_input.npy" --print-tensors --iterations 1
     done
 }
 
@@ -160,30 +223,41 @@ function test_benchmark() {
     local compiled_model=$(get_compiled_model)
 
     if has_android_device; then
-        litert benchmark "$mobilenet_quant" --android
-        litert benchmark "$efficientnet" --android --gpu
-        litert benchmark "$efficientnet" --android --npu
+        run_case "Benchmark: MobileNet Quant on Android (CPU)" \
+            litert benchmark "$mobilenet_quant" --android
+
+        run_case "Benchmark: EfficientNet on Android (GPU)" \
+            litert benchmark "$efficientnet" --android --gpu
+
+        run_case "Benchmark: EfficientNet on Android (NPU)" \
+            litert benchmark "$efficientnet" --android --npu
+
         if [ -f "$compiled_model" ]; then
-            litert benchmark "$compiled_model" --android --npu
+            run_case "Benchmark: Compiled EfficientNet on Android (NPU)" \
+                litert benchmark "$compiled_model" --android --npu
         else
             echo "Compiled model not found: $compiled_model. Skipping NPU benchmark."
         fi
-    else
-        echo "No Android device detected. Skipping Android benchmarks."
     fi
 
-    echo "--- Benchmarking on AI Edge Portal ---"
-    litert benchmark "$mobilenet_quant" --gcp
-    litert benchmark "$efficientnet" --gcp --gpu
+    run_case "Benchmark: MobileNet Quant on GCP (AI Edge Portal)" \
+        litert benchmark "$mobilenet_quant" --gcp
+
+    run_case "Benchmark: EfficientNet on GCP (AI Edge Portal GPU)" \
+        litert benchmark "$efficientnet" --gcp --gpu
 }
 
 function test_convert() {
     log_section "Testing: litert convert"
-    litert convert "$TEST_DATA_DIR/resnet18.py" --output "$MODEL_DIR/resnet18"
-    litert convert Qwen/Qwen1.5-0.5B-Chat --output $MODEL_DIR/qwen0.5b
+    run_case "Convert: PyTorch ResNet18 Model" \
+        litert convert "$TEST_DATA_DIR/resnet18.py" --output "$MODEL_DIR/resnet18"
+
+    run_case "Convert: HuggingFace Qwen 1.5 0.5B Model" \
+        litert convert Qwen/Qwen1.5-0.5B-Chat --output $MODEL_DIR/qwen0.5b
 
     if has_android_device; then
-        litert benchmark "$MODEL_DIR/resnet18/resnet18.tflite" --android
+        run_case "Benchmark Converted ResNet18 on Android" \
+            litert benchmark "$MODEL_DIR/resnet18/resnet18.tflite" --android
     fi
 }
 
@@ -196,14 +270,14 @@ function test_visualize() {
         return 1
     fi
 
-    echo "--- Standard mode (Starts background server) ---"
-    litert visualize "$mobilenet"
+    run_case "Visualize: Standard Mode" \
+        litert visualize "$mobilenet"
 
-    echo "--- Force new server port (no_reuse_server) ---"
-    litert visualize "$mobilenet" --no_reuse_server
+    run_case "Visualize: Force New Server Port" \
+        litert visualize "$mobilenet" --no_reuse_server
 
-    echo "--- Clean up and stop all servers ---"
-    litert visualize --stop_all
+    run_case "Visualize: Stop All Servers" \
+        litert visualize --stop_all
 }
 
 case "$COMMAND" in
@@ -228,3 +302,6 @@ case "$COMMAND" in
         exit 1
         ;;
 esac
+
+# Print final test summary report
+print_test_summary

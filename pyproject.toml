@@ -28,8 +28,7 @@ compile = [
 convert = [
     "litert-torch-nightly",
     "torch",
-    # Latest transformers break litert-torch-nightly
-    "transformers<5.0.0",
+    "transformers",
     "torchvision",
     "sentencepiece",
 ]
@@ -44,7 +43,7 @@ lm = [
 ]
 asr = [
     "librosa",
-    "transformers<5.0.0",
+    "transformers",
     "sounddevice",
     "torch",
 ]
