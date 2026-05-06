@@ -22,7 +22,7 @@ class DepsTest(absltest.TestCase):
     result = deps.ensure_extra('torch')
 
     self.assertTrue(result)
-    mock_version.assert_called_once_with('litert-torch')
+    mock_version.assert_called_once_with('litert-torch-nightly')
 
   @mock.patch.object(subprocess, 'check_call', autospec=True)
   @mock.patch.object(importlib.metadata, 'version', autospec=True)
@@ -36,7 +36,7 @@ class DepsTest(absltest.TestCase):
     result = deps.ensure_extra('torch')
 
     self.assertTrue(result)
-    mock_version.assert_called_once_with('litert-torch')
+    mock_version.assert_called_once_with('litert-torch-nightly')
     mock_check_call.assert_called_once()
 
   @mock.patch.object(subprocess, 'check_call', autospec=True)
