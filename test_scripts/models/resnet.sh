@@ -12,7 +12,7 @@ export REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 export LITERT_CLI_ROOT="/tmp/litert_cli_resnet"
 
 # Source shared utilities
-source "$SCRIPT_DIR/demo_utils.sh"
+source "$SCRIPT_DIR/utils.sh"
 
 
 # Clean up and create work directory

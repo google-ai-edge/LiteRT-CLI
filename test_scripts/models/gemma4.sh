@@ -13,7 +13,7 @@ export REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 export LITERT_CLI_ROOT="/tmp/litert_cli_gemma4"
 
 # Source shared utilities
-source "$SCRIPT_DIR/demo_utils.sh"
+source "$SCRIPT_DIR/utils.sh"
 
 
 # Clean up and create work directory
@@ -47,8 +47,7 @@ pip install -e "$REPO_ROOT"
 
 # --- 2. Run Gemma4 Generative LLM Model ---
 run_case "Run Gemma4: Generative inference with custom prompt" \
-    litert lm run gemma-4-E2B-it.litertlm --prompt "Explain machine learning in one sentence."
-
+    litert lm run --from-huggingface-repo=litert-community/gemma-4-E2B-it-litert-lm gemma-4-E2B-it.litertlm --prompt="What is the capital of France?"
 
 # --- 3. Benchmark Gemma4 LLM Model ---
 run_case "Benchmark Gemma4: Local benchmark of LLM generation" \
