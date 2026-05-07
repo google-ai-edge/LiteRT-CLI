@@ -195,9 +195,6 @@ litert lm run gemma-4-E2B-it.litertlm
 
 # Example with custom prompt
 litert lm run gemma-4-E2B-it.litertlm --prompt "Hello, how are you?"
-
-# Or using model reference from HuggingFace Hub, which you already downlowd.
-litert lm run gemma3-1b
 ```
 
 **12. Clean up all caches:**
