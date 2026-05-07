@@ -66,6 +66,7 @@ QAIRT_SDK_URL: str = (
     f"Qualcomm_AI_Runtime_Community/All/{QAIRT_SDK_VERSION}/v{QAIRT_SDK_VERSION}.zip"
 )
 
+# TODO: switch to read from litert/vendors/qualcomm/supported_soc.csv
 QNN_SOC_VERSION_MAP: types.MappingProxyType[str, str] = types.MappingProxyType({
     "sm8350": "68",
     "sm8450": "69",
@@ -73,8 +74,14 @@ QNN_SOC_VERSION_MAP: types.MappingProxyType[str, str] = types.MappingProxyType({
     "sm8650": "75",
     "sm8750": "79",
     "sm8850": "81",
-    "sa8255": "81",
-    "sa8295": "81",
+    # Sub-flagship & Mid-range Mobile SoCs
+    "sm8635": "73",
+    "sm7675": "73",
+    "sm7550": "73",
+    "sm7475": "69",
+    # Automotive Cockpit SoCs
+    "sa8255": "73",
+    "sa8295": "68",
     "qnn_all": "81",
 })
 
@@ -87,6 +94,12 @@ AOT_SUPPORTED_TARGETS: types.MappingProxyType[str, tuple[str, str]] = (
         "sm8650": ("qualcomm", "SM8650"),
         "sm8750": ("qualcomm", "SM8750"),
         "sm8850": ("qualcomm", "SM8850"),
+        # Sub-flagship & Mid-range Mobile SoCs
+        "sm8635": ("qualcomm", "SM8635"),
+        "sm7675": ("qualcomm", "SM7675"),
+        "sm7550": ("qualcomm", "SM7550"),
+        "sm7475": ("qualcomm", "SM7475"),
+        # Automotive Cockpit SoCs
         "sa8255": ("qualcomm", "SA8255"),
         "sa8295": ("qualcomm", "SA8295"),
         "qnn_all": ("qualcomm", "ALL"),

@@ -11,8 +11,10 @@ import shutil
 import textwrap
 
 import click
+from litert_cli.core import constants
 from litert_cli.core import deps
 from litert_cli.core import npu_utils
+from litert_cli.core import utils
 
 
 @click.command(
@@ -93,6 +95,10 @@ def compile_cmd(
   from ai_edge_litert.aot import aot_compile as aot_lib
   from ai_edge_litert.aot.ai_pack import export_lib as ai_pack_export
   from litert_cli.core import models as core_models
+
+  # Quiet if default is true
+  if constants.DEFAULT_QUIET:
+    utils.enable_quiet_mode()
 
   resolved_model_path, _ = core_models.resolve_model_reference(model_path)
   if str(resolved_model_path) != str(model_path):

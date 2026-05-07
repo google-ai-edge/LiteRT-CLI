@@ -1,4 +1,4 @@
-# LiteRT CLI (Alpha)
+# LiteRT CLI (Fishfood)
 
 A convenient command-line toolkit to streamline LiteRT development workflow,
 including converting, quantizing, compiling, manging, running and benchmarking
@@ -8,9 +8,14 @@ LiteRT (TFLite) model on various hardware (CPU / GPU / NPU) across platform
 ## Use in Coding Agent
 
 Add LiteRT CLI skills .agents/skills/litert_cli/SKILL.md into your AI coding
-agent like Antigravity or Gemini CLI, then you can use prompts like: - Download
-LiteRT model litert-community/efficient_b1 and run it on CPU - Benchmark LiteRT
-model litert-community/efficient_b1 on my Android GPU
+agent like Antigravity or Gemini CLI, then you can use prompts like: - `Download
+LiteRT model litert-community/efficientnet_b1 and run it on CPU` - `Benchmark
+LiteRT model litert-community/efficientnet_b1 on my Android GPU` - `Compile
+LiteRT model litert-community/efficientnet_b1 for NPU target sm8750` -
+`Visualize LiteRT model litert-community/efficientnet_b1`
+
+It will install related tools automatically, including python virtual
+environment, LiteRT-CLI and related dependencies.
 
 ## 🚀 Installation
 
@@ -19,19 +24,19 @@ environment.
 
 ```bash
 # Create and activate a Python virtual environment
-python3 -m venv .litert_cli_venv
-source .litert_cli_venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 
 # Installation from local source (recommended for development)
 pip install -e .
 
 # Install from Test PyPI
-pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple litert-cli==0.1.1.dev22
+pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple litert-cli==0.1.1.dev23
 ```
 
 Tested platforms: - Host machines: Linux (Ubuntu) and Macbook (with Apple
 Silicon chip), with Python 3.13. - Android devices: Xiaomi 15 Pro (Qualcomm
-Snapdragon 8450).
+Snapdragon 8750).
 
 ### Common Commands
 
@@ -53,9 +58,12 @@ litert download litert-community/MobileNet-v3-large
 litert download litert-community/MobileNet-v3-large --model_ref my_model_ref
 ```
 
-**2. Convert a PyTorch model into a LiteRT model:**
-```bash
+**2. Convert a PyTorch model into a LiteRT model:** ```bash
+
 # Automated HF Conversion
+
+# support
+
 litert convert Qwen/Qwen1.5-0.5B-Chat --output /tmp/qwen
 
 # Generic Script Injection
@@ -89,15 +97,15 @@ litert quantize model.tflite \
   --output recipe.tflite
 ```
 
-**4. Compile a LiteRT model for NPU AOT:**
+**4. Compile a LiteRT model for NPU AOT:** **NOTE**: Only work on linux host for
+now, and only support qualcomm NPU for now.
 
 ```bash
-# Basic Compilation for specific NPU, like qualcomm sm8450, used in Xiaomi 15 pro.
-# Only verified on linux host for now and Macbook doesn't work.
-litert compile model.tflite --target sm8450
+# Basic Compilation for specific NPU, like qualcomm sm8750, used in Xiaomi 15 pro.
+litert compile model.tflite --target sm8750
 
 # Compile for multiple targets and export AI Pack for Android
-litert compile model.tflite --target sm8550 --target mt6989 --export-aipack my_npu_models
+litert compile model.tflite --target sm8750 --target mt6989 --export-aipack my_npu_models
 ```
 
 **5. Run a LiteRT model on Desktop or Android:**
@@ -113,6 +121,10 @@ litert run model.tflite --gpu
 
 # Run on connected Android device
 litert run model.tflite --android
+
+# Run on connected Android device with NPU acceleration, with JIT mode.
+
+litert run model.tflite --android --npu
 
 # Run on connected Android device with NPU acceleration, with NPU AOT compiled model
 litert run model_sm8450.tflite --android --npu
@@ -133,6 +145,10 @@ litert run model.tflite \
 # Benchmark on Android (CPU side)
 litert benchmark my_model_ref --android --cpu
 litert benchmark model.tflite --android --cpu
+
+# Benchmark on Android NPU with JIT mode.
+
+litert benchmark model.tflite --android --npu
 
 # Benchmark AOT compiled model on Android NPU
 litert benchmark model_sm8450.tflite --android --npu
@@ -177,15 +193,15 @@ litert list my_model
 litert delete my_model
 ```
 
-**11. Run a generative LLM model using LiteRT-LM CLI:**
-```bash
+**11. Run a generative LLM model using LiteRT-LM CLI:** ```bash
+
 # Run a generative LLM model by profixing to LiteRT-LM CLI.
-# Example: gemma3-1b is a model refere from HuggingFace Hub, and you have already download it.
-litert lm run gemma3-1b
+
+litert lm run gemma-4-E2B-it.litertlm
 
 # Example with custom prompt
-litert lm run gemma3-1b --prompt "Hello, how are you?"
-```
+
+litert lm run gemma-4-E2B-it.litertlm --prompt "Hello, how are you?" ```
 
 **12. Clean up all caches:**
 ```bash
