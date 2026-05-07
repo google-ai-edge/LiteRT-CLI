@@ -20,6 +20,11 @@ set -e
 export SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# Define ANSI color codes using \033 for maximum compatibility across Linux and macOS
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+NC='\033[0m' # No Color
+
 # Create Python virtual environment if not exists
 if [ ! -d "venv" ]; then
   echo "Creating virtual environment..."
@@ -48,9 +53,9 @@ function download_if_not_exists() {
   local main_ref=${ref%%:*}
 
   if [ -d "$MODELS_CACHE/$main_ref" ]; then
-    echo -e "\033[32m>>> Model reference '$main_ref' already exists in cache, skipping download.\033[0m"
+    echo -e "${GREEN}>>> Model reference '$main_ref' already exists in cache, skipping download.${NC}"
   else
-    echo -e "\033[33m>>> Downloading model '$ref'...\033[0m"
+    echo -e "${YELLOW}>>> Downloading model '$ref'...${NC}"
     if [ -n "$file_pattern" ]; then
       litert download "$repo" --file "$file_pattern" --model-ref "$ref"
     else
@@ -78,4 +83,4 @@ fi
 echo "Running mobilenetv3 on GCP..."
 litert benchmark mobilenetv3 --gcp --devices "pixel 8, sm-s931u1" --gpu
 
-echo -e "\n\033[32mDemo completed successfully!\033[0m"
+echo -e "\n${GREEN}Demo completed successfully!${NC}"

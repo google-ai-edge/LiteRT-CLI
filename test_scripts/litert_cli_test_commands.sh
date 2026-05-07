@@ -23,6 +23,17 @@ TOTAL_PASSED=0
 TOTAL_FAILED=0
 FAILED_CASES=()
 
+# Define ANSI color codes using \033 for maximum compatibility across Linux and macOS
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+WHITE='\033[1;37m'
+GRAY='\033[90m'
+BOLD='\033[1m'
+BOLD_RED='\033[1;31m'
+BOLD_GREEN='\033[1;32m'
+NC='\033[0m' # No Color
+
 # Helper for dynamic Android check
 function has_android_device() {
   adb devices | grep -q "[0-9a-zA-Z]\+.*device$"
@@ -30,7 +41,7 @@ function has_android_device() {
 
 function log_section() {
   echo -e "\n=================================================================="
-  echo -e ">>> \e[1m$1\e[0m"
+  echo -e ">>> ${BOLD}$1${NC}"
   echo -e "=================================================================="
 }
 
@@ -39,9 +50,9 @@ function run_case() {
     local title="$1"
     shift
     
-    echo -e "\n\e[34m▶ Running:\e[0m \e[1;37m$title\e[0m"
-    echo -e "\e[90mCommand: $*\e[0m"
-    echo -e "\e[90m------------------------------------------------------------\e[0m"
+    echo -e "\n${BLUE}▶ Running:${NC} ${WHITE}$title${NC}"
+    echo -e "${GRAY}Command: $*${NC}"
+    echo -e "${GRAY}------------------------------------------------------------${NC}"
     
     # Execute the command (disabling immediate exit on failure just for the test command)
     set +e
@@ -49,12 +60,12 @@ function run_case() {
     local status=$?
     set -e
     
-    echo -e "\e[90m------------------------------------------------------------\e[0m"
+    echo -e "${GRAY}------------------------------------------------------------${NC}"
     if [ $status -eq 0 ]; then
-        echo -e "\e[32m✔ SUCCESS:\e[0m \e[1;32m$title\e[0m"
+        echo -e "${GREEN}✔ SUCCESS:${NC} ${BOLD_GREEN}$title${NC}"
         TOTAL_PASSED=$((TOTAL_PASSED + 1))
     else
-        echo -e "\e[31m✘ FAILED (Exit Code: $status):\e[0m \e[1;31m$title\e[0m"
+        echo -e "${RED}✘ FAILED (Exit Code: $status):${NC} ${BOLD_RED}$title${NC}"
         TOTAL_FAILED=$((TOTAL_FAILED + 1))
         FAILED_CASES+=("$title")
     fi
@@ -64,21 +75,21 @@ function run_case() {
 
 function print_test_summary() {
     echo -e "\n=================================================================="
-    echo -e ">>> \e[1mTEST SUMMARY\e[0m"
+    echo -e ">>> ${BOLD}TEST SUMMARY${NC}"
     echo -e "=================================================================="
-    echo -e "Total Test Cases Run: \e[1m$TOTAL_CASES\e[0m"
-    echo -e "Passed:              \e[1;32m$TOTAL_PASSED\e[0m"
-    echo -e "Failed:              \e[1;31m$TOTAL_FAILED\e[0m"
+    echo -e "Total Test Cases Run: ${BOLD}$TOTAL_CASES${NC}"
+    echo -e "Passed:              ${BOLD_GREEN}$TOTAL_PASSED${NC}"
+    echo -e "Failed:              ${BOLD_RED}$TOTAL_FAILED${NC}"
     
     if [ $TOTAL_FAILED -gt 0 ]; then
-        echo -e "\n\e[1;31mFailed Test Cases:\e[0m"
+        echo -e "\n${BOLD_RED}Failed Test Cases:${NC}"
         for case in "${FAILED_CASES[@]}"; do
-            echo -e "  - \e[1;31m$case\e[0m"
+            echo -e "  - ${BOLD_RED}$case${NC}"
         done
         echo -e "=================================================================="
         return 1
     fi
-    echo -e "\e[1;32mAll tests completed successfully!\e[0m"
+    echo -e "${BOLD_GREEN}All tests completed successfully!${NC}"
     echo -e "=================================================================="
     return 0
 }
