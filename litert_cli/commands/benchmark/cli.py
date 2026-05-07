@@ -12,6 +12,9 @@ import textwrap
 
 import click
 
+from litert_cli.core import constants
+from litert_cli.core import utils
+
 
 @click.command(
     "benchmark",
@@ -112,6 +115,10 @@ def benchmark_cmd(
     gcp_project: GCP project ID for benchmarking.
   """
   from litert_cli.core import models as core_models
+
+  # Quiet if default is true
+  if constants.DEFAULT_QUIET:
+    utils.enable_quiet_mode()
 
   resolved_model_path, _ = core_models.resolve_model_reference(model)
 
