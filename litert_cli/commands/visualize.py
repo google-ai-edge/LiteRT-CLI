@@ -81,11 +81,11 @@ def _find_available_port(start_port: int, max_attempts: int = 20) -> int:
         3. Compare two models side-by-side (forces a new server on a new port):
 
           $ litert visualize /path/to/model_A.tflite
-          $ litert visualize /path/to/model_B.tflite --no_reuse_server
+          $ litert visualize /path/to/model_B.tflite --no-reuse-server
 
         4. Clean up and stop all running Model Explorer servers:
 
-          $ litert visualize --stop_all
+          $ litert visualize --stop-all
       """),
 )
 @click.argument(
@@ -94,12 +94,12 @@ def _find_available_port(start_port: int, max_attempts: int = 20) -> int:
     required=False,
 )
 @click.option(
-    '--reuse_server/--no_reuse_server',
+    '--reuse-server/--no-reuse-server',
     default=True,
     help='Reuse running Model Explorer server.',
 )
 @click.option(
-    '--stop_all',
+    '--stop-all',
     is_flag=True,
     help='Stop all running Model Explorer servers.',
 )

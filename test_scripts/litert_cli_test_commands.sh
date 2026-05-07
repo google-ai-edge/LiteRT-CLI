@@ -274,10 +274,10 @@ function test_visualize() {
         litert visualize "$mobilenet"
 
     run_case "Visualize: Force New Server Port" \
-        litert visualize "$mobilenet" --no_reuse_server
+        litert visualize "$mobilenet" --no-reuse-server
 
     run_case "Visualize: Stop All Servers" \
-        litert visualize --stop_all
+        litert visualize --stop-all
 }
 
 case "$COMMAND" in

@@ -132,7 +132,7 @@ def _download_from_hf(
 )
 @click.argument("model_path")
 @click.option(
-    "--model_ref",
+    "--model-ref",
     help=(
         "Reference name for the model in centralized cache (e.g."
         " 'mobilenet:v3')."
@@ -149,7 +149,7 @@ def _download_from_hf(
 )
 @click.option("--token", help="Private model requiring a Token")
 @click.option(
-    "--hf_id", help="Optional Hugging Face ID to associate with the model."
+    "--hf-id", help="Optional Hugging Face ID to associate with the model."
 )
 @deps.require_extra("download")
 def download_cmd(

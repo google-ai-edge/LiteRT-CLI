@@ -23,11 +23,11 @@ from ..core import constants
     ),
 )
 @click.option(
-    "--model_ref",
+    "--model-ref",
     required=True,
     help="Reference name for the model (e.g. 'my_model:enc').",
 )
-@click.option("--hf_id", help="Hugging Face ID to associate with the model.")
+@click.option("--hf-id", help="Hugging Face ID to associate with the model.")
 def import_cmd(
     file_path: pathlib.Path, model_ref: str, hf_id: str | None
 ) -> None:

@@ -37,9 +37,9 @@ function download_if_not_exists() {
   else
     echo -e "\033[33m>>> Downloading model '$ref'...\033[0m"
     if [ -n "$file_pattern" ]; then
-      litert download "$repo" --file "$file_pattern" --model_ref "$ref"
+      litert download "$repo" --file "$file_pattern" --model-ref "$ref"
     else
-      litert download "$repo" --model_ref "$ref"
+      litert download "$repo" --model-ref "$ref"
     fi
   fi
 }
