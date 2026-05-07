@@ -1,4 +1,4 @@
-# LiteRT CLI (Fishfood)
+# LiteRT CLI (Preview)
 
 A convenient command-line toolkit to streamline LiteRT development workflow,
 including converting, quantizing, compiling, managing, running, and benchmarking
