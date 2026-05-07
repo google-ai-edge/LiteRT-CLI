@@ -30,7 +30,7 @@ source .venv/bin/activate
 pip install -e .
 
 # Install from Test PyPI
-pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple litert-cli==0.1.1.dev22
+pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple litert-cli==0.1.1.dev23
 ```
 
 Tested platforms:
