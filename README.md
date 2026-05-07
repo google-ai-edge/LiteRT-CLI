@@ -1,23 +1,32 @@
 # LiteRT CLI (Fishfood)
 
-A convenient command-line toolkit to streamline LiteRT development workflow, including converting, quantizing, compiling, managing, running, and benchmarking LiteRT (TFLite) models on various hardware (CPU / GPU / NPU) across platforms (desktop, mobile, or cloud).
+A convenient command-line toolkit to streamline LiteRT development workflow,
+including converting, quantizing, compiling, managing, running, and benchmarking
+LiteRT (TFLite) models on various hardware (CPU / GPU / NPU) across platforms
+(desktop, mobile, or cloud).
 
 ## 🤖 Use in Coding Agent
 
-Add the LiteRT CLI skill [`SKILL.md`](file:///.agents/skills/litert_cli/SKILL.md) into your AI coding agent (like Antigravity or Gemini CLI) to enable prompts such as:
+Add the LiteRT CLI skill
+[`SKILL.md`](file:///.agents/skills/litert_cli/SKILL.md) into your AI coding
+agent (like Antigravity or Gemini CLI) to enable prompts such as:
 
-* "Download LiteRT model `litert-community/efficientnet_b1` and run it on CPU"
-* "Benchmark LiteRT model `litert-community/efficientnet_b1` on my Android GPU"
-* "Compile LiteRT model `litert-community/efficientnet_b1` for NPU target `sm8750`"
-* "Visualize LiteRT model `litert-community/efficientnet_b1`"
+*   "Download LiteRT model `litert-community/efficientnet_b1` and run it on CPU"
+*   "Benchmark LiteRT model `litert-community/efficientnet_b1` on my Android
+    GPU"
+*   "Compile LiteRT model `litert-community/efficientnet_b1` for NPU target
+    `sm8750`"
+*   "Visualize LiteRT model `litert-community/efficientnet_b1`"
 
-The agent will automatically install the necessary tools, including Python virtual environments, `litert-cli`, and all required dependencies.
+The agent will automatically install the necessary tools, including Python
+virtual environments, `litert-cli`, and all required dependencies.
 
----
+--------------------------------------------------------------------------------
 
 ## 🚀 Installation
 
-Install `litert-cli` with `pip` from either local source or PyPI within a Python virtual environment.
+Install `litert-cli` with `pip` from either local source or PyPI within a Python
+virtual environment.
 
 ```bash
 # Create and activate a Python virtual environment
@@ -32,13 +41,14 @@ pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/
 ```
 
 ### Tested Platforms
-* **Host Machines**: 
-  * Linux (Ubuntu) with Python 3.13
-  * macOS (Apple Silicon) with Python 3.13
-* **Android Devices**: 
-  * Xiaomi 15 Pro (Qualcomm Snapdragon 8750)
 
----
+*   **Host Machines**:
+    *   Linux (Ubuntu) with Python 3.13
+    *   macOS (Apple Silicon) with Python 3.13
+*   **Android Devices**:
+    *   Xiaomi 15 Pro (Qualcomm Snapdragon 8750)
+
+--------------------------------------------------------------------------------
 
 ## 💡 Common Commands
 
@@ -101,8 +111,7 @@ litert quantize model.tflite \
 
 ### 4. Compile a LiteRT model for NPU AOT
 
-> [!NOTE]
-> Currently only supported on Linux hosts and Qualcomm NPUs.
+> [!NOTE] Currently only supported on Linux hosts and Qualcomm NPUs.
 
 ```bash
 # Basic compilation for specific Qualcomm NPU (e.g., sm8750 in Xiaomi 15 Pro)
