@@ -36,15 +36,22 @@ function has_android_device() {
   adb devices 2>/dev/null | grep -E -q "\s+(device|unauthorized)$"
 }
 
-# Helper to verify if LiteRT GPU accelerator is supported on Desktop
+# Helper to verify if LiteRT GPU accelerator is supported on Desktop (and not falling back to software emulation like llvmpipe)
 function has_desktop_gpu() {
   local model_file="$1"
   python3 -c "
 import sys
+import subprocess
 try:
-    from ai_edge_litert.compiled_model import CompiledModel
-    from ai_edge_litert.hardware_accelerator import HardwareAccelerator
-    cm = CompiledModel.from_file('$model_file', HardwareAccelerator.GPU)
+    check_cmd = [
+        'python3', '-c',
+        f'from ai_edge_litert.compiled_model import CompiledModel; from ai_edge_litert.hardware_accelerator import HardwareAccelerator; cm = CompiledModel.from_file(\"$model_file\", HardwareAccelerator.GPU)'
+    ]
+    res = subprocess.run(check_cmd, capture_output=True, text=True)
+    if res.returncode != 0:
+        sys.exit(1)
+    if 'llvmpipe' in res.stderr or 'llvmpipe' in res.stdout:
+        sys.exit(1)
     sys.exit(0)
 except Exception:
     sys.exit(1)
