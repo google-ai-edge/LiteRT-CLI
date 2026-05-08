@@ -22,23 +22,28 @@ Usage Examples:
   1. Run a model on an Android device:
      $ litert run /path/to/model.tflite --android
 
-  2. Run with custom inputs:
+  2. Run with NPU acceleration and CPU fallback:
+     $ litert run /path/to/model.tflite --android --npu --cpu
+     OR
+     $ litert run /path/to/model.tflite --android --accelerator npu,cpu
+
+  3. Run with custom inputs:
      $ litert run /path/to/model.tflite --android --input input_name=value
 
-  3. Run with multiple inputs:
+  4. Run with multiple inputs:
      $ litert run /path/to/model.tflite --android --input input1=value1 --input
      input2=value2
 
-  4. Run with specific signature:
+  5. Run with specific signature:
      $ litert run /path/to/model.tflite --android --signature_index 0
 
-  5. Run with multiple iterations:
+  6. Run with multiple iterations:
      $ litert run /path/to/model.tflite --android --iterations 10
 
-  6. Print tensor details:
+  7. Print tensor details:
      $ litert run /path/to/model.tflite --android --print-tensors
 
-  7. Run with sample size:
+  8. Run with sample size:
      $ litert run /path/to/model.tflite --android --sample-size 100
 """
 
@@ -183,6 +188,7 @@ def run_android(
   Raises:
     click.ClickException: On device error setup or failed execution triggers.
   """
+  accel_list = [a.strip().lower() for a in accelerator.split(",") if a.strip()]
   click.echo("Preparing to run on Android device via adb...")
   android_utils.check_adb()
 
@@ -270,11 +276,11 @@ def run_android(
   # Pass None as device_id to use the default connected device.
   remote_dispatch_dir = (
       npu.push_npu_runtime_libraries(None, android_root)
-      if accelerator == "npu"
+      if "npu" in accel_list
       else ""
   )
 
-  if accelerator == "npu":
+  if "npu" in accel_list:
     # Download and push SOC-specific LiteRT dispatch and compiler plugin libraries
     target_model = npu.get_soc_target_model(None)
     soc_vendor = "mediatek" if "mt" in target_model else "qualcomm"

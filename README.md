@@ -128,14 +128,16 @@ litert compile model.tflite --target sm8750 --target mt6989 --export-aipack my_n
 litert run model.tflite --desktop --cpu
 litert run my_model_ref --desktop --cpu
 
-# Run with GPU acceleration
-litert run model.tflite --gpu
+# Run with GPU acceleration and CPU fallback (multi-accelerator)
+litert run model.tflite --gpu --cpu
+litert run model.tflite --accelerator gpu,cpu
 
 # Run on connected Android device
 litert run model.tflite --android
 
-# Run on connected Android device with NPU acceleration (JIT mode)
-litert run model.tflite --android --npu
+# Run on connected Android device with NPU acceleration and CPU fallback
+litert run model.tflite --android --npu --cpu
+litert run model.tflite --android --accelerator npu,cpu
 
 # Run on connected Android device with NPU AOT-compiled model
 litert run model_sm8450.tflite --android --npu
