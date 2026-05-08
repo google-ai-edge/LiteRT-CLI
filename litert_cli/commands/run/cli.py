@@ -78,6 +78,14 @@ from litert_cli.core import utils
           7. Print detailed tensor outputs:
 
             $ litert run model.tflite --print-tensors --sample-size 10
+
+          8. Run with multiple accelerators (npu -> gpu -> cpu fallback):
+
+            $ litert run model.tflite --npu --gpu --cpu
+
+            OR explicitly:
+
+            $ litert run model.tflite --accelerator npu,gpu,cpu
         """),
 )
 @deps.require_extra("run")
@@ -119,22 +127,23 @@ from litert_cli.core import utils
     help="Target Android platform to run.",
 )
 @click.option(
+    "--accelerator",
+    type=str,
+    help="Comma-separated list of hardware accelerators (e.g. npu,gpu,cpu).",
+)
+@click.option(
     "--cpu",
-    "accelerator",
-    flag_value="cpu",
-    default=True,
-    help="Use CPU accelerator (Default).",
+    is_flag=True,
+    help="Use CPU accelerator.",
 )
 @click.option(
     "--gpu",
-    "accelerator",
-    flag_value="gpu",
+    is_flag=True,
     help="Use GPU accelerator.",
 )
 @click.option(
     "--npu",
-    "accelerator",
-    flag_value="npu",
+    is_flag=True,
     help="Use NPU accelerator.",
 )
 @click.option(
@@ -169,7 +178,10 @@ def run_cmd(
     model_params: Sequence[str],
     model_help: bool,
     target: str,
-    accelerator: str,
+    accelerator: str | None,
+    cpu: bool,
+    gpu: bool,
+    npu: bool,
     signature_index: int,
     iterations: int,
     print_tensors: bool,
@@ -185,11 +197,33 @@ def run_cmd(
     model_help: Show help specific to the matched model plugin.
     target: Execution target ('desktop' or 'android').
     accelerator: Hardware accelerator ('cpu', 'gpu', or 'npu').
+    cpu: Use CPU accelerator.
+    gpu: Use GPU accelerator.
+    npu: Use NPU accelerator.
     signature_index: Index of model signature to run.
     iterations: Number of times to execute the model for benchmarking.
     print_tensors: Whether to print output tensor elements.
     sample_size: Number of sample elements to print from tensors.
   """
+  # Resolve the order of accelerators
+  accelerator_list = []
+  if accelerator:
+    accelerator_list = [
+        a.strip().lower() for a in accelerator.split(",") if a.strip()
+    ]
+  else:
+    if npu:
+      accelerator_list.append("npu")
+    if gpu:
+      accelerator_list.append("gpu")
+    if cpu:
+      accelerator_list.append("cpu")
+
+    if not accelerator_list:
+      accelerator_list = ["cpu"]
+
+  accelerator = ",".join(accelerator_list)
+
   # Quiet if default is true
   if constants.DEFAULT_QUIET:
 

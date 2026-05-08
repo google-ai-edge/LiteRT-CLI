@@ -26,13 +26,18 @@ Usage Examples:
      OR
      $ litert run /path/to/model.tflite --desktop --accelerator gpu
 
-  3. Run with custom inputs:
+  3. Run with multiple accelerators (gpu -> cpu native fallback):
+     $ litert run /path/to/model.tflite --desktop --gpu --cpu
+     OR
+     $ litert run /path/to/model.tflite --desktop --accelerator gpu,cpu
+
+  4. Run with custom inputs:
      $ litert run /path/to/model.tflite --desktop --input input_name=value
 
-  4. Run with multiple iterations (benchmark):
+  5. Run with multiple iterations (benchmark):
      $ litert run /path/to/model.tflite --desktop --iterations 10
 
-  5. Print tensor details:
+  6. Print tensor details:
      $ litert run /path/to/model.tflite --desktop --print-tensors
 """
 
@@ -240,22 +245,31 @@ def run_desktop(
     click.ClickException: On loading failure or inference execution errors.
   """
 
-  click.echo(
-      f"Loading model on desktop: {model_path} with {accelerator.upper()}"
-  )
+  accel_list = [a.strip().lower() for a in accelerator.split(",") if a.strip()]
 
   # pylint: disable=g-import-not-at-top,reimported
   from ai_edge_litert.compiled_model import CompiledModel
   from ai_edge_litert.compiled_model import Environment
   from ai_edge_litert.hardware_accelerator import HardwareAccelerator
 
-  hw_accel = HardwareAccelerator.CPU
-  if accelerator == "gpu":
-    hw_accel = HardwareAccelerator.GPU
-  elif accelerator == "npu":
-    raise click.ClickException(
-        "NPU accelerator is not yet formally supported via desktop API."
-    )
+  hw_accel = HardwareAccelerator(0)
+  for accel in accel_list:
+    if accel == "cpu":
+      hw_accel |= HardwareAccelerator.CPU
+    elif accel == "gpu":
+      hw_accel |= HardwareAccelerator.GPU
+    elif accel == "npu":
+      hw_accel |= HardwareAccelerator.NPU
+    else:
+      raise click.ClickException(f"Unsupported hardware accelerator: {accel!r}")
+
+  if hw_accel == HardwareAccelerator(0):
+    hw_accel = HardwareAccelerator.CPU
+
+  click.echo(
+      f"Loading model on desktop: {model_path} with native hardware"
+      f" accelerators: {hw_accel}"
+  )
 
   ctx = utils.silence_stderr() if quiet else contextlib.nullcontext()
   with ctx:

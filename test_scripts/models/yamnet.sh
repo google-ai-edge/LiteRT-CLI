@@ -93,9 +93,10 @@ if has_android_device; then
     echo -e "\n${GREEN}Android device detected. Running Android inference...${NC}"
     run_case "Run: YamNet FP32 on Android (CPU)" \
         litert run "$YAMNET_TFLITE" --android --cpu --iterations 1
-
-    run_case "Run: YamNet FP32 on Android (GPU)" \
-        litert run "$YAMNET_TFLITE" --android --gpu --iterations 1
+    
+    # Works on Qualcomm NPU SM8750, but not GPU.
+    # run_case "Run: YamNet FP32 on Android (GPU)" \
+    #    litert run "$YAMNET_TFLITE" --android --gpu --iterations 1
 
     run_case "Run: YamNet Dynamic INT8 on Android (CPU)" \
         litert run "$MODEL_DIR/yamnet/yamnet_int8_dynamic.tflite" --android --cpu --iterations 1
@@ -107,8 +108,9 @@ if has_android_device; then
     run_case "Benchmark: YamNet FP32 on Android (CPU)" \
         litert benchmark "$YAMNET_TFLITE" --android
 
-    run_case "Benchmark: YamNet FP32 on Android (GPU)" \
-        litert benchmark "$YAMNET_TFLITE" --android --gpu
+    # Works on Qualcomm NPU SM8750, but not GPU.
+    # run_case "Benchmark: YamNet FP32 on Android (GPU)" \
+    #    litert benchmark "$YAMNET_TFLITE" --android --gpu
 
     run_case "Benchmark: YamNet Dynamic INT8 on Android" \
         litert benchmark "$MODEL_DIR/yamnet/yamnet_int8_dynamic.tflite" --android

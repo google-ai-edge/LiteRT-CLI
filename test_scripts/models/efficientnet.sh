@@ -53,9 +53,6 @@ export TEST_DATA_DIR="$REPO_ROOT/litert_cli/test_data"
 echo -e "${YELLOW}Installing litert-cli from source...${NC}"
 pip install -e "$REPO_ROOT"
 
-
-
-
 # --- 1. Download EfficientNet-B1 model ---
 run_case "Download: EfficientNet-B1 from HuggingFace" \
     litert download litert-community/efficientnet_b1 --file "*.tflite" --output "$MODEL_DIR/efficientnet"
@@ -113,14 +110,14 @@ if has_android_device; then
     run_case "Benchmark: EfficientNet Dynamic INT8 on Android" \
         litert benchmark "$MODEL_DIR/efficientnet/efficientnet_b1_int8_dynamic.tflite" --android
 else
-    echo -e "\n${YELLOW}No Android device detected. Skipping benchmarks (litert benchmark only supports Android/GCP).${NC}"
+    echo -e "\n${YELLOW}No Android device detected. Skipping benchmarks on Android.${NC}"
 fi
 
 
 # --- 5. Compile (AOT Compilation) ---
 # TODO: Add this back when we fix the NPU compile issue.
 # run_case "Compile: EfficientNet FP32 for Qualcomm sm8750 NPU" \
-#     litert compile "$EFFICIENTNET_TFLITE" --target sm8750 --output-dir "$MODEL_DIR/efficientnet"
+#    litert compile "$EFFICIENTNET_TFLITE" --target sm8750 --output-dir "$MODEL_DIR/efficientnet"
 
 # --- 6. Visualize (Model Explorer) ---
 run_case "Visualize: Launch Model Explorer in the background" \
