@@ -66,7 +66,7 @@ run_case "Run Gemma4: Generative inference with custom prompt" \
 
 # --- 3. Benchmark Gemma4 LLM Model ---
 run_case "Benchmark Gemma4: Local benchmark of LLM generation" \
-    litert lm benchmark gemma-4-E2B-it.litertlm
+    litert lm benchmark gemma-4-E2B-it.litertlm --from-huggingface-repo=litert-community/gemma-4-E2B-it-litert-lm -p 128 -d 128
 
 
 
