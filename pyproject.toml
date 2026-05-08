@@ -33,7 +33,7 @@ convert = [
     "sentencepiece",
 ]
 quantize = [
-    "ai-edge-quantizer",
+    "ai-edge-quantizer-nightly",
 ]
 visualize = [
     "ai-edge-model-explorer"

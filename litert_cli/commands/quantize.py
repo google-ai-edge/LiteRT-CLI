@@ -135,7 +135,11 @@ def quantize_cmd(
 
   if recipe:
     click.echo(f"Loading recipe from '{recipe}'...")
-    quantizer.load_quantization_recipe(str(recipe))
+    import json
+
+    with open(recipe, "r") as f:
+      recipe_content = json.load(f)
+    quantizer.load_quantization_recipe(recipe_content)
   elif quant_type == "static":
     click.echo("Configuring static quantization (A8W8)...")
     quantizer.add_static_config(

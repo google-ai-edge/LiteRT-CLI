@@ -45,7 +45,7 @@ _PACKAGE_BY_EXTRA = immutabledict({
     "run": "ai-edge-litert-nightly",
     "compile": "ai-edge-litert-sdk-qualcomm-nightly",
     "visualize": "model-explorer",
-    "quantize": "ai-edge-quantizer",
+    "quantize": "ai-edge-quantizer-nightly",
     "image": "Pillow",
     "asr": "librosa",
 })

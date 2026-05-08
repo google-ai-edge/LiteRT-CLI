@@ -23,7 +23,7 @@ echo -e "${BLUE}${BOLD}=========================================================
 
 # --- Environment Setup ---
 export SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-export REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+export REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 export LITERT_CLI_ROOT="/tmp/litert_cli_resnet"
 
 # Source shared utilities
