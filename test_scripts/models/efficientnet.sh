@@ -94,6 +94,10 @@ if has_android_device; then
     run_case "Run: EfficientNet FP32 on Android (GPU)" \
         litert run "$EFFICIENTNET_TFLITE" --android --gpu --iterations 1
 
+    # If you have Android devices with NPU connected, enable those use cases.
+    # run_case "Run: EfficientNet FP32 on Android (NPU)" \
+    #     litert run "$EFFICIENTNET_TFLITE" --android --npu --iterations 1
+
     run_case "Run: EfficientNet Dynamic INT8 on Android (CPU)" \
         litert run "$MODEL_DIR/efficientnet/efficientnet_b1_int8_dynamic.tflite" --android --cpu --iterations 1
 fi
@@ -106,6 +110,10 @@ if has_android_device; then
 
     run_case "Benchmark: EfficientNet FP32 on Android (GPU)" \
         litert benchmark "$EFFICIENTNET_TFLITE" --android --gpu
+
+    # If you have Android devices with NPU connected, enable those use cases.
+    # run_case "Benchmark: EfficientNet FP32 on Android (NPU)" \
+    #     litert benchmark "$EFFICIENTNET_TFLITE" --android --npu
 
     run_case "Benchmark: EfficientNet Dynamic INT8 on Android" \
         litert benchmark "$MODEL_DIR/efficientnet/efficientnet_b1_int8_dynamic.tflite" --android
@@ -121,18 +129,20 @@ run_case "Compile: EfficientNet FP32 for MediaTek MT6993 NPU" \
     litert compile "$EFFICIENTNET_TFLITE" --target MT6993 --output-dir "$MODEL_DIR/efficientnet"
 
 # --- 6. Benchnark compiled model ---
-# Enable those use cases, if you have connected those android devices through NPU.
+# Enable those use cases, or change to your own targets, if you have connected those android
+# devices through NPU.
+#
 # run_case "Run Qualcomm compiled EfficientNet" \
-#    litert run "$MODEL_DIR/efficientnet/efficientnet_b1_Qualcomm_SM8750.tflite" --android --npu
+#   litert run "$MODEL_DIR/efficientnet/efficientnet_b1_Qualcomm_SM8750.tflite" --android --npu
 # run_case "Benchmark Qualcomm compiled EfficientNet" \
-#    litert benchmark "$MODEL_DIR/efficientnet/efficientnet_b1_Qualcomm_SM8750.tflite" --android --npu
+#   litert benchmark "$MODEL_DIR/efficientnet/efficientnet_b1_Qualcomm_SM8750.tflite" --android --npu
 
 # run_case "Run MediaTek compiled EfficientNet" \
 #    litert run "$MODEL_DIR/efficientnet/efficientnet_b1_MediaTek_MT6993.tflite" --android --npu
-#run_case "Benchmark MediaTek compiled EfficientNet" \
+# run_case "Benchmark MediaTek compiled EfficientNet" \
 #    litert benchmark "$MODEL_DIR/efficientnet/efficientnet_b1_MediaTek_MT6993.tflite" --android --npu
 
-# --- 6. Visualize (Model Explorer) ---
+# --- 7. Visualize (Model Explorer) ---
 run_case "Visualize: Launch Model Explorer in the background" \
     litert visualize "$EFFICIENTNET_TFLITE"
 
@@ -142,4 +152,3 @@ run_case "Visualize: Stop all Model Explorer servers" \
 
 # --- Summary Report ---
 print_summary_report "EfficientNet"
-

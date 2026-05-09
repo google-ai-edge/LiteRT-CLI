@@ -146,6 +146,32 @@ def run_android(*, model_path: pathlib.Path, accelerator: str) -> None:
       )
 
     full_command = env_vars + " ".join(bench_args)
-    subprocess.run(["adb", "shell", full_command], check=True)
-  except subprocess.CalledProcessError as e:
-    click.secho(f"Execution failed on device: {repr(e)}", fg="red")
+    process = subprocess.Popen(
+        ["adb", "shell", full_command],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    
+    from litert_cli.core.log_filters import BenchmarkLogFilter
+    
+    output_lines = []
+    log_filter = BenchmarkLogFilter(constants.DEFAULT_QUIET)
+    
+    for line in process.stdout:
+      output_lines.append(line)
+      if log_filter.should_show(line):
+        click.echo(line, nl=False)
+
+    process.wait()
+    if process.returncode != 0:
+      click.secho(
+          f"Execution failed on device with exit code {process.returncode}",
+          fg="red",
+      )
+      click.echo("Full output for debugging:")
+      for line in output_lines:
+        click.echo(line, nl=False)
+      raise click.ClickException("Benchmark failed on device.")
+  except Exception as e:
+    raise click.ClickException(f"Failed to execute benchmark on device: {e}")
