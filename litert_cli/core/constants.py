@@ -80,61 +80,93 @@ QAIRT_SDK_URL: str = (
     "https://softwarecenter.qualcomm.com/api/download/software/sdks/"
     f"Qualcomm_AI_Runtime_Community/All/{QAIRT_SDK_VERSION}/v{QAIRT_SDK_VERSION}.zip"
 )
-
-# TODO: switch to read from litert/vendors/qualcomm/supported_soc.csv
-QNN_SOC_VERSION_MAP: types.MappingProxyType[str, str] = types.MappingProxyType({
-    "sm8350": "68",
-    "sm8450": "69",
-    "sm8550": "73",
-    "sm8650": "75",
-    "sm8750": "79",
-    "sm8850": "81",
-    # Sub-flagship & Mid-range Mobile SoCs
-    "sm8635": "73",
-    "sm7675": "73",
-    "sm7550": "73",
-    "sm7475": "69",
-    # Automotive Cockpit SoCs
-    "sa8255": "73",
-    "sa8295": "68",
-    "qnn_all": "81",
-})
-
-AOT_SUPPORTED_TARGETS: types.MappingProxyType[str, tuple[str, str]] = (
-    types.MappingProxyType({
-        # Qualcomm
-        "sm8350": ("qualcomm", "SM8350"),
-        "sm8450": ("qualcomm", "SM8450"),
-        "sm8550": ("qualcomm", "SM8550"),
-        "sm8650": ("qualcomm", "SM8650"),
-        "sm8750": ("qualcomm", "SM8750"),
-        "sm8850": ("qualcomm", "SM8850"),
-        # Sub-flagship & Mid-range Mobile SoCs
-        "sm8635": ("qualcomm", "SM8635"),
-        "sm7675": ("qualcomm", "SM7675"),
-        "sm7550": ("qualcomm", "SM7550"),
-        "sm7475": ("qualcomm", "SM7475"),
-        # Automotive Cockpit SoCs
-        "sa8255": ("qualcomm", "SA8255"),
-        "sa8295": ("qualcomm", "SA8295"),
-        "qnn_all": ("qualcomm", "ALL"),
-        # MediaTek
-        "mt6853": ("mediatek", "MT6853"),
-        "mt6877": ("mediatek", "MT6877"),
-        "mt6878": ("mediatek", "MT6878"),
-        "mt6879": ("mediatek", "MT6879"),
-        "mt6886": ("mediatek", "MT6886"),
-        "mt6893": ("mediatek", "MT6893"),
-        "mt6895": ("mediatek", "MT6895"),
-        "mt6897": ("mediatek", "MT6897"),
-        "mt6983": ("mediatek", "MT6983"),
-        "mt6985": ("mediatek", "MT6985"),
-        "mt6989": ("mediatek", "MT6989"),
-        "mt6991": ("mediatek", "MT6991"),
-        "mt6993": ("mediatek", "MT6993"),
-        "mt8171": ("mediatek", "MT8171"),
-        "mt8188": ("mediatek", "MT8188"),
-        "mt8189": ("mediatek", "MT8189"),
-        "mtk_all": ("mediatek", "ALL"),
-    })
+MEDIATEK_SDK_URL: str = (
+    "https://s3.ap-southeast-1.amazonaws.com/mediatek.neuropilot.com/"
+    "66f2c33a-2005-4f0b-afef-2053c8654e4f.gz"
 )
+MEDIATEK_V8_VERSION: str = "v8_0_10"
+MEDIATEK_V9_VERSION: str = "v9_0_3"
+
+from litert_cli.core.targets_manager import TargetsManager
+
+_manager = TargetsManager()
+_loaded_targets = _manager.load_targets()
+
+if _loaded_targets:
+    # Reconstruct maps from loaded targets
+    _qnn_map = {
+        k: v.properties.get("qnn_version", "")
+        for k, v in _loaded_targets.items()
+        if v.vendor == "qualcomm"
+    }
+
+    QNN_SOC_VERSION_MAP: types.MappingProxyType[str, str] = (
+        types.MappingProxyType(_qnn_map)
+    )
+
+    AOT_SUPPORTED_TARGETS: types.MappingProxyType[str, tuple[str, str]] = (
+        types.MappingProxyType({
+            k: (v.vendor, v.vendor_id) for k, v in _loaded_targets.items()
+        })
+    )
+else:
+    # Fallback to hardcoded values
+    QNN_SOC_VERSION_MAP: types.MappingProxyType[str, str] = (
+        types.MappingProxyType({
+            "sm8350": "68",
+            "sm8450": "69",
+            "sm8550": "73",
+            "sm8650": "75",
+            "sm8750": "79",
+            "sm8850": "81",
+            # Sub-flagship & Mid-range Mobile SoCs
+            "sm8635": "73",
+            "sm7675": "73",
+            "sm7550": "73",
+            "sm7475": "69",
+            # Automotive Cockpit SoCs
+            "sa8255": "73",
+            "sa8295": "68",
+            "qnn_all": "81",
+        })
+    )
+
+    AOT_SUPPORTED_TARGETS: types.MappingProxyType[str, tuple[str, str]] = (
+        types.MappingProxyType({
+            # Qualcomm
+            "sm8350": ("qualcomm", "SM8350"),
+            "sm8450": ("qualcomm", "SM8450"),
+            "sm8550": ("qualcomm", "SM8550"),
+            "sm8650": ("qualcomm", "SM8650"),
+            "sm8750": ("qualcomm", "SM8750"),
+            "sm8850": ("qualcomm", "SM8850"),
+            # Sub-flagship & Mid-range Mobile SoCs
+            "sm8635": ("qualcomm", "SM8635"),
+            "sm7675": ("qualcomm", "SM7675"),
+            "sm7550": ("qualcomm", "SM7550"),
+            "sm7475": ("qualcomm", "SM7475"),
+            # Automotive Cockpit SoCs
+            "sa8255": ("qualcomm", "SA8255"),
+            "sa8295": ("qualcomm", "SA8295"),
+            "qnn_all": ("qualcomm", "ALL"),
+            # MediaTek
+            "mt6853": ("mediatek", "MT6853"),
+            "mt6877": ("mediatek", "MT6877"),
+            "mt6878": ("mediatek", "MT6878"),
+            "mt6879": ("mediatek", "MT6879"),
+            "mt6886": ("mediatek", "MT6886"),
+            "mt6893": ("mediatek", "MT6893"),
+            "mt6895": ("mediatek", "MT6895"),
+            "mt6897": ("mediatek", "MT6897"),
+            "mt6983": ("mediatek", "MT6983"),
+            "mt6985": ("mediatek", "MT6985"),
+            "mt6989": ("mediatek", "MT6989"),
+            "mt6991": ("mediatek", "MT6991"),
+            "mt6993": ("mediatek", "MT6993"),
+            "mt8171": ("mediatek", "MT8171"),
+            "mt8188": ("mediatek", "MT8188"),
+            "mt8189": ("mediatek", "MT8189"),
+            "mtk_all": ("mediatek", "ALL"),
+        })
+    )
+

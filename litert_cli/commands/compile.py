@@ -21,6 +21,7 @@ This command applies NPU AOT compilation to a standard LiteRT (.tflite) model.
 from __future__ import annotations
 
 from collections.abc import Sequence
+import importlib
 import pathlib
 import shutil
 import textwrap
@@ -30,6 +31,7 @@ from litert_cli.core import constants
 from litert_cli.core import deps
 from litert_cli.core import npu_utils
 from litert_cli.core import utils
+from litert_cli.core.targets_manager import TargetsManager
 
 
 @click.command(
@@ -52,6 +54,13 @@ from litert_cli.core import utils
         """),
 )
 @click.argument("model_path", type=str)
+@click.option(
+    "--update-targets",
+    type=str,
+    required=False,
+    default=None,
+    help="Update SoC target lists from GitHub. Pass 'main' for latest, or a version tag like 'v2.1.4'.",
+)
 @click.option(
     "--target",
     type=str,
@@ -93,6 +102,7 @@ from litert_cli.core import utils
 def compile_cmd(
     model_path: str,
     target: Sequence[str],
+    update_targets: str | None,
     export_aipack: pathlib.Path | None,
     output_dir: pathlib.Path | None,
 ) -> None:
@@ -114,6 +124,24 @@ def compile_cmd(
   # Quiet if default is true
   if constants.DEFAULT_QUIET:
     utils.enable_quiet_mode()
+
+  # Initialize targets
+  manager = TargetsManager()
+
+  # Handle update or first-run download
+  if update_targets:
+    manager.download_targets(version=update_targets)
+    importlib.reload(constants)
+  else:
+    # Check if cache exists
+    if not manager.load_targets():
+      click.echo("No target cache found. Downloading default target lists...")
+      try:
+        manager.download_targets(version="main")
+        importlib.reload(constants)
+      except Exception as e:
+        click.echo(f"Warning: Failed to download default targets: {e}")
+        click.echo("Falling back to built-in static target lists.")
 
   resolved_model_path, _ = core_models.resolve_model_reference(model_path)
   if str(resolved_model_path) != str(model_path):

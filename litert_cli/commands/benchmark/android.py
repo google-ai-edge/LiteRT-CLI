@@ -128,6 +128,21 @@ def run_android(*, model_path: pathlib.Path, accelerator: str) -> None:
           f"--compiler_plugin_library_path={shlex.quote(cli_android_root)}"
       )
 
+      if soc_vendor == "mediatek":
+        from litert_cli.core.targets_manager import TargetsManager
+
+        manager = TargetsManager()
+        targets = manager.load_targets()
+        target_info = targets.get(target_model)
+        if target_info:
+          recommend_version = target_info.properties.get(
+              "recommend_version", ""
+          )
+          if "v9" in recommend_version:
+            bench_args.append("--mediatek_nerun_pilot_version=version9")
+          elif "v8" in recommend_version:
+            bench_args.append("--mediatek_nerun_pilot_version=version8")
+
     env_vars = ""
     if remote_dispatch_dir:
       quoted_dispatch_dir = shlex.quote(remote_dispatch_dir)

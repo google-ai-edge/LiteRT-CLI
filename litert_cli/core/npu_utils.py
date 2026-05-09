@@ -46,9 +46,46 @@ def ensure_npu_runtime_libraries(soc_vendor: str = "qualcomm") -> pathlib.Path:
   """
   runtime_dir = pathlib.Path(constants.LITERT_CLI_ROOT)
 
-  # For MediaTek, we don't need to prepare runtime libraries as it assumes
-  # already on Android.
   if soc_vendor == "mediatek":
+    marker_file = runtime_dir / ".mediatek_sdk_extracted.complete"
+
+    if runtime_dir.exists() and marker_file.exists():
+      click.echo(f"Found existing MediaTek runtime libraries at {runtime_dir}")
+      return runtime_dir
+
+    click.echo(
+        f"Downloading MediaTek runtime libraries from {constants.MEDIATEK_SDK_URL}..."
+    )
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    gz_path = runtime_dir / "mediatek_sdk.tar.gz"
+    tmp_gz_path = gz_path.with_suffix(".tar.gz.tmp")
+
+    try:
+      with requests.get(constants.MEDIATEK_SDK_URL, stream=True) as response:
+        response.raise_for_status()
+        with open(tmp_gz_path, "wb") as f:
+          for chunk in response.iter_content(chunk_size=8192):
+            f.write(chunk)
+        tmp_gz_path.rename(gz_path)
+
+      click.echo(f"Extracting to {runtime_dir}...")
+      import tarfile
+
+      with tarfile.open(gz_path, "r:gz") as tar_ref:
+        tar_ref.extractall(runtime_dir)
+
+      marker_file.touch()
+      gz_path.unlink(missing_ok=True)
+    except Exception as e:
+      gz_path.unlink(missing_ok=True)
+      if tmp_gz_path.exists():
+        tmp_gz_path.unlink()
+      if marker_file.exists():
+        marker_file.unlink()
+      raise click.ClickException(
+          f"Failed to setup MediaTek runtime libraries: {e}"
+      ) from e
+
     return runtime_dir
 
   # Check for a marker file to verify if the zip was successfully unpacked.
@@ -213,9 +250,42 @@ def push_npu_runtime_libraries(
       click.echo(f"Warning: Skeleton file not found: {skel_file}")
 
   elif soc_vendor == "mediatek":
-    click.echo(
-        "Mediatek runtime libraries are assumed to be present on the device."
-    )
+    from litert_cli.core.targets_manager import TargetsManager
+
+    manager = TargetsManager()
+    targets = manager.load_targets()
+    target_info = targets.get(target_model)
+
+    if not target_info:
+      raise click.ClickException(
+          f"No target info found for MediaTek SoC: {target_model}"
+      )
+
+    recommend_version = target_info.properties.get("recommend_version", "")
+    click.echo(f"Selected MediaTek runtime version: {recommend_version}")
+
+    source_dir = runtime_dir / "neuro_pilot"
+
+    if "v8" in recommend_version:
+      lib_path = (
+          source_dir
+          / f"{constants.MEDIATEK_V8_VERSION}/usdk/lib64/libneuronusdk_adapter.mtk.so"
+      )
+      if not lib_path.exists():
+        raise click.ClickException(f"File not found: {lib_path}")
+      libs_to_push = [lib_path]
+    elif "v9" in recommend_version:
+      lib_path = (
+          source_dir
+          / f"{constants.MEDIATEK_V9_VERSION}/usdk/lib64/libneuronusdk_adapter.so"
+      )
+      if not lib_path.exists():
+        raise click.ClickException(f"File not found: {lib_path}")
+      libs_to_push = [lib_path]
+    else:
+      raise click.ClickException(
+          f"Unsupported MediaTek version '{recommend_version}' for SoC: {target_model}"
+      )
 
   else:
     raise click.ClickException(
