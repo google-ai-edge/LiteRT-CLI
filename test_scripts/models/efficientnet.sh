@@ -115,9 +115,8 @@ fi
 
 
 # --- 5. Compile (AOT Compilation) ---
-# TODO: Add this back when we fix the NPU compile issue.
-# run_case "Compile: EfficientNet FP32 for Qualcomm sm8750 NPU" \
-#    litert compile "$EFFICIENTNET_TFLITE" --target sm8750 --output-dir "$MODEL_DIR/efficientnet"
+run_case "Compile: EfficientNet FP32 for Qualcomm sm8750 NPU" \
+    litert compile "$EFFICIENTNET_TFLITE" --target sm8750 --output-dir "$MODEL_DIR/efficientnet"
 
 # --- 6. Visualize (Model Explorer) ---
 run_case "Visualize: Launch Model Explorer in the background" \
