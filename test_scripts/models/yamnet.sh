@@ -121,8 +121,8 @@ fi
 
 # --- 5. Compile (AOT Compilation) ---
 # TODO: Add this back when we fix the NPU compile issue.
-#run_case "Compile: YamNet FP32 for Qualcomm sm8750 NPU" \
-#    litert compile "$YAMNET_TFLITE" --target sm8750 --output-dir "$MODEL_DIR/yamnet"
+# run_case "Compile: YamNet FP32 for Qualcomm sm8750 NPU" \
+#     litert compile "$YAMNET_TFLITE" --target sm8750 --output-dir "$MODEL_DIR/yamnet"
 
 # --- 6. Visualize (Model Explorer) ---
 run_case "Visualize: Launch Model Explorer in the background" \
