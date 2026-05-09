@@ -25,6 +25,7 @@ import click
 from litert_cli.core import constants
 import requests
 
+from ai_edge_litert.aot.vendors.intel_openvino import target as intel_target
 from ai_edge_litert.aot.vendors.mediatek import target as mtk_target
 from ai_edge_litert.aot.vendors.qualcomm import target as qnn_target
 
@@ -316,7 +317,7 @@ def push_npu_runtime_libraries(
   return android_root
 
 
-def get_aot_target(target_name: str) -> qnn_target.Target | mtk_target.Target:
+def get_aot_target(target_name: str) -> qnn_target.Target | mtk_target.Target | intel_target.Target:
   """Returns the mapped compilation Target object for a given string codename.
 
   Translates a CLI string input (e.g., 'sm8550') into the underlying Python AOT
@@ -336,7 +337,15 @@ def get_aot_target(target_name: str) -> qnn_target.Target | mtk_target.Target:
   vendor, model_str = constants.AOT_SUPPORTED_TARGETS[target_name]
 
   try:
-    vendor_module = qnn_target if vendor == "qualcomm" else mtk_target
+    if vendor == "qualcomm":
+      vendor_module = qnn_target
+    elif vendor == "mediatek":
+      vendor_module = mtk_target
+    elif vendor == "intel":
+      vendor_module = intel_target
+    else:
+      raise click.ClickException(f"Unsupported vendor: {vendor}")
+
     model_enum = getattr(vendor_module.SocModel, model_str)
     return vendor_module.Target(model_enum)
   except AttributeError as e:
