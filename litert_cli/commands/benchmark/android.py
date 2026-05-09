@@ -129,19 +129,13 @@ def run_android(*, model_path: pathlib.Path, accelerator: str) -> None:
       )
 
       if soc_vendor == "mediatek":
-        from litert_cli.core.targets_manager import TargetsManager
-
-        manager = TargetsManager()
-        targets = manager.load_targets()
-        target_info = targets.get(target_model)
-        if target_info:
-          recommend_version = target_info.properties.get(
-              "recommend_version", ""
-          )
-          if "v9" in recommend_version:
-            bench_args.append("--mediatek_nerun_pilot_version=version9")
-          elif "v8" in recommend_version:
-            bench_args.append("--mediatek_nerun_pilot_version=version8")
+        recommend_version = constants.MEDIATEK_SOC_VERSION_MAP.get(
+            target_model, ""
+        )
+        if "v9" in recommend_version:
+          bench_args.append("--mediatek_nerun_pilot_version=version9")
+        elif "v8" in recommend_version:
+          bench_args.append("--mediatek_nerun_pilot_version=version8")
 
     env_vars = ""
     if remote_dispatch_dir:

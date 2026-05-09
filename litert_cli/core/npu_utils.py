@@ -251,18 +251,13 @@ def push_npu_runtime_libraries(
       click.echo(f"Warning: Skeleton file not found: {skel_file}")
 
   elif soc_vendor == "mediatek":
-    from litert_cli.core.targets_manager import TargetsManager
+    recommend_version = constants.MEDIATEK_SOC_VERSION_MAP.get(target_model)
 
-    manager = TargetsManager()
-    targets = manager.load_targets()
-    target_info = targets.get(target_model)
-
-    if not target_info:
+    if not recommend_version:
       raise click.ClickException(
           f"No target info found for MediaTek SoC: {target_model}"
       )
 
-    recommend_version = target_info.properties.get("recommend_version", "")
     click.echo(f"Selected MediaTek runtime version: {recommend_version}")
 
     source_dir = runtime_dir / "neuro_pilot"

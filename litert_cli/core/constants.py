@@ -93,6 +93,7 @@ _manager = TargetsManager()
 _loaded_targets = _manager.load_targets()
 
 _qnn_map = {}
+_mtk_map = {}
 _aot_map = {}
 
 if _loaded_targets:
@@ -103,12 +104,22 @@ if _loaded_targets:
         if v.vendor == "qualcomm"
     }
 
+    _mtk_map = {
+        k: v.properties.get("recommend_version", "")
+        for k, v in _loaded_targets.items()
+        if v.vendor == "mediatek"
+    }
+
     _aot_map = {
         k: (v.vendor, v.vendor_id) for k, v in _loaded_targets.items()
     }
 
 QNN_SOC_VERSION_MAP: types.MappingProxyType[str, str] = (
     types.MappingProxyType(_qnn_map)
+)
+
+MEDIATEK_SOC_VERSION_MAP: types.MappingProxyType[str, str] = (
+    types.MappingProxyType(_mtk_map)
 )
 
 AOT_SUPPORTED_TARGETS: types.MappingProxyType[str, tuple[str, str]] = (
