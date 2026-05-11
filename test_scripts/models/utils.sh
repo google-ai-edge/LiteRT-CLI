@@ -91,9 +91,10 @@ function run_case() {
 # Prints the final summary report for the demo
 function print_summary_report() {
     local model_name="$1"
+    local model_name_upper=$(echo "$model_name" | tr '[:lower:]' '[:upper:]')
     
     echo -e "\n${BLUE}${BOLD}==================================================================${NC}"
-    echo -e "${BLUE}${BOLD}>>> ${model_name^^} TEST SUMMARY${NC}"
+    echo -e "${BLUE}${BOLD}>>> ${model_name_upper} TEST SUMMARY${NC}"
     echo -e "${BLUE}${BOLD}==================================================================${NC}"
     echo -e "Total Cases Run: ${BOLD}$TOTAL_CASES${NC}"
     echo -e "Passed:          ${GREEN}${BOLD}$TOTAL_PASSED${NC}"
