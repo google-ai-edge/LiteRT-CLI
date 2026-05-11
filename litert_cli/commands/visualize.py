@@ -135,13 +135,23 @@ def visualize_cmd(
   if stop_all:
     click.echo('Attempting to stop all running Model Explorer servers...')
     try:
-      # Use pkill to find and terminate all model-explorer processes
-      subprocess.run(
-          ['pkill', '-f', 'model-explorer'],
-          check=True,
-          stdout=subprocess.DEVNULL,
-          stderr=subprocess.DEVNULL,
-      )
+      import sys
+      if sys.platform == 'win32':
+        # Use taskkill on Windows to terminate model-explorer processes
+        subprocess.run(
+            ['taskkill', '/f', '/im', 'model-explorer.exe'],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+      else:
+        # Use pkill on Linux/macOS to find and terminate all model-explorer processes
+        subprocess.run(
+            ['pkill', '-f', 'model-explorer'],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
       click.secho(
           'Successfully stopped all Model Explorer servers.',
           fg='green',
