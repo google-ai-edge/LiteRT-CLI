@@ -96,7 +96,7 @@ if (Has-AndroidDevice) {
     Run-Case "Run: YamNet FP32 on Android (CPU)" {
         litert run "$YAMNET_TFLITE" --android --cpu --iterations 1
     }
-    
+ 
     # Works on Qualcomm NPU SM8750, but not GPU.
     # Run-Case "Run: YamNet FP32 on Android (GPU)" {
     #    litert run "$YAMNET_TFLITE" --android --gpu --iterations 1

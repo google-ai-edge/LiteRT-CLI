@@ -77,30 +77,30 @@ function Run-Case {
         [string]$title,
         [scriptblock]$cmdBlock
     )
-    
+
     $esc = [char]27
     $BLUE = "$esc[0;34m"
     $GREEN = "$esc[0;32m"
     $RED = "$esc[0;31m"
     $NC = "$esc[0m"
     $BOLD = "$esc[1m"
-    
+
     Write-Host ""
     Write-Host "${BLUE}▶ Running:${NC} ${BOLD}$title${NC}"
     $cmdStr = $cmdBlock.ToString().Trim()
     Write-Host "$esc[90mCommand: $cmdStr$NC"
     Write-Host "$esc[90m------------------------------------------------------------$NC"
-    
+
     $oldErrorActionPreference = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
-    
+
     & $cmdBlock
     $status = $LASTEXITCODE
-    
+
     if ($null -eq $status) {
         if ($?) { $status = 0 } else { $status = 1 }
     }
-    
+
     $ErrorActionPreference = $oldErrorActionPreference
     
     Write-Host "$esc[90m------------------------------------------------------------$NC"
@@ -120,16 +120,16 @@ function Run-Case {
 # Prints the final summary report for the demo
 function Print-SummaryReport {
     param([string]$modelName)
-    
+
     $esc = [char]27
     $BLUE = "$esc[0;34m"
     $GREEN = "$esc[0;32m"
     $RED = "$esc[0;31m"
     $NC = "$esc[0m"
     $BOLD = "$esc[1m"
-    
+
     $upperModel = $modelName.ToUpper()
-    
+
     Write-Host ""
     Write-Host "${BLUE}${BOLD}==================================================================${NC}"
     Write-Host "${BLUE}${BOLD}>>> ${upperModel} TEST SUMMARY${NC}"
@@ -137,7 +137,7 @@ function Print-SummaryReport {
     Write-Host "Total Cases Run: ${BOLD}$script:TOTAL_CASES${NC}"
     Write-Host "Passed:          ${GREEN}${BOLD}$script:TOTAL_PASSED${NC}"
     Write-Host "Failed:          ${RED}${BOLD}$script:TOTAL_FAILED${NC}"
-    
+
     if ($script:TOTAL_PASSED -gt 0) {
         Write-Host ""
         Write-Host "${GREEN}${BOLD}Passed Cases:${NC}"
@@ -145,7 +145,7 @@ function Print-SummaryReport {
             Write-Host "  - ${GREEN}$case${NC}"
         }
     }
-    
+
     if ($script:TOTAL_FAILED -gt 0) {
         Write-Host ""
         Write-Host "${RED}${BOLD}Failed Cases:${NC}"
@@ -155,7 +155,7 @@ function Print-SummaryReport {
         Write-Host "${BLUE}${BOLD}==================================================================${NC}"
         Exit 1
     }
-    
+
     Write-Host ""
     Write-Host "${GREEN}${BOLD}All ${modelName} CLI commands executed successfully!${NC}"
     Write-Host "${BLUE}${BOLD}==================================================================${NC}"
