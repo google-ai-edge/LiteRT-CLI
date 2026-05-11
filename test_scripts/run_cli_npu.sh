@@ -83,6 +83,12 @@ run_case "Benchmark Original Model on NPU" \
     litert benchmark "$EFFICIENTNET_TFLITE" --android --npu
 
 # --- 4. Compile for Detected Target ---
+if [[ "$(uname)" != "Linux" ]]; then
+    echo -e "\n${YELLOW}Skipping compilation and dependent tests on non-Linux platform ($(uname))${NC}"
+    print_summary_report "NPU Tests"
+    exit 0
+fi
+
 mkdir -p "$MODEL_DIR/compiled"
 
 run_case "Compile for Detected Target ($TARGET_SOC)" \
