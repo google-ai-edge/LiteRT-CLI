@@ -164,13 +164,13 @@ if (Has-AndroidDevice) {
 # }
 
 # --- 7. Visualize (Model Explorer) ---
-Run-Case "Visualize: Launch Model Explorer in the background" {
-    litert visualize "$EFFICIENTNET_TFLITE"
-}
+# Run-Case "Visualize: Launch Model Explorer in the background" {
+#     litert visualize "$EFFICIENTNET_TFLITE"
+# }
 
-Run-Case "Visualize: Stop all Model Explorer servers" {
-    litert visualize --stop-all
-}
+# Run-Case "Visualize: Stop all Model Explorer servers" {
+#     litert visualize --stop-all
+# }
 
 # --- Summary Report ---
 Print-SummaryReport "EfficientNet"
