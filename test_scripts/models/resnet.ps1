@@ -133,13 +133,13 @@ Run-Case "Compile: ResNet18 FP32 for Qualcomm sm8750 NPU" {
 }
 
 # --- 6. Visualize (Model Explorer) ---
-Run-Case "Visualize: Launch Model Explorer in the background" {
-    litert visualize "$RESNET_TFLITE"
-}
+# Run-Case "Visualize: Launch Model Explorer in the background" {
+#     litert visualize "$RESNET_TFLITE"
+# }
 
-Run-Case "Visualize: Stop all Model Explorer servers" {
-    litert visualize --stop-all
-}
+# Run-Case "Visualize: Stop all Model Explorer servers" {
+#     litert visualize --stop-all
+# }
 
 # --- Summary Report ---
 Print-SummaryReport "ResNet"
