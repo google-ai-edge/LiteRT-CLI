@@ -138,12 +138,12 @@ if (Has-AndroidDevice) {
 }
 
 # --- 5. Compile (AOT Compilation) ---
-Run-Case "Compile: EfficientNet FP32 for Qualcomm sm8750 NPU" {
-    litert compile "$EFFICIENTNET_TFLITE" --target sm8750 --output-dir "$MODEL_DIR/efficientnet"
-}
-Run-Case "Compile: EfficientNet FP32 for MediaTek MT6993 NPU" {
-    litert compile "$EFFICIENTNET_TFLITE" --target MT6993 --output-dir "$MODEL_DIR/efficientnet"
-}
+# Run-Case "Compile: EfficientNet FP32 for Qualcomm sm8750 NPU" {
+#     litert compile "$EFFICIENTNET_TFLITE" --target sm8750 --output-dir "$MODEL_DIR/efficientnet"
+# }
+# Run-Case "Compile: EfficientNet FP32 for MediaTek MT6993 NPU" {
+#     litert compile "$EFFICIENTNET_TFLITE" --target MT6993 --output-dir "$MODEL_DIR/efficientnet"
+# }
 
 # --- 6. Benchmark compiled model ---
 # Enable those use cases, or change to your own targets, if you have connected those android
