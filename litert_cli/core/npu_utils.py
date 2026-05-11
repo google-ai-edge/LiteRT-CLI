@@ -25,41 +25,64 @@ import click
 from litert_cli.core import constants
 import requests
 
+from ai_edge_litert.aot.vendors.intel_openvino import target as intel_target
 from ai_edge_litert.aot.vendors.mediatek import target as mtk_target
 from ai_edge_litert.aot.vendors.qualcomm import target as qnn_target
 
 
-def ensure_npu_runtime_libraries(soc_vendor: str = "qualcomm") -> pathlib.Path:
-  """Ensures the NPU runtime libraries are downloaded and available locally.
+def _ensure_mediatek_libs(runtime_dir: pathlib.Path) -> pathlib.Path:
+  """Ensures MediaTek runtime libraries are available."""
+  marker_file = runtime_dir / ".mediatek_sdk_extracted.complete"
 
-  This checks for a cached version of the runtime SDK first. If it's missing, it
-  downloads it from the remote URL specified in constants and extracts it.
-
-  Args:
-    soc_vendor: The target SoC vendor ("qualcomm" or "mediatek").
-
-  Returns:
-    Path to the litert_npu_runtime_libraries directory (or qairt_sdk directory).
-
-  Raises:
-    click.ClickException: If downloading or extracting the libraries fails.
-  """
-  runtime_dir = pathlib.Path(constants.LITERT_CLI_ROOT)
-
-  # For MediaTek, we don't need to prepare runtime libraries as it assumes
-  # already on Android.
-  if soc_vendor == "mediatek":
+  if runtime_dir.exists() and marker_file.exists():
+    click.echo(f"Found existing MediaTek runtime libraries at {runtime_dir}")
     return runtime_dir
 
-  # Check for a marker file to verify if the zip was successfully unpacked.
+  click.echo(
+      "Downloading MediaTek runtime libraries from"
+      f" {constants.MEDIATEK_SDK_URL}..."
+  )
+  runtime_dir.mkdir(parents=True, exist_ok=True)
+  gz_path = runtime_dir / "mediatek_sdk.tar.gz"
+  tmp_gz_path = gz_path.with_suffix(".tar.gz.tmp")
+
+  try:
+    with requests.get(constants.MEDIATEK_SDK_URL, stream=True) as response:
+      response.raise_for_status()
+      with open(tmp_gz_path, "wb") as f:
+        for chunk in response.iter_content(chunk_size=8192):
+          f.write(chunk)
+      tmp_gz_path.rename(gz_path)
+
+    click.echo(f"Extracting to {runtime_dir}...")
+    import tarfile
+
+    with tarfile.open(gz_path, "r:gz") as tar_ref:
+      tar_ref.extractall(runtime_dir)
+
+    marker_file.touch()
+    gz_path.unlink(missing_ok=True)
+  except Exception as e:
+    gz_path.unlink(missing_ok=True)
+    if tmp_gz_path.exists():
+      tmp_gz_path.unlink()
+    if marker_file.exists():
+      marker_file.unlink()
+    raise click.ClickException(
+        f"Failed to setup MediaTek runtime libraries: {e}"
+    ) from e
+
+  return runtime_dir
+
+
+def _ensure_qualcomm_libs(runtime_dir: pathlib.Path) -> pathlib.Path:
+  """Ensures Qualcomm runtime libraries are available."""
   marker_file = runtime_dir / ".qairt_sdk_extracted.complete"
 
   if runtime_dir.exists() and marker_file.exists():
     click.echo(f"Found existing runtime libraries at {runtime_dir}")
     return runtime_dir
 
-  # If directory doesn't exist or marker file is missing, download and unzip
-  # the SDK.
   click.echo(
       f"Downloading NPU runtime libraries from {constants.QAIRT_SDK_URL}..."
   )
@@ -105,6 +128,36 @@ def ensure_npu_runtime_libraries(soc_vendor: str = "qualcomm") -> pathlib.Path:
   return runtime_dir
 
 
+_VENDOR_ENSURE_HANDLERS = {
+    "qualcomm": _ensure_qualcomm_libs,
+    "mediatek": _ensure_mediatek_libs,
+}
+
+
+def ensure_npu_runtime_libraries(soc_vendor: str = "qualcomm") -> pathlib.Path:
+  """Ensures the NPU runtime libraries are downloaded and available locally."""
+  runtime_dir = pathlib.Path(constants.LITERT_CLI_ROOT)
+  handler = _VENDOR_ENSURE_HANDLERS.get(soc_vendor)
+  if not handler:
+    raise click.ClickException(f"Unsupported NPU vendor: {soc_vendor}")
+  return handler(runtime_dir)
+
+
+def _ensure_targets_loaded():
+  """Ensures target lists are loaded, downloading if missing."""
+  from litert_cli.core.targets_manager import TargetsManager
+  import importlib
+
+  manager = TargetsManager()
+  if not manager.load_targets():
+    click.echo("No target cache found. Downloading default target lists...")
+    try:
+      manager.download_targets(version="main")
+      importlib.reload(constants)
+    except Exception as e:
+      click.echo(f"Warning: Failed to download default targets: {e}")
+
+
 def get_soc_target_model(device_id: str | None = None) -> str:
   """Gets the exact SoC target model mapped name from the connected Android device.
 
@@ -118,6 +171,7 @@ def get_soc_target_model(device_id: str | None = None) -> str:
     The matched codename map (e.g. 'sm8550') or 'unknown' if not
     found/supported.
   """
+  _ensure_targets_loaded()
   cmd = (
       ["adb"]
       + (["-s", device_id] if device_id else [])
@@ -151,6 +205,89 @@ def get_soc_target_model(device_id: str | None = None) -> str:
     return "unknown"
 
 
+def _get_qualcomm_libs(
+    runtime_dir: pathlib.Path, target_model: str
+) -> list[pathlib.Path]:
+  """Gets list of Qualcomm libraries to push."""
+  best_version = constants.QNN_SOC_VERSION_MAP.get(target_model)
+  if not best_version:
+    raise click.ClickException(
+        f"No valid Qualcomm runtime version found for SoC: {target_model}"
+    )
+
+  click.echo(f"Selected Qualcomm runtime version: v{best_version}")
+
+  src_dir = (
+      runtime_dir / f"qairt/{constants.QAIRT_SDK_VERSION}/lib/aarch64-android"
+  )
+  skel_dir = (
+      runtime_dir
+      / f"qairt/{constants.QAIRT_SDK_VERSION}/lib/hexagon-v{best_version}/unsigned"
+  )
+
+  libs_to_push = [
+      src_dir / "libQnnSystem.so",
+      src_dir / "libQnnHtp.so",
+      src_dir / f"libQnnHtpV{best_version}Stub.so",
+      src_dir / "libQnnHtpPrepare.so",
+  ]
+
+  skel_file = skel_dir / f"libQnnHtpV{best_version}Skel.so"
+  if skel_file.exists():
+    libs_to_push.append(skel_file)
+  else:
+    click.echo(f"Warning: Skeleton file not found: {skel_file}")
+
+  return libs_to_push
+
+
+def _get_mediatek_libs(
+    runtime_dir: pathlib.Path, target_model: str
+) -> list[pathlib.Path]:
+  """Gets list of MediaTek libraries to push."""
+  recommend_version = constants.MEDIATEK_SOC_VERSION_MAP.get(target_model)
+
+  if not recommend_version:
+    raise click.ClickException(
+        f"No target info found for MediaTek SoC: {target_model}"
+    )
+
+  click.echo(f"Selected MediaTek runtime version: {recommend_version}")
+
+  source_dir = runtime_dir / "neuro_pilot"
+  libs_to_push = []
+
+  if "v8" in recommend_version:
+    lib_path = (
+        source_dir
+        / f"{constants.MEDIATEK_V8_VERSION}/usdk/lib64/libneuronusdk_adapter.mtk.so"
+    )
+    if not lib_path.exists():
+      raise click.ClickException(f"File not found: {lib_path}")
+    libs_to_push = [lib_path]
+  elif "v9" in recommend_version:
+    lib_path = (
+        source_dir
+        / f"{constants.MEDIATEK_V9_VERSION}/usdk/lib64/libneuronusdk_adapter.so"
+    )
+    if not lib_path.exists():
+      raise click.ClickException(f"File not found: {lib_path}")
+    libs_to_push = [lib_path]
+  else:
+    raise click.ClickException(
+        f"Unsupported MediaTek version '{recommend_version}' for SoC:"
+        f" {target_model}"
+    )
+
+  return libs_to_push
+
+
+_VENDOR_LIBS_HANDLERS = {
+    "qualcomm": _get_qualcomm_libs,
+    "mediatek": _get_mediatek_libs,
+}
+
+
 def push_npu_runtime_libraries(
     device_id: str | None,
     android_root: str = constants.LITERT_CLI_ANDROID_ROOT,
@@ -176,51 +313,12 @@ def push_npu_runtime_libraries(
   soc_vendor = "mediatek" if "mt" in target_model else "qualcomm"
   runtime_dir = ensure_npu_runtime_libraries(soc_vendor)
 
-  libs_to_push = []
-  if soc_vendor == "qualcomm":
-    # Resolve the specific Hexagon DSP version (e.g., 69, 73, 75) mapped to
-    # the Qualcomm chip.
-    best_version = constants.QNN_SOC_VERSION_MAP.get(target_model)
-    if not best_version:
-      raise click.ClickException(
-          f"No valid Qualcomm runtime version found for SoC: {target_model}"
-      )
-
-    click.echo(f"Selected Qualcomm runtime version: v{best_version}")
-
-    # Paths to the unpacked QAIRT SDK on the host.
-    src_dir = (
-        runtime_dir / f"qairt/{constants.QAIRT_SDK_VERSION}/lib/aarch64-android"
-    )
-    skel_dir = (
-        runtime_dir
-        / f"qairt/{constants.QAIRT_SDK_VERSION}/lib/hexagon-v{best_version}/unsigned"
-    )
-
-    # Essential QNN backend libraries and stub files needed for execution on
-    # the device.
-    libs_to_push = [
-        src_dir / "libQnnSystem.so",
-        src_dir / "libQnnHtp.so",
-        src_dir / f"libQnnHtpV{best_version}Stub.so",
-        src_dir / "libQnnHtpPrepare.so",
-    ]
-
-    skel_file = skel_dir / f"libQnnHtpV{best_version}Skel.so"
-    if skel_file.exists():
-      libs_to_push.append(skel_file)
-    else:
-      click.echo(f"Warning: Skeleton file not found: {skel_file}")
-
-  elif soc_vendor == "mediatek":
-    click.echo(
-        "Mediatek runtime libraries are assumed to be present on the device."
-    )
-
-  else:
+  handler = _VENDOR_LIBS_HANDLERS.get(soc_vendor)
+  if not handler:
     raise click.ClickException(
         f"Unsupported NPU vendor for device: {target_model}"
     )
+  libs_to_push = handler(runtime_dir, target_model)
 
   click.echo(f"Pushing runtime libraries to {android_root}...")
   adb_cmd = ["adb", "-s", device_id] if device_id else ["adb"]
@@ -246,7 +344,9 @@ def push_npu_runtime_libraries(
   return android_root
 
 
-def get_aot_target(target_name: str) -> qnn_target.Target | mtk_target.Target:
+def get_aot_target(
+    target_name: str,
+) -> qnn_target.Target | mtk_target.Target | intel_target.Target:
   """Returns the mapped compilation Target object for a given string codename.
 
   Translates a CLI string input (e.g., 'sm8550') into the underlying Python AOT
@@ -258,6 +358,7 @@ def get_aot_target(target_name: str) -> qnn_target.Target | mtk_target.Target:
   Returns:
     The LiteRT AOT Target object for AOT compilation.
   """
+  _ensure_targets_loaded()
   target_name = target_name.lower().strip()
 
   if target_name not in constants.AOT_SUPPORTED_TARGETS:
@@ -266,7 +367,15 @@ def get_aot_target(target_name: str) -> qnn_target.Target | mtk_target.Target:
   vendor, model_str = constants.AOT_SUPPORTED_TARGETS[target_name]
 
   try:
-    vendor_module = qnn_target if vendor == "qualcomm" else mtk_target
+    if vendor == "qualcomm":
+      vendor_module = qnn_target
+    elif vendor == "mediatek":
+      vendor_module = mtk_target
+    elif vendor == "intel":
+      vendor_module = intel_target
+    else:
+      raise click.ClickException(f"Unsupported vendor: {vendor}")
+
     model_enum = getattr(vendor_module.SocModel, model_str)
     return vendor_module.Target(model_enum)
   except AttributeError as e:

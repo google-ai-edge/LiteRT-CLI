@@ -352,16 +352,35 @@ def run_android(
       env_vars = ""
     cmd_str = f"{env_vars} " if env_vars else ""
     cmd_str += " ".join(shlex.quote(arg) for arg in run_cmd_args)
-    subprocess.run(
-        [
-            "adb",
-            "shell",
-            cmd_str,
-        ],
-        check=True,
+    process = subprocess.Popen(
+        ["adb", "shell", cmd_str],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
     )
-  except subprocess.CalledProcessError as e:
-    raise click.ClickException(f"Execution failed on device: {e!r}") from e
+
+    from litert_cli.core.log_filters import RunLogFilter
+
+    output_lines = []
+    log_filter = RunLogFilter(constants.DEFAULT_QUIET, print_tensors)
+
+    for line in process.stdout:
+      output_lines.append(line)
+      if log_filter.should_show(line):
+        click.echo(line, nl=False)
+
+    process.wait()
+    if process.returncode != 0:
+      click.secho(
+          f"Execution failed on device with exit code {process.returncode}",
+          fg="red",
+      )
+      click.echo("Full output for debugging:")
+      for line in output_lines:
+        click.echo(line, nl=False)
+      raise click.ClickException("Execution failed on device.")
+  except Exception as e:
+    raise click.ClickException(f"Failed to execute on device: {e}")
   finally:
     # Cleanup remote paths
     click.echo("Clearing remote files...")
