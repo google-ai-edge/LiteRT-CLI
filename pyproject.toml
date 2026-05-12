@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "litert-cli"
-version = "0.1.1.dev24"
+dynamic = ["version"]
 
 description = "LiteRT Toolkit Command Line Interface"
 dependencies = [
@@ -53,6 +53,9 @@ all = [
 
 [project.scripts]
 litert = "litert_cli.litert:cli"
+
+[tool.setuptools.dynamic]
+version = {file = ["VERSION"]}
 
 [tool.setuptools]
 packages = {find = {}}
