@@ -1,0 +1,139 @@
+# Copyright 2026 The LiteRT CLI Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ==============================================================================
+
+# Helpful YAML parser to clarify YAML syntax:
+# https://yaml-online-parser.appspot.com/
+#
+# This workflow will
+# 1. Build Python Wheel Nightly Version
+# 2. Upload to PyPI
+
+name: Python Package Build and Release (nightly)
+
+on:
+  workflow_dispatch:  # Allow manual triggers
+  schedule:
+    - cron: '0 7 * * *'
+      timezone: 'America/Los_Angeles'
+
+jobs:
+  build-nightly:
+    name: Build and Release Python Wheel Nightly
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Update Metadata for Nightly
+        run: |
+          sed -i 's/name = "litert-cli"/name = "litert-cli-nightly"/' pyproject.toml
+
+          BASE_VERSION=$(cat VERSION | xargs)
+          DATE=$(date +'%Y%m%d')
+          echo "${BASE_VERSION}.dev${DATE}" > VERSION
+
+          echo "Building litert-cli-nightly version $(cat VERSION)"
+
+      - name: Build Nightly Package
+        run: |
+          uv build
+
+      - name: Upload Nightly Wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: litert-cli-nightly-wheel
+          path: dist/*.whl
+
+  test-before-publish:
+    needs: build-nightly
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+
+    name: Test Install and Import litert-cli-nightly
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - run: |
+          python -m pip cache purge
+          python -m pip install --upgrade pip
+
+      - name: Download Nightly Wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: litert-cli-nightly-wheel
+          path: ./dist
+
+      - name: Install litert-cli-nightly
+        run: |
+          python -m pip install dist/*.whl
+
+      - name: Import litert-cli
+        run: |
+          python -c "import litert_cli"
+
+  # TODO: Re-enable once we verify the build artifacts.
+  # publish-nightly:
+  #   name: Publish to PyPI
+  #   needs: test-before-publish
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Download Nightly Wheel
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: litert-cli-nightly-wheel
+  #         path: ./dist
+
+  #     - name: Install uv
+  #       uses: astral-sh/setup-uv@v5
+
+  #     # - name: Publish to PyPI
+  #     #   env:
+  #     #     UV_PUBLISH_TOKEN: ${{ secrets.PYPI_UPLOAD_TOKEN }}
+  #     #   run: uv publish dist/*.whl
+
+  # test-after-publish:
+  #   needs: publish-nightly
+  #   strategy:
+  #     matrix:
+  #       python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+
+  #   name: Test Install and Import litert-cli-nightly from PyPI
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/setup-python@v4
+  #       with:
+  #         python-version: ${{ matrix.python-version }}
+
+  #     - run: |
+  #         python -m pip cache purge
+  #         python -m pip install --upgrade pip
+
+  #     - name: Install litert-cli-nightly from PyPI
+  #       run: |
+  #         python -m pip install litert-cli-nightly
+
+  #     - name: Import litert-cli
+  #       run: |
+  #         python -c "import litert_cli"
