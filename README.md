@@ -36,7 +36,7 @@ dependency resolution) or standard **`pip`** within a virtual environment.
 
 ```bash
 # Create a virtual environment with Python 3.13 in the current directory
-uv venv --clear --python=3.13
+uv venv --clear --python=3.13 --seed
 source .venv/bin/activate
 ```
 
@@ -122,7 +122,7 @@ litert download litert-community/MobileNet-v3-large --file "*.tflite" --output m
     *   Linux (Ubuntu) with Python 3.13
     *   macOS (Apple Silicon) with Python 3.13
 *   **Android Devices**:
-    *   Xiaomi 15 Pro (Qualcomm Snapdragon 8750)
+    *   Qualcomm Snapdragon 8750
 
 --------------------------------------------------------------------------------
 

@@ -28,7 +28,7 @@ import uuid
 
 import click
 
-_DEFAULT_GCP_PROJECT = os.environ.get("LITERT_GCP_PROJECT", "aep-e2e-test")
+_DEFAULT_GCP_PROJECT = os.environ.get("LITERT_GCP_PROJECT")
 _DEFAULT_GCP_LOCATION = "us-central1"
 _GCP_BUCKET = os.environ.get("LITERT_GCP_BUCKET", "litert-cli-test")
 _DEFAULT_PORTAL_ENDPOINT = "https://aiedgeportal.googleapis.com/v1alpha"
@@ -102,6 +102,13 @@ def run_gcp(
 
   if not gcp_project:
     gcp_project = _DEFAULT_GCP_PROJECT
+
+  if not gcp_project:
+    raise click.ClickException(
+        "Missing GCP project. You must specify a GCP project by passing"
+        " '--gcp-project <PROJECT_ID>' or by setting the 'LITERT_GCP_PROJECT'"
+        " environment variable."
+    )
   model_path = model_path_str
   # Upload model to GCS if it's not already there.
   if not model_path.startswith("gs://"):
@@ -174,14 +181,6 @@ def run_gcp(
           "display_name": f"{accelerator.lower()}_test",
       }],
   }
-
-  if gcp_project == "aep-e2e-test":
-    click.secho(
-        "Warning: You need to specify your own GCP project by passing"
-        " '--gcp-project <PROJECT_ID>' or by setting the 'LITERT_GCP_PROJECT'"
-        " environment variable.",
-        fg="yellow",
-    )
 
   # Submit the benchmark job via http requests to AI Edge Portal Cloud API.
   req = urllib.request.Request(
