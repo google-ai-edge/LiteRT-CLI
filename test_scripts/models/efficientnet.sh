@@ -53,6 +53,11 @@ export TEST_DATA_DIR="$REPO_ROOT/litert_cli/test_data"
 echo -e "${YELLOW}Installing litert-cli from source...${NC}"
 pip install -e "$REPO_ROOT"
 
+# Upgrade pip and setuptools to ensure build-system requirements (like
+# setuptools>=61.0) can be met
+echo -e "${YELLOW}Upgrading pip and setuptools...${NC}"
+pip install --upgrade pip setuptools wheel
+
 # --- 1. Download EfficientNet-B1 model ---
 run_case "Download: EfficientNet-B1 from HuggingFace" \
     litert download litert-community/efficientnet_b1 --file "*.tflite" --output "$MODEL_DIR/efficientnet"

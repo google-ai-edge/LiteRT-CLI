@@ -31,6 +31,8 @@ if [ ! -d "venv" ]; then
   python3 -m venv venv
 fi
 source venv/bin/activate
+# Upgrade pip and setuptools to ensure build-system requirements can be met.
+pip install --upgrade pip setuptools wheel
 
 # Install litert-cli with ASR extras
 pip install -e "$REPO_ROOT"

@@ -46,6 +46,7 @@ mkdir -p "$MODEL_DIR"
 echo -e "${YELLOW}Creating Python virtual environment...${NC}"
 python3 -m venv venv_gemma4
 source venv_gemma4/bin/activate
+pip install --upgrade pip setuptools wheel
 
 # Install litert-cli from source
 echo -e "${YELLOW}Installing litert-cli from source...${NC}"
