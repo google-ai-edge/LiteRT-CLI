@@ -51,7 +51,11 @@ class DepsTest(absltest.TestCase):
     result = deps.ensure_extra('torch')
 
     self.assertTrue(result)
-    mock_version.assert_called_once_with('litert-torch-nightly')
+    mock_version.assert_has_calls([
+        mock.call('litert-torch-nightly'),
+        mock.call('litert-torch'),
+        mock.call('litert-cli-nightly'),
+    ])
     mock_check_call.assert_called_once()
 
   @mock.patch.object(subprocess, 'check_call', autospec=True)

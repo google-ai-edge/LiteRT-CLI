@@ -42,19 +42,9 @@ jobs:
       - name: Set up Python
         run: uv python install
 
-      - name: Update Metadata for Nightly
-        run: |
-          sed -i 's/name = "litert-cli"/name = "litert-cli-nightly"/' pyproject.toml
-
-          BASE_VERSION=$(cat VERSION | xargs)
-          DATE=$(date +'%Y%m%d')
-          echo "${BASE_VERSION}.dev${DATE}" > VERSION
-
-          echo "Building litert-cli-nightly version $(cat VERSION)"
-
       - name: Build Nightly Package
         run: |
-          uv build
+          python tools/build_wheels.py --type nightly
 
       - name: Upload Nightly Wheel
         uses: actions/upload-artifact@v4
