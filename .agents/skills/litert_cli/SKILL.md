@@ -201,13 +201,25 @@ litert benchmark model.tflite --android --gpu
 litert benchmark my_model_ref --desktop --cpu
 ```
 
-**On Google Cloud AI Edge Portal devices (e.g., Pixel 7):**
+**On Google Cloud AI Edge Portal (GCP) in Google Cloud:**
+
+> [!IMPORTANT]
+> **Prerequisites for GCP Benchmarking:**
+> 1. Register your Google AI Edge Portal account at: https://ai.google.dev/edge/ai-edge-portal
+> 2. Authenticate your terminal session by running: `gcloud auth login`
+> 3. Configure the GCP Project ID. You can either:
+>    * Set the global environment variable: `export LITERT_GCP_PROJECT="your-gcp-project-id"`
+>    * Or explicitly pass the `--gcp-project` option in the command.
+
 ```bash
-# Benchmark on GCP Pixel 7 CPU
+# Benchmark on GCP Pixel 7 CPU (using environment variable for Project ID)
 litert benchmark model.tflite --gcp --device "pixel 7"
 
+# Benchmark on GCP Pixel 7 CPU (specifying Project ID explicitly)
+litert benchmark model.tflite --gcp --device "pixel 7" --gcp-project "your-gcp-project-id"
+
 # Benchmark on multiple devices at once on GPU
-litert benchmark model.tflite --gcp --devices "pixel 7, sm-s931u1" --gpu
+litert benchmark model.tflite --gcp --devices "pixel 7, sm-s931u1" --gpu --gcp-project "your-gcp-project-id"
 ```
 
 ### 10. Compile (NPU Offline AOT Compilation)
