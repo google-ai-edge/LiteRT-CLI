@@ -30,7 +30,7 @@ import click
 
 _DEFAULT_GCP_PROJECT = os.environ.get("LITERT_GCP_PROJECT")
 _DEFAULT_GCP_LOCATION = "us-central1"
-_GCP_BUCKET = os.environ.get("LITERT_GCP_BUCKET", "litert-cli-test")
+_GCP_BUCKET = os.environ.get("LITERT_GCP_BUCKET")
 _DEFAULT_PORTAL_ENDPOINT = "https://aiedgeportal.googleapis.com/v1alpha"
 
 
@@ -117,9 +117,48 @@ def run_gcp(
       click.secho(f"Error: Local model file not found: {model_path}", fg="red")
       return
 
+    target_bucket = _GCP_BUCKET or f"{gcp_project}-litert-models"
+    # Check if bucket exists, create if not
+    click.echo(
+        f"Ensuring GCS bucket 'gs://{target_bucket}' exists for project"
+        f" '{gcp_project}'..."
+    )
+    try:
+      check_res = subprocess.run(
+          ["gcloud", "storage", "ls", f"gs://{target_bucket}"],
+          check=False,
+          stdout=subprocess.DEVNULL,
+          stderr=subprocess.DEVNULL,
+      )
+      if check_res.returncode != 0:
+        click.secho(
+            f"Creating GCS bucket 'gs://{target_bucket}' in location"
+            f" '{_DEFAULT_GCP_LOCATION}'...",
+            fg="cyan",
+        )
+        subprocess.run(
+            [
+                "gcloud",
+                "storage",
+                "buckets",
+                "create",
+                f"gs://{target_bucket}",
+                f"--project={gcp_project}",
+                f"--location={_DEFAULT_GCP_LOCATION}",
+            ],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except subprocess.CalledProcessError as e:
+      click.secho(
+          f"Error: Failed to ensure GCS bucket 'gs://{target_bucket}': {e}",
+          fg="red",
+      )
+      return
+
     click.secho(
-        f"Uploading local model '{model_path}' to"
-        f" gs://{_GCP_BUCKET}/...",
+        f"Uploading local model '{model_path}' to gs://{target_bucket}/...",
         fg="cyan",
     )
     try:
@@ -129,11 +168,11 @@ def run_gcp(
               "storage",
               "cp",
               str(local_model),
-              f"gs://{_GCP_BUCKET}/",
+              f"gs://{target_bucket}/",
           ],
           check=True,
       )
-      model_path = f"gs://{_GCP_BUCKET}/{local_model.name}"
+      model_path = f"gs://{target_bucket}/{local_model.name}"
     except subprocess.CalledProcessError as e:
       click.secho(
           f"Error: Failed to upload '{model_path}' to Google Cloud Storage:"
