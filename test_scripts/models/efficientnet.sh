@@ -17,9 +17,15 @@
 # LiteRT CLI EfficientNet Demo & Test Script
 set -e
 
-# Use UV to create a virtual env with python 3.13, in current directory.
-uv venv --clear --python=3.13
-source .venv/bin/activate
+
+echo -e "${BLUE}${BOLD}==================================================================${NC}"
+echo -e "${BLUE}${BOLD}>>> LiteRT CLI EfficientNet Demo Script${NC}"
+echo -e "${BLUE}${BOLD}==================================================================${NC}"
+
+# --- Environment Setup ---
+export SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+export LITERT_CLI_ROOT="/tmp/litert_cli_efficientnet"
 
 # Source shared utilities
 source "$SCRIPT_DIR/utils.sh"
