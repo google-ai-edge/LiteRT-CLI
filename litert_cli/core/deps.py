@@ -38,16 +38,16 @@ from litert_cli.core import constants
 # Map extra names to Python module names to check if the optional
 # dependency is already installed.
 _PACKAGE_BY_EXTRA = immutabledict({
-    "convert": "litert-torch-nightly",
-    "torch": "litert-torch-nightly",
-    "lm": "litert-lm-nightly",
-    "download": "huggingface-hub",
-    "run": "ai-edge-litert-nightly",
-    "compile": "ai-edge-litert-sdk-qualcomm-nightly",
-    "visualize": "model-explorer",
-    "quantize": "ai-edge-quantizer-nightly",
-    "image": "Pillow",
-    "asr": "librosa",
+    "convert": ("litert-torch-nightly", "litert-torch"),
+    "torch": ("litert-torch-nightly", "litert-torch"),
+    "lm": ("litert-lm-nightly", "litert-lm"),
+    "download": ("huggingface-hub",),
+    "run": ("ai-edge-litert-nightly", "ai-edge-litert"),
+    "compile": ("ai-edge-litert-sdk-qualcomm-nightly", "ai-edge-litert-sdk-qualcomm"),
+    "visualize": ("model-explorer",),
+    "quantize": ("ai-edge-quantizer-nightly", "ai-edge-quantizer"),
+    "image": ("Pillow",),
+    "asr": ("librosa",),
 })
 
 
@@ -69,19 +69,20 @@ def ensure_extra(extra_name: str, *, silent: bool = False) -> bool:
   if constants.IN_GOOGLE3:
     return True
 
-  package_to_check = _PACKAGE_BY_EXTRA.get(extra_name)
+  packages_to_check = _PACKAGE_BY_EXTRA.get(extra_name)
 
-  if not package_to_check:
+  if not packages_to_check:
     if not silent:
       click.secho(f"Internal error: Unknown extra '{extra_name}'", fg="red")
       raise click.Abort()
     return False
 
-  try:
-    importlib.metadata.version(package_to_check)
-    return True
-  except importlib.metadata.PackageNotFoundError:
-    pass
+  for pkg in packages_to_check:
+    try:
+      importlib.metadata.version(pkg)
+      return True
+    except importlib.metadata.PackageNotFoundError:
+      pass
 
   if not silent:
     click.secho(
@@ -97,8 +98,14 @@ def ensure_extra(extra_name: str, *, silent: bool = False) -> bool:
     target = f".[{extra_name}]"
     cwd = str(project_root)
   else:
-    # Otherwise, install from pypi
-    target = f"litert-cli[{extra_name}]"
+    # Otherwise, install from pypi, checking if nightly CLI is installed
+    cli_package = "litert-cli"
+    try:
+      importlib.metadata.version("litert-cli-nightly")
+      cli_package = "litert-cli-nightly"
+    except importlib.metadata.PackageNotFoundError:
+      pass
+    target = f"{cli_package}[{extra_name}]"
     cwd = None
 
   if not silent:
