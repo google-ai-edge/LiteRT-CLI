@@ -7,7 +7,7 @@ description: LiteRT CLI tool to convert, download, quantize, run, benchmark, and
 
 This skill allows the agent to download, convert, quantize, run, benchmark, and
 visualize LiteRT models using the `litert` command on desktop, device, or Google
-Cloud
+Cloud.
 
 ## Setup & Prerequisites
 
@@ -205,17 +205,33 @@ litert convert my_model.py --output /tmp/mymodel
 
 ### 8. Large Language Models (LM)
 
-Interact with LLM generative models (like Qwen 1.5 or Gemma 2) using native `litert-lm-cli` or python fallback.
+Interact with LLM generative models (like Qwen 1.5 or Gemma 4) using native `litert-lm` CLI.
+
+> [!TIP]
+> **Non-interactive / Background Execution best practice:**
+> When running generative LLM inferences using the `litert lm run` command in scripts or in the background, the process will hang indefinitely waiting for the next chat prompt on standard input (`stdin`). 
+> To prevent this and ensure it outputs the prompt response and exits immediately, **always redirect stdin from `/dev/null`** (i.e., append `< /dev/null` to the command).
 
 ```bash
-litert lm run <model_path_or_repo_id>
+litert lm run <model_path_or_reference_id> < /dev/null
 ```
 
-**Run with prompt and specific model file path:**
+**Run with model file path:**
 ```bash
-# Generative LLM models require the path to the compiled .litertlm model file or directory
-litert lm run <model_dir>/model.litertlm --prompt "What is edge AI?"
+# Generative LLM models require the path to the compiled .litertlm model file or directory.
+# Append < /dev/null to exit immediately after printing the answer.
+litert lm run <model_dir>/model.litertlm --prompt "What is edge AI?" < /dev/null
 ```
+
+**Download and run with HuggingFace repo:**
+```bash
+litert lm run \
+  --from-huggingface-repo=litert-community/gemma-4-E2B-it-litert-lm \
+  gemma-4-E2B-it.litertlm \
+  --prompt="What is the capital of France?" \
+  < /dev/null
+```
+
 
 ### 9. Benchmark
 
@@ -238,14 +254,14 @@ litert benchmark model.tflite --android --gpu
 litert benchmark my_model_ref --desktop --cpu
 ```
 
-**On Google Cloud AI Edge Portal (GCP) in Google Cloud:**
+**On Google AI Edge Portal in Google Cloud (GCP):**
 
 > [!IMPORTANT]
 > **Prerequisites for GCP Benchmarking:**
-> 1. Register your Google AI Edge Portal account at: https://ai.google.dev/edge/ai-edge-portal
+> 1. Joint Google AI Edge Portal early access program at: https://ai.google.dev/edge/ai-edge-portal
 > 2. Authenticate your terminal session by running: `gcloud auth login`
-> 3. Configure the GCP Project ID. You can either:
->    * Set the global environment variable: `export LITERT_GCP_PROJECT="your-gcp-project-id"`
+> 3. Configure the Project ID for the GCP Project. You can either:
+>    * Set the environment variable: `export LITERT_GCP_PROJECT="your-gcp-project-id"`
 >    * Or explicitly pass the `--gcp-project` option in the command.
 
 ```bash
@@ -310,16 +326,10 @@ python litert_test.py
 python litert_help_test.py
 ```
 
-To run tests in Google3:
-```bash
-blaze test //third_party/py/litert_cli:litert_test
-blaze test //third_party/py/litert_cli:litert_help_test
-```
-
 ## Best Practices for Agents
 
 *   Pipe outputs to text files or grep them if you are looking for specific tensor shapes or runtime metrics.
-*   Always use `--seed` when setting up virtual environments with `uv venv` if you plan to rely on the CLI's dynamic on-the-fly installation of extras.
+*   **Avoid hanging background processes**: When executing the `litert lm run` command in a script or in the background, **always** append `< /dev/null` to redirect standard input. Otherwise, the process will block indefinitely waiting on stdin.
 
 ## 🌟 High-Tier Developer Scenario Prompts
 
@@ -329,7 +339,7 @@ These complex prompts showcase how to combine and leverage this skill. You can u
 > "Download the FP32 EfficientNet model `litert-community/efficientnet_b1` from HuggingFace Hub. Quantize it to INT8 dynamic range (`--type int8_dynamic`), then benchmark both the original FP32 model and the newly quantized INT8 model on the GPU of my connected Android device. Compare the average latency and report the throughput speedup."
 
 ### Prompt 2: End-to-End Qwen LLM Conversion & Local Prompt Execution
-> "Initialize a Python virtual environment using `uv` with Python 3.13, and do a local editable install of `litert-cli` along with `convert` and `lm` optional dependencies. Then, convert the generative model `Qwen/Qwen1.5-0.5B-Chat` from HuggingFace Hub to LiteRT format. Run a local inference on the compiled `model.litertlm` file using the prompt 'Explain edge machine learning in one sentence' and save the output."
+> "Create a python envinroment with UV, install `litert-cli`, convert the model `Qwen/Qwen1.5-0.5B-Chat` from HuggingFace Hub to LiteRT format, and run it locally using the prompt 'Explain edge machine learning in one sentence'."
 
-### Prompt 3: ResNet Compilation & Custom NPU Compilation Target
-> "Create a clean local sandbox folder and install the `litert-cli` tool. Download the `resnet18` model, compile it natively for the Qualcomm `sm8750` target NPU, and export the compiled `.tflite` model inside `./models/compiled`."
+### Prompt 3: EfficientNet Compilation & Custom NPU Compilation Target
+> "Create a clean local sandbox folder and install the `litert-cli` tool. Download the `efficientnet_b1` model, compile it natively for the Qualcomm `sm8750` and MediaTek `MT6993` target NPUs, and export the compiled `.tflite` models inside `./models/compiled`."
