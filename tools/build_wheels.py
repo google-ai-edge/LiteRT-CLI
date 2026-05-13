@@ -46,8 +46,10 @@ def configure_build(is_nightly: bool, restore: bool = False):
 
     # Normalize project name to base 'litert-cli'
     content = content.replace('name = "litert-cli-nightly"', 'name = "litert-cli"')
+    content = content.replace('"litert-cli-nightly[', '"litert-cli[')
     if is_nightly and not restore:
         content = content.replace('name = "litert-cli"', 'name = "litert-cli-nightly"')
+        content = content.replace('"litert-cli[', '"litert-cli-nightly[')
 
     # 3. Configure dependencies
     # If restore is True, we always restore to nightly dependencies for local development
