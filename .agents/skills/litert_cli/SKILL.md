@@ -182,12 +182,18 @@ litert lm run <model_dir>/model.litertlm --prompt "What is edge AI?"
 
 ### 9. Benchmark
 
-Benchmark LiteRT models on different platforms (Android, Google Cloud, or
-Desktop).
+Benchmark LiteRT models on different platforms (Android, Google Cloud, or Desktop).
 
-**On connected Android device via ADB:**
+**On connected Android device via ADB (CPU, GPU, or NPU):**
 ```bash
+# Benchmark on CPU (Default)
 litert benchmark model.tflite --android --cpu
+
+# Benchmark on NPU (Requires compiling for NPU first)
+litert benchmark model.tflite --android --npu
+
+# Benchmark on GPU (using OpenCL/OpenGL delegates)
+litert benchmark model.tflite --android --gpu
 ```
 
 **On Macbook (CPU):**
@@ -197,10 +203,39 @@ litert benchmark my_model_ref --desktop --cpu
 
 **On Google Cloud AI Edge Portal devices (e.g., Pixel 7):**
 ```bash
+# Benchmark on GCP Pixel 7 CPU
 litert benchmark model.tflite --gcp --device "pixel 7"
+
+# Benchmark on multiple devices at once on GPU
+litert benchmark model.tflite --gcp --devices "pixel 7, sm-s931u1" --gpu
 ```
 
-### 10. Delete
+### 10. Compile (NPU Offline AOT Compilation)
+
+Apply Ahead-of-Time (AOT) offline compilation to a standard LiteRT (.tflite) model for specific edge SoC target NPUs (e.g., Qualcomm sm8550, MediaTek mt6989).
+
+**Basic target NPU compilation:**
+```bash
+litert compile my_model.tflite --target sm8750
+```
+
+**Compile for multiple NPU targets and export an Android AI Pack (for PODAI deployment):**
+```bash
+litert compile my_model.tflite --target sm8550 --target mt6989 --export-aipack my_npu_models
+```
+
+**Compile and specify a custom output directory:**
+```bash
+litert compile my_model.tflite --target sm8750 --output-dir ./compiled
+```
+
+**Update target SoC metadata configurations from GitHub repository:**
+```bash
+# Pass 'main' for latest targets, or a version tag like 'v2.1.4'
+litert compile --update-targets main
+```
+
+### 11. Delete
 
 Delete a managed model from the centralized cache.
 
@@ -208,7 +243,7 @@ Delete a managed model from the centralized cache.
 litert delete my_model
 ```
 
-### 11. Clean
+### 12. Clean
 
 Clean up model cache, etc.
 
