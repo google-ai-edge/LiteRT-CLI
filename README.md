@@ -55,7 +55,6 @@ uv pip install -q -i https://test.pypi.org/simple/ --extra-index-url https://pyp
 git clone git@github.com:google-ai-edge/LiteRT-CLI.git
 # Or clone using your Personal Access Token (PAT)
 git clone https://<your-access-token>@github.com/google-ai-edge/LiteRT-CLI.git
-
 cd LiteRT-CLI
 
 # Install in editable mode inside the active virtual environment
@@ -72,9 +71,6 @@ uv run litert --help
 
 # Download a LiteRT model
 uv run litert download litert-community/MobileNet-v3-large --file "*.tflite" --output mobilenet
-
-# Optional: Setup ADB reverse port-forwarding if using CloudTop with an Android device connected to your local macOS
-ssh -R 5037:localhost:5037 <your-host>.c.googlers.com
 ```
 
 ---
@@ -116,9 +112,6 @@ litert --help
 
 # Download a LiteRT model
 litert download litert-community/MobileNet-v3-large --file "*.tflite" --output mobilenet
-
-# Optional: Setup ADB reverse port-forwarding if using CloudTop
-ssh -R 5037:localhost:5037 <your-host>.c.googlers.com
 ```
 
 ### Tested Platforms
