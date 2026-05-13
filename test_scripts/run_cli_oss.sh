@@ -34,6 +34,8 @@ cd "$LITERT_CLI_ROOT"
 # Create Python virtual environment
 python3 -m venv venv_litert_cli_oss
 source venv_litert_cli_oss/bin/activate
+# Upgrade pip and setuptools to ensure build-system requirements can be met.
+pip install --upgrade pip setuptools wheel
 
 # Create output directories
 export MODEL_DIR="$LITERT_CLI_ROOT/models"

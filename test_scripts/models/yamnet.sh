@@ -41,6 +41,8 @@ cd "$LITERT_CLI_ROOT"
 echo -e "${YELLOW}Creating Python virtual environment...${NC}"
 python3 -m venv venv_yamnet
 source venv_yamnet/bin/activate
+# Upgrade pip and setuptools to ensure build-system requirements can be met.
+pip install --upgrade pip setuptools wheel
 
 # Create output directories
 export MODEL_DIR="$LITERT_CLI_ROOT/models"

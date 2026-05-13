@@ -39,6 +39,8 @@ cd "$LITERT_CLI_ROOT"
 echo -e "${YELLOW}Creating Python virtual environment...${NC}"
 python3 -m venv venv_npu
 source venv_npu/bin/activate
+# Upgrade pip and setuptools to ensure build-system requirements can be met.
+pip install --upgrade pip setuptools wheel
 
 # Install litert-cli from source
 echo -e "${YELLOW}Installing litert-cli from source...${NC}"
