@@ -61,20 +61,35 @@ LITERT_CLI_ANDROID_ROOT: str = os.environ.get(
     ENV_LITERT_CLI_ANDROID_ROOT, _DEFAULT_CLI_ANDROID_ROOT
 )
 
-# Downloads and Caching
+import importlib.metadata
+
+_litert_binaries_version = "latest"
+try:
+  # If nightly CLI is installed, always use 'latest'
+  importlib.metadata.version("litert-cli-nightly")
+except importlib.metadata.PackageNotFoundError:
+  try:
+    _litert_binaries_version = importlib.metadata.version("ai-edge-litert")
+  except importlib.metadata.PackageNotFoundError:
+    _litert_binaries_version = "latest"
+
 LITERT_BINARIES_BASE_URL: str = (
-    # "https://storage.googleapis.com/litert/binaries/latest"
-    "https://storage.googleapis.com/litert/binaries/2.1.4"
+    f"https://storage.googleapis.com/litert/binaries/{_litert_binaries_version}"
 )
 LITERT_BINARIES_BASE_URL_ANDROID: str = (
     f"{LITERT_BINARIES_BASE_URL}/android_arm64"
 )
 
 # NPU and AOT Configuration
-# Keep updating the version in sync with LiteRT latest
-# release, and reference to the version in
+# Keep updating the version in sync with LiteRT releases, referencing
 # https://github.com/google-ai-edge/LiteRT/blob/main/third_party/qairt/workspace.bzl#L25
-QAIRT_SDK_VERSION: str = "2.44.0.260225"
+_QAIRT_VERSION_MAP = {
+    "latest": "2.44.0.260225",  # Nightly / main branch
+    "2.1.4": "2.44.0.260225",   # Stable 2.1.4 release
+}
+QAIRT_SDK_VERSION: str = _QAIRT_VERSION_MAP.get(
+    _litert_binaries_version, "2.44.0.260225"
+)
 
 QAIRT_SDK_URL: str = (
     "https://softwarecenter.qualcomm.com/api/download/software/sdks/"
