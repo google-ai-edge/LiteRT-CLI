@@ -212,8 +212,8 @@ def download_cmd(
   else:
     _download_from_hf(model_path, output_path, file_pattern, token)
 
-    # Save metadata if it's a managed download (non-URL)
-    if not model_path.startswith(("http://", "https://")):
+    # Save metadata if it's a managed download (non-URL) to the centralized cache
+    if not model_path.startswith(("http://", "https://")) and not output:
       final_ref = ref or model_path.replace("/", "__")
 
       # Load existing metadata if it exists (to preserve other sub-refs)
