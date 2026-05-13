@@ -71,7 +71,7 @@ Run a tflite model locally on desktop or on a adb connected Android device.
 * `--gpu`: Use desktop GPU if available.
 
 **Android Execution (CPU, GPU, or NPU):** `litert run <path_to_model> --android --cpu`
-* `--gpu`: Run on Android GPU using GPU OpenCL/OpenGL delegates.
+* `--gpu`: Run on Android GPU using OpenCL/WebGPU.
 * `--npu`: Run on Android device NPU. Supports **two execution paradigms** based on the input model:
 
   **1. JIT (Just-In-Time) compilation mode:**
@@ -113,12 +113,12 @@ Launch the Model Explorer to visualize the model structure.
 litert visualize <path_to_model>
 ```
 
-**Advanced Visualisation Options:** * `--no_reuse_server`: Force creation of a
-NEW server port. * `--stop_all`: Kill all existing visualization background
-servers.
+**Advanced Visualization Options:**
+*   `--no-reuse-server`: Force creation of a NEW server port.
+*   `--stop-all`: Kill all existing visualization background servers.
 
 ```bash
-litert visualize --stop_all
+litert visualize --stop-all
 ```
 
 ### 4. Download
