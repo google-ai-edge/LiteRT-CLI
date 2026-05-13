@@ -37,7 +37,7 @@ cd "$LITERT_CLI_ROOT"
 
 # Create Python virtual environment using UV with Python 3.13
 echo -e "${YELLOW}Creating Python virtual environment with UV...${NC}"
-uv venv --clear --python=3.13
+uv venv --clear --python=3.13 --seed
 source .venv/bin/activate
 
 # Create output directories
@@ -46,11 +46,11 @@ mkdir -p "$MODEL_DIR"
 
 # Install litert-cli with convert and lm extras from source using UV
 echo -e "${YELLOW}Installing litert-cli with convert and lm extras...${NC}"
-uv pip install -e "$REPO_ROOT[convert,lm]"
+uv pip install -e "$REPO_ROOT"
 
 # --- 1. Convert Qwen 1.5 Model ---
 run_case "Convert Qwen1.5-0.5B-Chat from HuggingFace to LiteRT" \
-    litert convert Qwen/Qwen1.5-0.5B-Chat --output "$MODEL_DIR/qwen"
+    uv run litert convert Qwen/Qwen1.5-0.5B-Chat --output "$MODEL_DIR/qwen"
 
 QWEN_DIR="$MODEL_DIR/qwen"
 if [ ! -d "$QWEN_DIR" ]; then
@@ -60,7 +60,7 @@ fi
 
 # --- 2. Run Inference on converted model using LM commands ---
 run_case "Run Inference on Qwen1.5-0.5B-Chat with Prompt" \
-    litert lm run "$QWEN_DIR" --prompt "What is LiteRT? Answer in one sentence."
+    uv run litert lm run "$QWEN_DIR/model.litertlm" --prompt "What is LiteRT? Answer in one sentence."
 
 # --- Summary Report ---
 print_summary_report "Qwen1.5"

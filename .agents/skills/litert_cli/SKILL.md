@@ -11,34 +11,52 @@ Cloud
 
 ## Setup & Prerequisites
 
-Before running any `litert` commands, an agent should ensure it is in a Python
-virtual environment and `litert-cli` is installed.
+Before running any `litert` commands, an agent should ensure it is in a Python virtual environment and `litert-cli` is installed.
 
 ### 1. Check/Create Virtual Environment
 
-Run the following checks:
-```bash
-# If not in a venv, create and activate one automatically
+We highly recommend using **`uv`** (written in Rust) for extremely fast environment management and package installs.
 
-if [ -z "$VIRTUAL_ENV" ]; then
-  python3 -m venv litert-cli-venv
-  source litert-cli-venv/bin/activate
-fi
+**Option A: Use UV (Recommended - Super Fast):**
+```bash
+# Create a virtual environment with Python 3.13.
+# We use --seed to pre-install pip, setuptools, and wheel inside the venv.
+# This is critical to allow our CLI dynamic dependency auto-installers (deps.py) to function.
+uv venv --clear --python=3.13 --seed
+source .venv/bin/activate
+```
+
+**Option B: Use Standard Pip/Venv:**
+```bash
+# Create and activate a standard Python virtual environment.
+python3 -m venv litert-cli-venv
+source litert-cli-venv/bin/activate
+
+# Upgrade pip, setuptools, and wheel immediately.
+# This is crucial to meet the project's PEP 517 requirements (setuptools>=61.0).
+pip install --upgrade pip setuptools wheel
 ```
 
 ### 2. Check/Install LiteRT CLI
 
-Run the following checks to ensure the command is available:
-```bash
-# If litert is not found, try local install from source or fallback to TestPyPI
+Ensure `litert-cli` and any required optional extensions (extras) are installed:
 
-if ! command -v litert &> /dev/null; then
-  if [ -f "pyproject.toml" ]; then
-    pip install -e .
-  else
-    pip install -q -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple litert-cli==0.1.1.dev22
-  fi
-fi
+**Using UV:**
+```bash
+# Install in editable mode from local source
+uv pip install -e .
+
+# Or install from local source with extras (e.g., convert, lm, compile)
+uv pip install -e ".[convert,lm,compile]"
+```
+
+**Using standard Pip:**
+```bash
+# Install in editable mode
+pip install -e .
+
+# Or install with extras
+pip install -e ".[convert,lm,compile]"
 ```
 
 ## Core Commands
@@ -99,6 +117,11 @@ Download public LiteRT models from HuggingFace Hub or direct URL.
 litert download <repo_id_or_url> --output <output_dir>
 ```
 
+**Key Behavioral Nuance (Custom Output vs Centralized Cache):**
+*   **Direct URL Downloads**: Metadata is **never** saved.
+*   **HuggingFace Downloads (Default Central Cache)**: If `--output` is **omitted**, it downloads to `~/.cache/litert-cli/models/` and **automatically** creates `metadata.json` to catalog the model for CLI commands (like `litert list`).
+*   **HuggingFace Downloads (Custom Folder)**: If `--output` is **provided**, it acts as a pure, clean download of only the model files. It **does not** generate a `metadata.json` file in the output folder.
+
 **Filter by File Type:**
 ```bash
 litert download litert-community/MobileNet-v3-large --file "*.tflite" --output ./models
@@ -145,15 +168,16 @@ litert convert my_model.py --output /tmp/mymodel
 
 ### 8. Large Language Models (LM)
 
-Interact with LLM generative models using native `litert-lm-cli` or python
-fallback.
+Interact with LLM generative models (like Qwen 1.5 or Gemma 2) using native `litert-lm-cli` or python fallback.
 
 ```bash
 litert lm run <model_path_or_repo_id>
 ```
 
+**Run with prompt and specific model file path:**
 ```bash
-litert lm run <model_path_or_repo_id> --prompt "What is a neural network?"
+# Generative LLM models require the path to the compiled .litertlm model file or directory
+litert lm run <model_dir>/model.litertlm --prompt "What is edge AI?"
 ```
 
 ### 9. Benchmark
@@ -210,5 +234,18 @@ blaze test //third_party/py/litert_cli:litert_help_test
 
 ## Best Practices for Agents
 
-*   Pipe outputs to text files or grep them if you are looking for specific
-    tensor shapes or runtime metrics.
+*   Pipe outputs to text files or grep them if you are looking for specific tensor shapes or runtime metrics.
+*   Always use `--seed` when setting up virtual environments with `uv venv` if you plan to rely on the CLI's dynamic on-the-fly installation of extras.
+
+## 🌟 High-Tier Developer Scenario Prompts
+
+These complex prompts showcase how to combine and leverage this skill. You can use them directly in agent queries:
+
+### Prompt 1: Dynamic Quantization & Android GPU Benchmarking
+> "Download the FP32 EfficientNet model `litert-community/efficientnet_b1` from HuggingFace Hub. Quantize it to INT8 dynamic range (`--type int8_dynamic`), then benchmark both the original FP32 model and the newly quantized INT8 model on the GPU of my connected Android device. Compare the average latency and report the throughput speedup."
+
+### Prompt 2: End-to-End Qwen LLM Conversion & Local Prompt Execution
+> "Initialize a Python virtual environment using `uv` with Python 3.13, and do a local editable install of `litert-cli` along with `convert` and `lm` optional dependencies. Then, convert the generative model `Qwen/Qwen1.5-0.5B-Chat` from HuggingFace Hub to LiteRT format. Run a local inference on the compiled `model.litertlm` file using the prompt 'Explain edge machine learning in one sentence' and save the output."
+
+### Prompt 3: ResNet Compilation & Custom NPU Compilation Target
+> "Create a clean local sandbox folder and install the `litert-cli` tool. Download the `resnet18` model, compile it natively for the Qualcomm `sm8750` target NPU, and export the compiled `.tflite` model inside `./models/compiled`."
