@@ -8,11 +8,11 @@ import sys
 # Update these version numbers when preparing a new stable release.
 STABLE_DEPENDENCIES = {
     "ai-edge-litert": "==2.1.4",
-    "ai-edge-litert-sdk-qualcomm": "==2.1.4",
-    "ai-edge-litert-sdk-mediatek": "==2.1.4",
-    "litert-torch": "==2.1.4",
-    "ai-edge-quantizer": "==2.1.4",
-    "litert-lm": "==2.1.4",
+    "ai-edge-litert-sdk-qualcomm": "==0.2.0",
+    "ai-edge-litert-sdk-mediatek": "==0.2.0",
+    "litert-torch": "==0.9.0",
+    "ai-edge-quantizer": "==0.6.0",
+    "litert-lm": "==0.11.0",
 }
 
 def configure_build(is_nightly: bool, restore: bool = False):
