@@ -50,7 +50,7 @@ uv pip install -e "$REPO_ROOT"
 
 # --- 1. Convert Qwen 1.5 Model ---
 run_case "Convert Qwen1.5-0.5B-Chat from HuggingFace to LiteRT" \
-    uv run litert convert Qwen/Qwen1.5-0.5B-Chat --output "$MODEL_DIR/qwen"
+    litert convert Qwen/Qwen1.5-0.5B-Chat --output "$MODEL_DIR/qwen"
 
 QWEN_DIR="$MODEL_DIR/qwen"
 if [ ! -d "$QWEN_DIR" ]; then
@@ -60,7 +60,7 @@ fi
 
 # --- 2. Run Inference on converted model using LM commands ---
 run_case "Run Inference on Qwen1.5-0.5B-Chat with Prompt" \
-    uv run litert lm run "$QWEN_DIR/model.litertlm" --prompt "What is LiteRT? Answer in one sentence."
+    litert lm run "$QWEN_DIR/model.litertlm" --prompt "What is LiteRT? Answer in one sentence."
 
 # --- Summary Report ---
 print_summary_report "Qwen1.5"

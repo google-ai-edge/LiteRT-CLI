@@ -65,10 +65,10 @@ pip install -e ".[convert,lm,compile]"
 
 Run a tflite model locally on desktop or on a adb connected Android device.
 
-**Desktop Execution (CPU and Local GPU):** `litert run <path_to_model>
---desktop --cpu --quiet` * `--quiet`: Silences verbose C++ setup logs. Highly
-recommended for agents to parse clean output. * `--gpu`: Use desktop GPU if
-available.
+**Desktop Execution (CPU and Local GPU):** `litert run <path_to_model> --desktop --cpu`
+* Output logs are **clean by default**.
+* To enable C++ verbose debug setup logs, set the environment variable: `export LITERT_VERBOSE=1`.
+* `--gpu`: Use desktop GPU if available.
 
 **Android Execution:** `litert run <path_to_model> --android --cpu`
 
