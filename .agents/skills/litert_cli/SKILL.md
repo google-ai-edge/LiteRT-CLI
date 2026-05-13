@@ -341,5 +341,5 @@ These complex prompts showcase how to combine and leverage this skill. You can u
 ### Prompt 2: End-to-End Qwen LLM Conversion & Local Prompt Execution
 > "Create a python envinroment with UV, install `litert-cli`, convert the model `Qwen/Qwen1.5-0.5B-Chat` from HuggingFace Hub to LiteRT format, and run it locally using the prompt 'Explain edge machine learning in one sentence'."
 
-### Prompt 3: EfficientNet Compilation & Custom NPU Compilation Target
-> "Create a clean local sandbox folder and install the `litert-cli` tool. Download the `efficientnet_b1` model, compile it natively for the Qualcomm `sm8750` and MediaTek `MT6993` target NPUs, and export the compiled `.tflite` models inside `./models/compiled`."
+### Prompt 3: NPU AOT Compilation, Inference, and Benchmarking Pipeline
+> "Download the FP32 `efficientnet_b1` model from HuggingFace Hub into a local sandbox directory. On a Linux host machine with an attached Qualcomm SoC device (e.g., `sm8750` target NPU), offline compile (AOT) the model for the `sm8750` target NPU, and output the compiled model inside `./models/compiled`. Then, run an on-device inference and benchmark using this newly compiled AOT model on the connected Android device's NPU (`--npu`). Confirm that the compiled graph loads directly without dynamic JIT compilation warmup latency."
