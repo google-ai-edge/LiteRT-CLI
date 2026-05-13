@@ -70,13 +70,25 @@ Run a tflite model locally on desktop or on a adb connected Android device.
 * To enable C++ verbose debug setup logs, set the environment variable: `export LITERT_VERBOSE=1`.
 * `--gpu`: Use desktop GPU if available.
 
-**Android Execution:** `litert run <path_to_model> --android --cpu`
+**Android Execution (CPU, GPU, or NPU):** `litert run <path_to_model> --android --cpu`
+* `--gpu`: Run on Android GPU using GPU OpenCL/OpenGL delegates.
+* `--npu`: Run on Android device NPU. Supports **two execution paradigms** based on the input model:
 
-**Multi-Input Formats (Literals or Arrays):** `litert run model.tflite
---desktop --input inputs="[0.5, 0.5, 0.5]" --print_tensors`
+  **1. JIT (Just-In-Time) compilation mode:**
+  Pass a standard, non-compiled `.tflite` model. The on-device LiteRT runtime will automatically download/invoke the vendor-specific compiler plugin to compile operators dynamically at graph initialization time.
+  ```bash
+  litert run standard_model.tflite --android --npu
+  ```
 
-**Multi-Input Formats (Files - .npy, .raw, .png):** `litert run
-model.tflite --desktop --input inputs="test_input.npy" --print_tensors`
+  **2. AOT (Ahead-Of-Time) execution mode:**
+  Pass an already NPU-compiled `.tflite` model (compiled offline via `litert compile`). The on-device runtime loads the compiled binary block directly on the NPU. This avoids graph-compilation warmup overhead, leading to **sub-millisecond initialization latency**.
+  ```bash
+  litert run resnet18_compiled_sm8750.tflite --android --npu
+  ```
+
+**Multi-Input Formats (Literals or Arrays):** `litert run model.tflite --desktop --input inputs="[0.5, 0.5, 0.5]" --print_tensors`
+
+**Multi-Input Formats (Files - .npy, .raw, .png):** `litert run model.tflite --desktop --input inputs="test_input.npy" --print_tensors`
 
 ### 2. Quantize
 
