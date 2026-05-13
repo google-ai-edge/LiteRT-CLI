@@ -27,6 +27,7 @@ import functools
 import importlib.metadata
 import importlib.util
 import pathlib
+import shutil
 import subprocess
 import sys
 from typing import Any
@@ -108,12 +109,20 @@ def ensure_extra(extra_name: str, *, silent: bool = False) -> bool:
     target = f"{cli_package}[{extra_name}]"
     cwd = None
 
+  uv_path = shutil.which("uv")
+  if uv_path:
+    cmd = [uv_path, "pip", "install", "--python", sys.executable, target]
+    cmd_str = f"uv pip install -q {target}"
+  else:
+    cmd = [sys.executable, "-m", "pip", "install", target]
+    cmd_str = f"pip install -q {target}"
+
   if not silent:
-    click.echo(f"    Running: pip install -q {target}")
+    click.echo(f"    Running: {cmd_str}")
 
   try:
     subprocess.check_call(
-        [sys.executable, "-m", "pip", "install", target],
+        cmd,
         cwd=cwd,
         stdout=subprocess.DEVNULL if silent else None,
         stderr=subprocess.DEVNULL if silent else None,
