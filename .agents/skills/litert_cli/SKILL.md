@@ -86,9 +86,9 @@ Run a tflite model locally on desktop or on a adb connected Android device.
   litert run resnet18_compiled_sm8750.tflite --android --npu
   ```
 
-**Multi-Input Formats (Literals or Arrays):** `litert run model.tflite --desktop --input inputs="[0.5, 0.5, 0.5]" --print_tensors`
+**Multi-Input Formats (Literals or Arrays):** `litert run model.tflite --desktop --input inputs="[0.5, 0.5, 0.5]" --print-tensors`
 
-**Multi-Input Formats (Files - .npy, .raw, .png):** `litert run model.tflite --desktop --input inputs="test_input.npy" --print_tensors`
+**Multi-Input Formats (Files - .npy, .raw, .png):** `litert run model.tflite --desktop --input inputs="test_input.npy" --print-tensors`
 
 ### 2. Quantize
 
@@ -141,7 +141,7 @@ litert download litert-community/MobileNet-v3-large --file "*.tflite" --output .
 
 **With Custom Model Reference:**
 ```bash
-litert download litert-community/MobileNet-v3-large --model_ref my_model_ref
+litert download litert-community/MobileNet-v3-large --model-ref my_model_ref
 ```
 
 ### 5. Import
@@ -149,7 +149,7 @@ litert download litert-community/MobileNet-v3-large --model_ref my_model_ref
 Import a local file or directory into the centralized cache.
 
 ```bash
-litert import my_model.tflite --model_ref my_model
+litert import my_model.tflite --model-ref my_model
 ```
 
 ### 6. List
