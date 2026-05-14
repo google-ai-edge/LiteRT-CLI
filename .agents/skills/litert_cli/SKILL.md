@@ -364,7 +364,7 @@ use them directly in agent queries:
 ### Prompt 1: Dynamic Quantization & Android GPU Benchmarking
 
 > "Download the FP32 EfficientNet model `litert-community/efficientnet_b1` from
-> HuggingFace Hub. Quantize it to INT8 dynamic range (`--type int8_dynamic`),
+> HuggingFace. Quantize it to INT8 dynamic range (`--type int8_dynamic`),
 > then benchmark both the original FP32 model and the newly quantized INT8 model
 > on the GPU of my connected Android device. Compare the average latency and
 > report the throughput speedup."
