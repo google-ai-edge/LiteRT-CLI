@@ -36,8 +36,9 @@ dependency resolution) or standard **`pip`** within a virtual environment.
 
 ```bash
 # Create a virtual environment with Python 3.13 in the current directory.
-# Use UV_INDEX_URL to point to public PyPI if your global config has expired private registry credentials.
-UV_INDEX_URL=https://pypi.org/simple uv venv --clear --python=3.13 --seed
+# When meeting dependency resolution error, try to set environment variable:
+# UV_INDEX_URL=https://pypi.org/simple 
+uv venv --clear --python=3.13 --seed
 source .venv/bin/activate
 ```
 

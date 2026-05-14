@@ -16,54 +16,51 @@ virtual environment and `litert-cli` is installed.
 
 ### 1. Check/Create Virtual Environment
 
-We highly recommend using **`uv`** (written in Rust) for extremely fast
-environment management and package installs.
+We highly recommend using **`uv`** (written in Rust) for extremely fast environment management and package installs.
 
-**Option A: Use UV (Recommended - Super Fast):** ```bash
-
+**Option A: Use UV (Recommended - Super Fast):**
+```bash
 # Create a virtual environment with Python 3.13.
-
 # We use --seed to pre-install pip, setuptools, and wheel inside the venv.
-
 # This is critical to allow our CLI dynamic dependency auto-installers (deps.py) to function.
+# When meeting dependency resolution error, try to set environment variable:
+# UV_INDEX_URL=https://pypi.org/simple
+uv venv --clear --python=3.13 --seed
+source .venv/bin/activate
+```
 
-UV_INDEX_URL=https://pypi.org/simple uv venv --clear --python=3.13 --seed source .venv/bin/activate ```
-
-**Option B: Use Standard Pip/Venv:** ```bash
-
+**Option B: Use Standard Pip/Venv:**
+```bash
 # Create and activate a standard Python virtual environment.
-
-python3 -m venv litert-cli-venv source litert-cli-venv/bin/activate
+python3 -m venv litert-cli-venv
+source litert-cli-venv/bin/activate
 
 # Upgrade pip, setuptools, and wheel immediately.
-
 # This is crucial to meet the project's PEP 517 requirements (setuptools>=61.0).
-
-pip install --upgrade pip setuptools wheel ```
+pip install --upgrade pip setuptools wheel
+```
 
 ### 2. Check/Install LiteRT CLI
 
 Ensure `litert-cli` and any required optional extensions (extras) are installed:
 
-**Using UV:** ```bash
-
+**Using UV:**
+```bash
 # Install in editable mode from local source
-
 uv pip install -e .
 
 # Or install from local source with extras (e.g., convert, lm, compile)
+uv pip install -e ".[convert,lm,compile]"
+```
 
-uv pip install -e ".[convert,lm,compile]" ```
-
-**Using standard Pip:** ```bash
-
+**Using standard Pip:**
+```bash
 # Install in editable mode
-
 pip install -e .
 
 # Or install with extras
-
-pip install -e ".[convert,lm,compile]" ```
+pip install -e ".[convert,lm,compile]"
+```
 
 ## Core Commands
 
