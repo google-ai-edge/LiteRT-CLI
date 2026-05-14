@@ -191,6 +191,17 @@ def compile_cmd(
   except click.ClickException:
     raise
   except Exception as e:
+    unsupported = [
+        t
+        for t in target
+        if not any(k in t.lower() for k in ("sm", "qnn", "qualcomm"))
+    ]
+    if unsupported:
+      raise click.ClickException(
+          f"AOT Compilation failed for target(s) {', '.join(unsupported)}: "
+          "Currently, only the Qualcomm platform is fully supported for offline AOT compilation."
+      ) from e
+
     raise click.ClickException(
         f"AOT Compilation of '{resolved_model_path}' for targets"
         f" {', '.join(target)} failed: {e!r}"
