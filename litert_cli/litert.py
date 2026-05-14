@@ -30,6 +30,14 @@ class LazyCLI(click.Group):
   Only imports the actual module when the command is invoked.
   """
 
+  def invoke(self, ctx: click.Context):
+    try:
+      return super().invoke(ctx)
+    except Exception:
+      from litert_cli.core import utils
+      utils.restore_stderr()
+      raise
+
   def list_commands(self, ctx: click.Context) -> list[str]:
     del self
     return [
