@@ -27,7 +27,7 @@ environment management and package installs.
 
 # This is critical to allow our CLI dynamic dependency auto-installers (deps.py) to function.
 
-uv venv --clear --python=3.13 --seed source .venv/bin/activate ```
+UV_INDEX_URL=https://pypi.org/simple uv venv --clear --python=3.13 --seed source .venv/bin/activate ```
 
 **Option B: Use Standard Pip/Venv:** ```bash
 
