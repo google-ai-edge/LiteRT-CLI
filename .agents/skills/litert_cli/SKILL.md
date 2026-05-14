@@ -16,16 +16,20 @@ virtual environment and `litert-cli` is installed.
 
 ### 1. Check/Create Virtual Environment
 
-We highly recommend using **`uv`** (written in Rust) for extremely fast
-environment management and package installs.
+We highly recommend using **`uv`** (written in Rust) for extremely fast environment management and package installs.
 
-**Option A: Use UV (Recommended - Super Fast):** ```bash
+**Option A: Use UV (Recommended - Super Fast):**
+```bash
 
 # Create a virtual environment with Python 3.13.
 
 # We use --seed to pre-install pip, setuptools, and wheel inside the venv.
 
 # This is critical to allow our CLI dynamic dependency auto-installers (deps.py) to function.
+
+# When meeting dependency resolution error, try to set environment variable:
+
+# UV_INDEX_URL=https://pypi.org/simple
 
 uv venv --clear --python=3.13 --seed source .venv/bin/activate ```
 
@@ -45,15 +49,15 @@ pip install --upgrade pip setuptools wheel ```
 
 Ensure `litert-cli` and any required optional extensions (extras) are installed:
 
-**Using UV:** ```bash
-
+**Using UV:**
+```bash
 # Install in editable mode from local source
-
 uv pip install -e .
 
 # Or install from local source with extras (e.g., convert, lm, compile)
 
-uv pip install -e ".[convert,lm,compile]" ```
+uv pip install -e ".[convert,lm,compile]"
+```
 
 **Using standard Pip:** ```bash
 
@@ -63,7 +67,8 @@ pip install -e .
 
 # Or install with extras
 
-pip install -e ".[convert,lm,compile]" ```
+pip install -e ".[convert,lm,compile]"
+```
 
 ## Core Commands
 
@@ -83,10 +88,9 @@ Once a model is registered, **all CLI commands** (including `run`, `benchmark`,
 file path! The CLI will automatically resolve it to the correct absolute cache
 file path on the fly.
 
-**Examples:** ```bash
-
+**Examples:**
+```bash
 # Run inference using the central alias directly
-
 litert run mobilenet --android --cpu
 
 # Benchmark using a specific sub-reference GPU file
@@ -94,12 +98,11 @@ litert run mobilenet --android --cpu
 litert benchmark resnet18:gpu --android --gpu
 
 # Compile for NPU directly using the reference alias
-
 litert compile efficientnet --target sm8750
 
 # Delete from the central cache
-
-litert delete mobilenet ```
+litert delete mobilenet
+```
 
 ### 1. Run (Inference)
 
@@ -110,10 +113,9 @@ Run a tflite model locally on desktop or on a adb connected Android device.
 * To enable C++ verbose debug setup logs, set the environment variable: `export LITERT_VERBOSE=1`.
 * `--gpu`: Use desktop GPU if available.
 
-**Android Execution (CPU, GPU, or NPU):** `litert run <path_to_model> --android
---cpu` * `--gpu`: Run on Android GPU using OpenCL/WebGPU. * `--npu`: Run on
-Android device NPU. Supports **two execution paradigms** based on the input
-model:
+**Android Execution (CPU, GPU, or NPU):** `litert run <path_to_model> --android --cpu`
+* `--gpu`: Run on Android GPU using OpenCL/WebGPU.
+* `--npu`: Run on Android device NPU. Supports **two execution paradigms** based on the input model:
 
 **1. JIT (Just-In-Time) compilation mode:** Pass a standard, non-compiled
 `.tflite` model. The on-device LiteRT runtime will automatically download/invoke
@@ -126,24 +128,25 @@ loads the compiled binary block directly on the NPU. This avoids
 graph-compilation warmup overhead, leading to **sub-millisecond initialization
 latency**. `bash litert run resnet18_compiled_sm8750.tflite --android --npu`
 
-**Multi-Input Formats (Literals or Arrays):** `litert run model.tflite --desktop
---input inputs="[0.5, 0.5, 0.5]" --print-tensors`
+**Multi-Input Formats (Literals or Arrays):** `bash litert run model.tflite
+--desktop --input inputs="[0.5, 0.5, 0.5]" --print-tensors`
 
-**Multi-Input Formats (Files - .npy, .raw, .png):** `litert run model.tflite
---desktop --input inputs="test_input.npy" --print-tensors`
+**Multi-Input Formats (Files - .npy, .raw, .png):** `bash litert run
+model.tflite --desktop --input inputs="test_input.npy" --print-tensors`
 
 ### 2. Quantize
 
-**Standard Selection:** `litert quantize <path_to_model> --output <output_path>`
+**Standard Selection:** `bash litert quantize <path_to_model> --output
+<output_path>`
 
-**Dynamic Quantization (int8_dynamic):** `litert quantize model.tflite
+**Dynamic Quantization (int8_dynamic):** `bash litert quantize model.tflite
 --type int8_dynamic --output dynamic.tflite`
 
-**Static Quantization with Calibration Data:** `litert quantize
+**Static Quantization with Calibration Data:** `bash litert quantize
 model.tflite --type static --calibration-data "calib_data.py" --output
 static.tflite`
 
-**Recipe-based Quantization:** `litert quantize model.tflite --recipe
+**Recipe-based Quantization:** `bash litert quantize model.tflite --recipe
 "recipe.json" --output recipe.tflite`
 
 ### 3. Visualize
@@ -175,13 +178,13 @@ litert download <repo_id_or_url> --output <output_dir>
 *   **HuggingFace Downloads (Default Central Cache)**: If `--output` is **omitted**, it downloads to `~/.cache/litert-cli/models/` and **automatically** creates `metadata.json` to catalog the model for CLI commands (like `litert list`).
 *   **HuggingFace Downloads (Custom Folder)**: If `--output` is **provided**, it acts as a pure, clean download of only the model files. It **does not** generate a `metadata.json` file in the output folder.
 
-**Filter by File Type:** `bash litert download
-litert-community/MobileNet-v3-large --file "*.tflite" --output ./models`
-
-**With Custom Model Reference:**
+**Filter by File Type:**
 ```bash
-litert download litert-community/MobileNet-v3-large --model-ref my_model_ref
+litert download litert-community/MobileNet-v3-large --file "*.tflite" --output ./models
 ```
+
+**With Custom Model Reference:** `bash litert download
+litert-community/MobileNet-v3-large --model-ref my_model_ref`
 
 ### 5. Import
 
@@ -232,14 +235,13 @@ Interact with LLM generative models (like Qwen 1.5 or Gemma 4) using native `lit
 litert lm run <model_path_or_reference_id> < /dev/null
 ```
 
-**Run with model file path:** ```bash
-
+**Run with model file path:**
+```bash
 # Generative LLM models require the path to the compiled .litertlm model file or directory.
-
 # Append < /dev/null to exit immediately after printing the answer.
 
-litert lm run <model_dir>/model.litertlm --prompt "What is edge AI?" < /dev/null
-```
+litert lm run <model_dir>/model.litertlm --prompt "What is edge AI?" <
+/dev/null ```
 
 **Download and run with HuggingFace repo:** `bash litert lm run \
 --from-huggingface-repo=litert-community/gemma-4-E2B-it-litert-lm \
@@ -248,12 +250,12 @@ gemma-4-E2B-it.litertlm \ --prompt="What is the capital of France?" \ <
 
 ### 9. Benchmark
 
-Benchmark LiteRT models on different platforms (Android, Google Cloud, or Desktop).
+Benchmark LiteRT models on different platforms (Android, Google Cloud, or
+Desktop).
 
-**On connected Android device via ADB (CPU, GPU, or NPU):** ```bash
-
+**On connected Android device via ADB (CPU, GPU, or NPU):**
+```bash
 # Benchmark on CPU (Default)
-
 litert benchmark model.tflite --android --cpu
 
 # Benchmark on NPU (Requires compiling for NPU first)
@@ -261,26 +263,30 @@ litert benchmark model.tflite --android --cpu
 litert benchmark model.tflite --android --npu
 
 # Benchmark on GPU (using OpenCL/OpenGL delegates)
-
-litert benchmark model.tflite --android --gpu ```
+litert benchmark model.tflite --android --gpu
+```
 
 **On Macbook (CPU):** `bash litert benchmark my_model_ref --desktop --cpu`
 
 **On Google AI Edge Portal in Google Cloud (GCP):**
 
-> [!IMPORTANT] **Prerequisites for GCP Benchmarking:** 1. Joint Google AI Edge
+> [!IMPORTANT] **Prerequisites for GCP Benchmarking:** 1. Join Google AI Edge
 > Portal early access program at: https://ai.google.dev/edge/ai-edge-portal 2.
 > Authenticate your terminal session by running: `gcloud auth login` 3.
-> Configure the Project ID for the GCP Project. You can either: * Set the
-> environment variable: `export LITERT_GCP_PROJECT="your-gcp-project-id"` * Or
-> explicitly pass the `--gcp-project` option in the command.
+> Configure the GCP Project ID. You can either: * Set the environment variable:
+> `export LITERT_GCP_PROJECT="your-gcp-project-id"` * Or explicitly pass the
+> `--gcp-project` option in the command. 4. Configure the Google Cloud Storage
+> (GCS) Bucket for model uploading. The CLI resolves it via: * Explicit
+> `--gcp-bucket` CLI option. * `LITERT_GCP_BUCKET` environment variable. *
+> Default fallback: Automatically creates and uses
+> `gs://{gcp_project}-litert-models`.
 
 ```bash
-# Benchmark on GCP Pixel 7 CPU (using environment variable for Project ID)
-litert benchmark model.tflite --gcp --device "pixel 7"
-
-# Benchmark on GCP Pixel 7 CPU (specifying Project ID explicitly)
+# Benchmark on GCP Pixel 7 CPU (using default auto-created project bucket)
 litert benchmark model.tflite --gcp --device "pixel 7" --gcp-project "your-gcp-project-id"
+
+# Benchmark on GCP Pixel 7 CPU (specifying custom GCS bucket explicitly)
+litert benchmark model.tflite --gcp --device "pixel 7" --gcp-project "your-gcp-project-id" --gcp-bucket "your-custom-bucket"
 
 # Benchmark on multiple devices at once on GPU
 litert benchmark model.tflite --gcp --devices "pixel 7, sm-s931u1" --gpu --gcp-project "your-gcp-project-id"
@@ -290,8 +296,10 @@ litert benchmark model.tflite --gcp --devices "pixel 7, sm-s931u1" --gpu --gcp-p
 
 Apply Ahead-of-Time (AOT) offline compilation to a standard LiteRT (.tflite) model for specific edge SoC target NPUs (e.g., Qualcomm sm8550, MediaTek mt6989).
 
-**Basic target NPU compilation:** `bash litert compile my_model.tflite --target
-sm8750`
+**Basic target NPU compilation:**
+```bash
+litert compile my_model.tflite --target sm8750
+```
 
 **Compile for multiple NPU targets and export an Android AI Pack (for PODAI
 deployment):** `bash litert compile my_model.tflite --target sm8550 --target
@@ -345,7 +353,7 @@ use them directly in agent queries:
 ### Prompt 1: Dynamic Quantization & Android GPU Benchmarking
 
 > "Download the FP32 EfficientNet model `litert-community/efficientnet_b1` from
-> HuggingFace Hub. Quantize it to INT8 dynamic range (`--type int8_dynamic`),
+> HuggingFace. Quantize it to INT8 dynamic range (`--type int8_dynamic`),
 > then benchmark both the original FP32 model and the newly quantized INT8 model
 > on the GPU of my connected Android device. Compare the average latency and
 > report the throughput speedup."

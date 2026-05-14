@@ -28,9 +28,9 @@ import uuid
 
 import click
 
-_DEFAULT_GCP_PROJECT = os.environ.get("LITERT_GCP_PROJECT", "aep-e2e-test")
+_DEFAULT_GCP_PROJECT = os.environ.get("LITERT_GCP_PROJECT")
 _DEFAULT_GCP_LOCATION = "us-central1"
-_GCP_BUCKET = os.environ.get("LITERT_GCP_BUCKET", "litert-cli-test")
+_GCP_BUCKET = os.environ.get("LITERT_GCP_BUCKET")
 _DEFAULT_PORTAL_ENDPOINT = "https://aiedgeportal.googleapis.com/v1alpha"
 
 
@@ -64,6 +64,7 @@ def run_gcp(
     accelerator: str,
     devices: list[str],
     gcp_project: str | None = None,
+    gcp_bucket: str | None = None,
 ) -> None:
   """Runs the model on GCP via AI Edge Portal Cloud API.
 
@@ -76,6 +77,7 @@ def run_gcp(
     accelerator: Hardware accelerator to use (cpu, gpu, npu).
     devices: Target device model(s) (e.g., 'pixel 7', 'pixel 8').
     gcp_project: GCP project ID for benchmarking.
+    gcp_bucket: GCS bucket name for uploading model.
   """
   if accelerator.lower() == "npu":
     click.secho(
@@ -102,6 +104,13 @@ def run_gcp(
 
   if not gcp_project:
     gcp_project = _DEFAULT_GCP_PROJECT
+
+  if not gcp_project:
+    raise click.ClickException(
+        "Missing GCP project. You must specify a GCP project by passing"
+        " '--gcp-project <PROJECT_ID>' or by setting the 'LITERT_GCP_PROJECT'"
+        " environment variable."
+    )
   model_path = model_path_str
   # Upload model to GCS if it's not already there.
   if not model_path.startswith("gs://"):
@@ -110,9 +119,59 @@ def run_gcp(
       click.secho(f"Error: Local model file not found: {model_path}", fg="red")
       return
 
+    target_bucket = gcp_bucket or _GCP_BUCKET
+    if not target_bucket:
+      target_bucket = f"{gcp_project}-litert-models"
+      click.secho(
+          "Note: GCS bucket not specified via '--gcp-bucket' or"
+          " 'LITERT_GCP_BUCKET' environment variable. Using default"
+          f" project-bound bucket 'gs://{target_bucket}'.",
+          fg="yellow",
+      )
+    else:
+      click.echo(f"Using specified GCS bucket 'gs://{target_bucket}'.")
+
+    # Check if bucket exists, create if not
+    click.echo(
+        f"Ensuring GCS bucket 'gs://{target_bucket}' exists for project"
+        f" '{gcp_project}'..."
+    )
+    try:
+      check_res = subprocess.run(
+          ["gcloud", "storage", "ls", f"gs://{target_bucket}"],
+          check=False,
+          stdout=subprocess.DEVNULL,
+          stderr=subprocess.DEVNULL,
+      )
+      if check_res.returncode != 0:
+        click.secho(
+            f"Creating GCS bucket 'gs://{target_bucket}' in location"
+            f" '{_DEFAULT_GCP_LOCATION}'...",
+            fg="cyan",
+        )
+        subprocess.run(
+            [
+                "gcloud",
+                "storage",
+                "buckets",
+                "create",
+                f"gs://{target_bucket}",
+                f"--project={gcp_project}",
+                f"--location={_DEFAULT_GCP_LOCATION}",
+            ],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except subprocess.CalledProcessError as e:
+      click.secho(
+          f"Error: Failed to ensure GCS bucket 'gs://{target_bucket}': {e}",
+          fg="red",
+      )
+      return
+
     click.secho(
-        f"Uploading local model '{model_path}' to"
-        f" gs://{_GCP_BUCKET}/...",
+        f"Uploading local model '{model_path}' to gs://{target_bucket}/...",
         fg="cyan",
     )
     try:
@@ -122,11 +181,11 @@ def run_gcp(
               "storage",
               "cp",
               str(local_model),
-              f"gs://{_GCP_BUCKET}/",
+              f"gs://{target_bucket}/",
           ],
           check=True,
       )
-      model_path = f"gs://{_GCP_BUCKET}/{local_model.name}"
+      model_path = f"gs://{target_bucket}/{local_model.name}"
     except subprocess.CalledProcessError as e:
       click.secho(
           f"Error: Failed to upload '{model_path}' to Google Cloud Storage:"
@@ -174,14 +233,6 @@ def run_gcp(
           "display_name": f"{accelerator.lower()}_test",
       }],
   }
-
-  if gcp_project == "aep-e2e-test":
-    click.secho(
-        "Warning: You need to specify your own GCP project by passing"
-        " '--gcp-project <PROJECT_ID>' or by setting the 'LITERT_GCP_PROJECT'"
-        " environment variable.",
-        fg="yellow",
-    )
 
   # Submit the benchmark job via http requests to AI Edge Portal Cloud API.
   req = urllib.request.Request(

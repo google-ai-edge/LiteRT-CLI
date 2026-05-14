@@ -35,8 +35,10 @@ dependency resolution) or standard **`pip`** within a virtual environment.
 #### 1. Create and Activate Virtual Environment
 
 ```bash
-# Create a virtual environment with Python 3.13 in the current directory
-uv venv --clear --python=3.13
+# Create a virtual environment with Python 3.13 in the current directory.
+# When meeting dependency resolution error, try to set environment variable:
+# UV_INDEX_URL=https://pypi.org/simple
+uv venv --clear --python=3.13 --seed
 source .venv/bin/activate
 ```
 
@@ -69,10 +71,10 @@ Check more comprehensive usage examples under the `test_scripts/` directory
 
 ```bash
 # Run help command
-uv run litert --help
+litert --help
 
 # Download a LiteRT model
-uv run litert download litert-community/MobileNet-v3-large --file "*.tflite" --output mobilenet
+litert download litert-community/MobileNet-v3-large --file "*.tflite" --output mobilenet
 ```
 
 --------------------------------------------------------------------------------
@@ -122,7 +124,7 @@ litert download litert-community/MobileNet-v3-large --file "*.tflite" --output m
     *   Linux (Ubuntu) with Python 3.13
     *   macOS (Apple Silicon) with Python 3.13
 *   **Android Devices**:
-    *   Xiaomi 15 Pro (Qualcomm Snapdragon 8750)
+    *   Qualcomm Snapdragon 8750
 
 --------------------------------------------------------------------------------
 
