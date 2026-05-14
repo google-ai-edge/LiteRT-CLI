@@ -112,12 +112,18 @@ Examples:
     type=str,
     help="GCP project ID for benchmarking (Only for GCP target).",
 )
+@click.option(
+    "--gcp-bucket",
+    type=str,
+    help="GCS bucket name for uploading model (Only for GCP target).",
+)
 def benchmark_cmd(
     model: str,
     target: str,
     accelerator: str,
     devices: tuple[str, ...],
     gcp_project: str | None = None,
+    gcp_bucket: str | None = None,
 ) -> None:
   """Benchmarks LiteRT models on different platforms.
 
@@ -127,6 +133,7 @@ def benchmark_cmd(
     accelerator: Accelerator to use (cpu, gpu, npu).
     devices: Target device model(s) (e.g., 'pixel 7').
     gcp_project: GCP project ID for benchmarking.
+    gcp_bucket: GCS bucket name for uploading model.
   """
   from litert_cli.core import models as core_models
 
@@ -158,6 +165,7 @@ def benchmark_cmd(
         accelerator,
         devices,
         gcp_project,
+        gcp_bucket,
     )
   else:
     click.secho(f"Target '{target}' is not yet supported.", fg="red")

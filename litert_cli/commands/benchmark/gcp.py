@@ -64,6 +64,7 @@ def run_gcp(
     accelerator: str,
     devices: list[str],
     gcp_project: str | None = None,
+    gcp_bucket: str | None = None,
 ) -> None:
   """Runs the model on GCP via AI Edge Portal Cloud API.
 
@@ -76,6 +77,7 @@ def run_gcp(
     accelerator: Hardware accelerator to use (cpu, gpu, npu).
     devices: Target device model(s) (e.g., 'pixel 7', 'pixel 8').
     gcp_project: GCP project ID for benchmarking.
+    gcp_bucket: GCS bucket name for uploading model.
   """
   if accelerator.lower() == "npu":
     click.secho(
@@ -117,7 +119,18 @@ def run_gcp(
       click.secho(f"Error: Local model file not found: {model_path}", fg="red")
       return
 
-    target_bucket = _GCP_BUCKET or f"{gcp_project}-litert-models"
+    target_bucket = gcp_bucket or _GCP_BUCKET
+    if not target_bucket:
+      target_bucket = f"{gcp_project}-litert-models"
+      click.secho(
+          f"Note: GCS bucket not specified via '--gcp-bucket' or"
+          f" 'LITERT_GCP_BUCKET' environment variable. Using default project-bound"
+          f" bucket 'gs://{target_bucket}'.",
+          fg="yellow",
+      )
+    else:
+      click.echo(f"Using specified GCS bucket 'gs://{target_bucket}'.")
+
     # Check if bucket exists, create if not
     click.echo(
         f"Ensuring GCS bucket 'gs://{target_bucket}' exists for project"
