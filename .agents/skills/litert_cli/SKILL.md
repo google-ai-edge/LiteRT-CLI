@@ -281,16 +281,20 @@ litert benchmark my_model_ref --desktop --cpu
 > **Prerequisites for GCP Benchmarking:**
 > 1. Join Google AI Edge Portal early access program at: https://ai.google.dev/edge/ai-edge-portal
 > 2. Authenticate your terminal session by running: `gcloud auth login`
-> 3. Configure the Project ID for the GCP Project. You can either:
+> 3. Configure the GCP Project ID. You can either:
 >    * Set the environment variable: `export LITERT_GCP_PROJECT="your-gcp-project-id"`
 >    * Or explicitly pass the `--gcp-project` option in the command.
+> 4. Configure the Google Cloud Storage (GCS) Bucket for model uploading. The CLI resolves it via:
+>    * Explicit `--gcp-bucket` CLI option.
+>    * `LITERT_GCP_BUCKET` environment variable.
+>    * Default fallback: Automatically creates and uses `gs://{gcp_project}-litert-models`.
 
 ```bash
-# Benchmark on GCP Pixel 7 CPU (using environment variable for Project ID)
-litert benchmark model.tflite --gcp --device "pixel 7"
-
-# Benchmark on GCP Pixel 7 CPU (specifying Project ID explicitly)
+# Benchmark on GCP Pixel 7 CPU (using default auto-created project bucket)
 litert benchmark model.tflite --gcp --device "pixel 7" --gcp-project "your-gcp-project-id"
+
+# Benchmark on GCP Pixel 7 CPU (specifying custom GCS bucket explicitly)
+litert benchmark model.tflite --gcp --device "pixel 7" --gcp-project "your-gcp-project-id" --gcp-bucket "your-custom-bucket"
 
 # Benchmark on multiple devices at once on GPU
 litert benchmark model.tflite --gcp --devices "pixel 7, sm-s931u1" --gpu --gcp-project "your-gcp-project-id"
