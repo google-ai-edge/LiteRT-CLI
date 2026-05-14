@@ -44,11 +44,11 @@ source .venv/bin/activate
 
 #### 2. Install `litert-cli`
 
-##### 2a. Install from Test PyPI
+##### 2a. Install from PyPI
 
 ```bash
 # Install the package into the active virtual environment
-uv pip install -q -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple litert-cli==0.1.1.dev24
+uv pip install -q litert-cli-nightly
 ```
 
 ##### 2b. Or Install from Local Clone (Recommended for Development)
@@ -91,10 +91,10 @@ source .venv/bin/activate
 
 #### 2. Install `litert-cli`
 
-##### 2a. Install from Test PyPI
+##### 2a. Install from PyPI
 
 ```bash
-pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple litert-cli==0.1.1.dev24
+pip install -q litert-cli-nightly
 ```
 
 ##### 2b. Or Install from Local Clone
@@ -249,6 +249,16 @@ litert benchmark model.tflite --android --gpu
 
 # Benchmark on macOS (CPU)
 litert benchmark my_model_ref --desktop --cpu
+
+# Benchmark on Google AI Edge Portal in Google Cloud. Prerequisites:
+# - Set up your Google AI Edge Portal account by following up the instructions at:
+#   https://ai.google.dev/edge/ai-edge-portal
+# - Set up authentication by running: gcloud auth login
+# - You can set the default GCP project by setting the environment variable LITERT_GCP_PROJECT, or by providing the --gcp-project option.
+# - You can specific your GCP bucket by --gcp-bucket, otherwise, it will create default
+#   one.
+litert benchmark model.tflite --gcp --device "pixel 7" --gcp-project "your-gcp-project-id" --gcp-bucket "your-gcp-bucket"
+litert benchmark model.tflite --gcp --devices "pixel 7, sm-s931u1" --gpu
 ```
 
 ### 7. Visualize a model's architecture
