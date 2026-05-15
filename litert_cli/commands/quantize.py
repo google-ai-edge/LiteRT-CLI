@@ -140,32 +140,33 @@ def quantize_cmd(
     with open(recipe, "r") as f:
       recipe_content = json.load(f)
     quantizer.load_quantization_recipe(recipe_content)
-  elif quant_type == "static":
-    click.echo("Configuring static quantization (A8W8)...")
-    quantizer.add_static_config(
-        regex=".*",
-        operation_name=qtyping.TFLOperationName.ALL_SUPPORTED,
-        activation_num_bits=8,
-        weight_num_bits=8,
-    )
-  elif quant_type == "int8_dynamic":
-    quantizer.add_dynamic_config(
-        regex=".*",
-        operation_name=qtyping.TFLOperationName.ALL_SUPPORTED,
-        num_bits=8,
-    )
-  elif quant_type == "int8_weight_only":
-    quantizer.add_weight_only_config(
-        regex=".*",
-        operation_name=qtyping.TFLOperationName.ALL_SUPPORTED,
-        num_bits=8,
-    )
   elif quant_type == "int16_weight_only":
+    click.echo("Configuring weight-only quantization (W16)...")
     quantizer.add_weight_only_config(
         regex=".*",
         operation_name=qtyping.TFLOperationName.ALL_SUPPORTED,
         num_bits=16,
     )
+  else:
+    from ai_edge_quantizer import recipe as aeq_recipe
+
+    recipe_map = {
+        "int8_dynamic": "dynamic_wi8_afp32",
+        "int8_weight_only": "weight_only_wi8_afp32",
+        "static": "static_wi8_ai8",
+    }
+    recipe_name = recipe_map.get(quant_type)
+    if recipe_name and hasattr(aeq_recipe, recipe_name):
+      click.echo(f"Loading built-in recipe '{recipe_name}' for type '{quant_type}'...")
+      recipe_obj = getattr(aeq_recipe, recipe_name)()
+      quantizer.load_quantization_recipe(recipe_obj)
+    else:
+      click.echo(f"Fallback configuring dynamic quantization for '{quant_type}'...")
+      quantizer.add_dynamic_config(
+          regex=".*",
+          operation_name=qtyping.TFLOperationName.ALL_SUPPORTED,
+          num_bits=8,
+      )
 
   calibration_result = None
   if quantizer.need_calibration:
