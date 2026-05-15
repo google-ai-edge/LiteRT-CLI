@@ -103,6 +103,36 @@ from litert_cli.core import deps
         " compiled model."
     ),
 )
+@click.option(
+    "--quantize",
+    type=str,
+    default=None,
+    help="Quantization recipe to apply (e.g., dynamic_wi8_afp32, fp16, int8_dynamic).",
+)
+@click.option(
+    "--model-args",
+    type=str,
+    default=None,
+    help="Comma-separated key=value arguments to pass to custom model/input functions.",
+)
+@click.option(
+    "--prefill-lengths",
+    type=str,
+    default="256",
+    help="Comma-separated list of prefill lengths for HuggingFace models. Default: '256'.",
+)
+@click.option(
+    "--cache-length",
+    type=int,
+    default=4096,
+    help="KV cache length for HuggingFace models. Default: 4096.",
+)
+@click.option(
+    "--bundle-litert-lm/--no-bundle-litert-lm",
+    is_flag=True,
+    default=True,
+    help="Bundle exported artifacts into a .litert_lm package (HuggingFace mode only). Default: True.",
+)
 def convert_cmd(
     model_or_script: str,
     output: pathlib.Path | None,
@@ -110,6 +140,11 @@ def convert_cmd(
     input_func: str,
     target: tuple[str, ...],
     export_aipack: pathlib.Path | None,
+    quantize: str | None,
+    model_args: str | None,
+    prefill_lengths: str,
+    cache_length: int,
+    bundle_litert_lm: bool,
 ) -> None:
   r"""Converts a PyTorch model into a LiteRT model.
 
@@ -120,7 +155,23 @@ def convert_cmd(
     input_func: Function to retrieve sample inputs in 'script' mode.
     target: NPU targets to compile for.
     export_aipack: Output directory to export the AI Pack for PODAI.
+    quantize: Quantization recipe to apply.
+    model_args: Arguments to pass to custom model/input functions.
+    prefill_lengths: List of prefill lengths for HuggingFace models.
+    cache_length: KV cache length for HuggingFace models.
+    bundle_litert_lm: Whether to bundle artifacts into a .litert_lm package.
   """
+
+  from litert_cli.core import constants, utils
+  import warnings
+
+  if constants.DEFAULT_QUIET:
+    utils.enable_quiet_mode()
+
+  # Suppress noisy warnings from torch, torchao, etc.
+  warnings.filterwarnings("ignore", category=FutureWarning)
+  warnings.filterwarnings("ignore", category=SyntaxWarning)
+  warnings.filterwarnings("ignore", category=UserWarning)
 
   if output is None:
     if model_or_script.endswith(".py"):
@@ -128,6 +179,24 @@ def convert_cmd(
     else:
       base_name = pathlib.Path(model_or_script).name
     output = pathlib.Path.cwd() / base_name
+
+  if constants.ENABLE_MODEL_PLUGINS:
+    from litert_cli.models import dispatch_model_intent
+
+    plugin_result = dispatch_model_intent(
+        "convert",
+        model_or_script,
+        output=output,
+        target=target,
+        quantize=quantize,
+        export_aipack=export_aipack,
+        model_args=model_args,
+        prefill_lengths=prefill_lengths,
+        cache_length=cache_length,
+        bundle_litert_lm=bundle_litert_lm,
+    )
+    if plugin_result is not None:
+      return
 
   if model_or_script.endswith(".py"):
     from litert_cli.commands.convert import generic  # pylint: disable=g-import-not-at-top
@@ -139,10 +208,19 @@ def convert_cmd(
         str(output),
         target,
         export_aipack,
+        quantize,
+        model_args,
     )
   else:
     from litert_cli.commands.convert import huggingface  # pylint: disable=g-import-not-at-top
 
     huggingface.convert_huggingface(
-        model_or_script, str(output), target, export_aipack
+        model_or_script,
+        str(output),
+        target,
+        export_aipack,
+        quantize,
+        prefill_lengths,
+        cache_length,
+        bundle_litert_lm,
     )

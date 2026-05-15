@@ -27,9 +27,9 @@ compile = [
 ]
 convert = [
     "litert-torch-nightly",
-    "torch",
+    "torch==2.11.0",
     "transformers",
-    "torchvision",
+    "torchvision==0.26.0",
     "sentencepiece",
 ]
 quantize = [

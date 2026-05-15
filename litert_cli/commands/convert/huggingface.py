@@ -37,6 +37,10 @@ def convert_huggingface(
     output: str,
     target: tuple[str, ...],
     export_aipack: pathlib.Path | None,
+    quantize: str | None = None,
+    prefill_lengths: str = "256",
+    cache_length: int = 4096,
+    bundle_litert_lm: bool = True,
 ) -> None:
   """Converts models using HuggingFace Automated Export (export_hf).
 
@@ -45,20 +49,54 @@ def convert_huggingface(
     output: The directory to save the converted model.
     target: NPU targets to apply AOT compilation.
     export_aipack: Output directory to export the AI Pack for PODAI.
+    quantize: Quantization recipe to apply.
+    prefill_lengths: Comma-separated list of prefill lengths.
+    cache_length: KV cache length.
+    bundle_litert_lm: Whether to bundle artifacts into a .litert_lm package.
   """
   # Lazy load the export module to avoid importing torch and other heavy
   # dependencies when the litert CLI is merely invoked for --help.
   # pylint: disable=g-import-not-at-top
   from litert_torch.generative.export_hf import export as hf_export
+  import transformers
 
   click.echo(f"Starting conversion for model '{model}''")
 
   try:
+    # Verify AutoModelForCausalLM architecture
+    try:
+      config = transformers.AutoConfig.from_pretrained(
+          model, trust_remote_code=True
+      )
+      architectures = getattr(config, "architectures", [])
+      if not any("CausalLM" in arch for arch in architectures):
+        raise ValueError(
+            f"Currently only AutoModelForCausalLM is supported. Model '{model}'"
+            f" has architectures {architectures}."
+        )
+    except Exception as e:
+      if isinstance(e, ValueError):
+        raise
+      click.echo(f"Warning during config verification: {e}", err=True)
+
+    # Jinja Template Whitelist
+    jinja_supported_models = ("qwen", "gemma", "llama", "mistral")
+    use_jinja = any(name in model.lower() for name in jinja_supported_models)
+
+    # Parse prefill_lengths
+    parsed_prefill = [int(x.strip()) for x in prefill_lengths.split(",")]
+
     # Call the auto-export function from litert_torch.
     # It automatically saves to the output.
     hf_export.export(
         model=model,
         output_dir=output,
+        task="text_generation",
+        quantization_recipe=quantize,
+        prefill_lengths=parsed_prefill,
+        cache_length=cache_length,
+        bundle_litert_lm=bundle_litert_lm,
+        use_jinja_template=use_jinja,
     )
 
     if target:

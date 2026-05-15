@@ -19,7 +19,7 @@ import torch
 import torchvision
 
 
-def get_model() -> torch.nn.Module:
+def get_model(batch_size: int = 1) -> torch.nn.Module:
   model = torchvision.models.resnet18(
       weights=torchvision.models.ResNet18_Weights.IMAGENET1K_V1
   )
@@ -27,5 +27,5 @@ def get_model() -> torch.nn.Module:
   return model
 
 
-def get_args() -> tuple[torch.Tensor, ...]:
-  return (torch.randn(1, 3, 224, 224),)
+def get_args(batch_size: int = 1) -> tuple[torch.Tensor, ...]:
+  return (torch.randn(batch_size, 3, 224, 224),)
