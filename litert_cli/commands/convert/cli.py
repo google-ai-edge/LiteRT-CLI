@@ -107,7 +107,11 @@ from litert_cli.core import deps
     "--quantize",
     type=str,
     default=None,
-    help="Quantization recipe to apply (e.g., dynamic_wi8_afp32, fp16, int8_dynamic).",
+    help=(
+        "Quantization recipe to apply (e.g., dynamic_wi8_afp32, fp16,"
+        " int8_dynamic). For full list of generative recipes, see"
+        " 'ai_edge_quantizer.recipe'."
+    ),
 )
 @click.option(
     "--model-args",
@@ -155,7 +159,7 @@ def convert_cmd(
     input_func: Function to retrieve sample inputs in 'script' mode.
     target: NPU targets to compile for.
     export_aipack: Output directory to export the AI Pack for PODAI.
-    quantize: Quantization recipe to apply.
+    quantize: Quantization recipe to apply (see ai_edge_quantizer.recipe for full list).
     model_args: Arguments to pass to custom model/input functions.
     prefill_lengths: List of prefill lengths for HuggingFace models.
     cache_length: KV cache length for HuggingFace models.
