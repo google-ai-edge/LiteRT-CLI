@@ -76,6 +76,12 @@ Examples:
     help="Benchmark on Google AI Edge Portal in Google Cloud.",
 )
 @click.option(
+    "--desktop",
+    "target",
+    flag_value="desktop",
+    help="Benchmark on local Desktop machine.",
+)
+@click.option(
     "--cpu",
     "accelerator",
     flag_value="cpu",
@@ -129,7 +135,7 @@ def benchmark_cmd(
 
   Args:
     model: Path to the LiteRT model file or Model Reference.
-    target: Target platform for benchmark (android, gcp).
+    target: Target platform for benchmark (android, gcp, desktop).
     accelerator: Accelerator to use (cpu, gpu, npu).
     devices: Target device model(s) (e.g., 'pixel 7').
     gcp_project: GCP project ID for benchmarking.
@@ -156,6 +162,14 @@ def benchmark_cmd(
       raise click.ClickException(f"Local model file not found: {model_path}")
 
     android.run_android(model_path=model_path, accelerator=accelerator)
+  elif target == "desktop":
+    # pylint: disable=g-import-not-at-top
+    from litert_cli.commands.benchmark import desktop
+
+    if not model_path.exists():
+      raise click.ClickException(f"Local model file not found: {model_path}")
+
+    desktop.run_desktop(model_path=model_path, accelerator=accelerator)
   elif target == "gcp":
     # pylint: disable=g-import-not-at-top
     from litert_cli.commands.benchmark import gcp
