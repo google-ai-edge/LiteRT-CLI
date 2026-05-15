@@ -88,10 +88,20 @@ class LazyCLI(click.Group):
 
 
 @click.command(cls=LazyCLI)
+@click.option(
+    '--enable-model-plugins',
+    is_flag=True,
+    default=False,
+    help='Enable experimental model-specific plugin handlers.',
+)
 @click.pass_context
-def cli(ctx: click.Context) -> None:
+def cli(ctx: click.Context, enable_model_plugins: bool) -> None:
   """Runs the LiteRT CLI."""
   ctx.ensure_object(dict)
+  if enable_model_plugins:
+    from litert_cli.core import constants
+
+    constants.ENABLE_MODEL_PLUGINS = True
 
 
 def main_bridge(unused_argv):

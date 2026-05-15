@@ -104,6 +104,9 @@ def discover_models(force_rescan: bool = False) -> None:
 
 def dispatch_model_intent(intent: str, model_id: str, **kwargs: Any) -> Any:
   """Finds a model plugin that can handle the intent and executes it (lazy loaded)."""
+  if not constants.ENABLE_MODEL_PLUGINS:
+    return None
+
   if not _MODEL_REGISTRY:
     discover_models()
 
