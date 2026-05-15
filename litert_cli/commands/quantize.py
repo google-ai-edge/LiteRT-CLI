@@ -65,11 +65,13 @@ from litert_cli.core import deps
 @click.option(
     "--recipe",
     "quant_recipe",
-    type=click.Choice(
-        ["dynamic_wi8_afp32", "weight_only_wi8_afp32", "static_wi8_ai8"]
-    ),
+    type=str,
     default="dynamic_wi8_afp32",
-    help="Built-in quantization recipe to apply.",
+    help=(
+        "Built-in quantization recipe to apply (e.g., dynamic_wi8_afp32,"
+        " weight_only_wi8_afp32, static_wi8_ai8). See 'ai_edge_quantizer.recipe'"
+        " for full list."
+    ),
 )
 @click.option(
     "--calibration-data",
