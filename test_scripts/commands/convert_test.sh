@@ -93,12 +93,7 @@ run_case "Convert: Qwen1.5-0.5B-Chat without Bundle" \
 
 # 2.4 Non-CausalLM Architecture Rejection
 run_case "Convert: bert-base-uncased (Verify Non-CausalLM Rejection)" \
-    bash -c "litert convert bert-base-uncased --output '$MODEL_DIR/bert_fail' 2>&1 | grep -q 'Currently only AutoModelForCausalLM is supported'"
-
-# 2.5 Non-Whitelisted Model Jinja Template Disabled
-run_case "Convert: EleutherAI/pythia-70m (Verify Jinja Template Disabled)" \
-    bash -c "litert convert EleutherAI/pythia-70m --output '$MODEL_DIR/pythia' 2>&1 | grep -q 'use_jinja_template.*: False'"
-
+    bash -c "litert convert google-bert/bert-base-uncased --output '$MODEL_DIR/bert_fail' 2>&1 | grep -q 'Currently only AutoModelForCausalLM is supported'"
 
 # --- Summary Report ---
 print_summary_report "Convert Commands"

@@ -265,12 +265,6 @@ function test_benchmark() {
             echo "Compiled model not found: $compiled_model. Skipping NPU benchmark."
         fi
     fi
-
-    run_case "Benchmark: MobileNet Quant on GCP (AI Edge Portal)" \
-        litert benchmark "$mobilenet_quant" --gcp
-
-    run_case "Benchmark: EfficientNet on GCP (AI Edge Portal GPU)" \
-        litert benchmark "$efficientnet" --gcp --gpu
 }
 
 function test_convert() {

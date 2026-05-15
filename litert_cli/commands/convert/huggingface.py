@@ -79,10 +79,6 @@ def convert_huggingface(
         raise
       click.echo(f"Warning during config verification: {e}", err=True)
 
-    # Jinja Template Whitelist
-    jinja_supported_models = ("qwen", "gemma", "llama", "mistral")
-    use_jinja = any(name in model.lower() for name in jinja_supported_models)
-
     # Parse prefill_lengths
     parsed_prefill = [int(x.strip()) for x in prefill_lengths.split(",")]
 
@@ -96,7 +92,7 @@ def convert_huggingface(
         prefill_lengths=parsed_prefill,
         cache_length=cache_length,
         bundle_litert_lm=bundle_litert_lm,
-        use_jinja_template=use_jinja,
+        use_jinja_template=False,
     )
 
     if target:
