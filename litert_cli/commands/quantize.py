@@ -41,7 +41,7 @@ from litert_cli.core import deps
           Weight-Only INT8 Quantization:
 
             $ litert quantize raw_model.tflite --output quant_model.tflite \
-                --type weight_only_wi8_afp32
+                --recipe weight_only_wi8_afp32
 
           Static Quantization (Requires calibration data):
 
