@@ -155,11 +155,11 @@ litert download litert-community/MobileNet-v3-large --model-ref my_model_ref
 # Automated HF Conversion
 litert convert Qwen/Qwen1.5-0.5B-Chat --output /tmp/qwen
 
-# Generic Script Injection
-litert convert my_model.py --output /tmp/mymodel
+# Automated HF Conversion with INT4 Weight-Only Quantization
+litert convert Qwen/Qwen1.5-0.5B-Chat --quantize-recipe weight_only_wi4_afp32 --output /tmp/qwen_w4
 
-# Known Script Conversion (e.g., ResNet18)
-litert convert resnet18.py --output /tmp/resnet18
+# Generic Script Injection with INT8 Dynamic Quantization
+litert convert my_model.py --quantize-recipe dynamic_wi8_afp32 --output /tmp/mymodel
 ```
 
 ### 3. Quantize a LiteRT model
@@ -167,23 +167,23 @@ litert convert resnet18.py --output /tmp/resnet18
 ```bash
 # Dynamic INT8 Quantization (Default)
 litert quantize model.tflite \
-  --type int8_dynamic \
+  --recipe dynamic_wi8_afp32 \
   --output dynamic.tflite
 
 # Weight-Only Quantization
 litert quantize model.tflite \
-  --type int8_weight_only \
+  --recipe weight_only_wi8_afp32 \
   --output weight_only.tflite
 
 # Static Range Quantization (requires calibration data)
 litert quantize model.tflite \
-  --type static \
+  --recipe static_wi8_ai8 \
   --calibration-data calib_data.py \
   --output static.tflite
 
-# Recipe-based Custom Quantization
+# Custom JSON Recipe
 litert quantize model.tflite \
-  --recipe recipe.json \
+  --custom-recipe recipe.json \
   --output recipe.tflite
 ```
 

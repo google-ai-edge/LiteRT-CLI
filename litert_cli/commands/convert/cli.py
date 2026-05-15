@@ -36,15 +36,29 @@ from litert_cli.core import deps
 
         MODEL_OR_SCRIPT: Hugging Face model ID or path to a PyTorch script.
 
+        Note: Only AutoModelForCausalLM models are supported, when using HF mode.
+
         Examples:
 
           Automated HF Conversion:
 
             $ litert convert Qwen/Qwen1.5-0.5B-Chat --output /tmp/qwen
 
-          Generic Script Injection:
+          HF Conversion with Weight-Only INT4 Quantization:
 
-            $ litert convert my_model.py --output /tmp/mymodel
+            $ litert convert Qwen/Qwen1.5-0.5B-Chat --quantize-recipe weight_only_wi4_afp32 --output /tmp/qwen_w4
+
+          HF Conversion with Custom Prefill & Cache Lengths:
+
+            $ litert convert Qwen/Qwen1.5-0.5B-Chat --prefill-lengths "128,512" --cache-length 2048 --output /tmp/qwen_custom
+
+          Generic Script Injection with Quantization:
+
+            $ litert convert my_model.py --quantize-recipe dynamic_wi8_afp32 --output /tmp/mymodel
+
+          Generic Script with Model Args and AOT Target Compilation:
+
+            $ litert convert my_model.py --model-args "batch_size=4" --target sm8450 --output /tmp/mymodel_npu
     """),
 )
 @deps.require_extra("convert")
@@ -105,11 +119,12 @@ from litert_cli.core import deps
 )
 @click.option(
     "--quantize",
+    "--quantize-recipe",
     type=str,
     default=None,
     help=(
-        "Quantization recipe to apply (e.g., dynamic_wi8_afp32, fp16,"
-        " int8_dynamic). For full list of generative recipes, see"
+        "Quantization recipe to apply (e.g., dynamic_wi8_afp32, weight_only_wi4_afp32)."
+        " Alias: --quantize-recipe. For full list of generative recipes, see"
         " 'ai_edge_quantizer.recipe'."
     ),
 )

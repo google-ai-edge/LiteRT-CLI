@@ -66,11 +66,11 @@ if (-not (Test-Path $EFFICIENTNET_TFLITE -PathType Leaf)) {
 
 # --- 2. Quantize the EfficientNet model ---
 Run-Case "Quantize: EfficientNet Dynamic Range INT8" {
-    litert quantize "$EFFICIENTNET_TFLITE" --type int8_dynamic --output "$MODEL_DIR/efficientnet/efficientnet_b1_int8_dynamic.tflite"
+    litert quantize "$EFFICIENTNET_TFLITE" --recipe dynamic_wi8_afp32 --output "$MODEL_DIR/efficientnet/efficientnet_b1_int8_dynamic.tflite"
 }
 
 Run-Case "Quantize: EfficientNet Weight-Only INT8" {
-    litert quantize "$EFFICIENTNET_TFLITE" --type int8_weight_only --output "$MODEL_DIR/efficientnet/efficientnet_b1_int8_weight_only.tflite"
+    litert quantize "$EFFICIENTNET_TFLITE" --recipe weight_only_wi8_afp32 --output "$MODEL_DIR/efficientnet/efficientnet_b1_int8_weight_only.tflite"
 }
 
 # --- 3. Run Inference (Desktop & Android) ---

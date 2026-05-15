@@ -131,15 +131,16 @@ def convert_generic_script(
         q = pt2eq.PT2EQuantizer().set_global(pt2e_cfg)
         quant_config = quant_config_lib.QuantConfig(pt2e_quantizer=q)
       else:
-        from ai_edge_quantizer import recipe as recipe_lib
         from litert_torch.generative.quantize import quant_recipe
+        from litert_torch.generative.quantize import quant_recipe_utils
 
-        if hasattr(recipe_lib, quantize):
-          recipe_obj = getattr(recipe_lib, quantize)()
-        elif hasattr(recipe_lib, quantize + "_recipe"):
-          recipe_obj = getattr(recipe_lib, quantize + "_recipe")()
+        if "weight_only" in quantize.lower():
+          recipe_obj = quant_recipe_utils.create_layer_quant_weight_only()
+        elif "fp16" in quantize.lower():
+          recipe_obj = quant_recipe_utils.create_layer_quant_fp16()
         else:
-          recipe_obj = recipe_lib.dynamic_wi8_afp32()
+          recipe_obj = quant_recipe_utils.create_layer_quant_dynamic()
+
         quant_config = quant_config_lib.QuantConfig(
             generative_recipe=quant_recipe.GenerativeQuantRecipe(
                 default=recipe_obj

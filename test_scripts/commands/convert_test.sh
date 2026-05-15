@@ -63,6 +63,18 @@ run_case "Convert: PyTorch ResNet18 with PT2E Dynamic Quantization" \
 run_case "Convert: PyTorch ResNet18 with Model Args (batch_size=4)" \
     litert convert "$TEST_DATA_DIR/resnet18.py" --output "$MODEL_DIR/resnet18_b4" --model-args "batch_size=4"
 
+# 1.4 Conversion with Quantization (pt2e_per_channel)
+run_case "Convert: PyTorch ResNet18 with PT2E Per-Channel Quantization" \
+    litert convert "$TEST_DATA_DIR/resnet18.py" --output "$MODEL_DIR/resnet18_pt2e_pc" --quantize-recipe pt2e_per_channel
+
+# 1.5 Conversion with Quantization (dynamic_wi8_afp32)
+run_case "Convert: PyTorch ResNet18 with Dynamic INT8 Recipe" \
+    litert convert "$TEST_DATA_DIR/resnet18.py" --output "$MODEL_DIR/resnet18_dyn_wi8" --quantize-recipe dynamic_wi8_afp32
+
+# 1.6 Conversion with Quantization (weight_only_wi8_afp32)
+run_case "Convert: PyTorch ResNet18 with Weight-Only INT8 Recipe" \
+    litert convert "$TEST_DATA_DIR/resnet18.py" --output "$MODEL_DIR/resnet18_wo_wi8" --quantize-recipe weight_only_wi8_afp32
+
 
 # --- 2. HuggingFace Mode (Qwen/Qwen1.5-0.5B-Chat) ---
 echo -e "\n${BLUE}${BOLD}--- 2. HuggingFace Mode (Qwen/Qwen1.5-0.5B-Chat) ---${NC}"

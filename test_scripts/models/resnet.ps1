@@ -66,11 +66,11 @@ if (-not (Test-Path $RESNET_TFLITE -PathType Leaf)) {
 
 # --- 2. Quantize the ResNet18 model ---
 Run-Case "Quantize: ResNet18 Dynamic Range INT8" {
-    litert quantize "$RESNET_TFLITE" --type int8_dynamic --output "$MODEL_DIR/resnet18/resnet18_int8_dynamic.tflite"
+    litert quantize "$RESNET_TFLITE" --recipe dynamic_wi8_afp32 --output "$MODEL_DIR/resnet18/resnet18_int8_dynamic.tflite"
 }
 
 Run-Case "Quantize: ResNet18 Weight-Only INT8" {
-    litert quantize "$RESNET_TFLITE" --type int8_weight_only --output "$MODEL_DIR/resnet18/resnet18_int8_weight_only.tflite"
+    litert quantize "$RESNET_TFLITE" --recipe weight_only_wi8_afp32 --output "$MODEL_DIR/resnet18/resnet18_int8_weight_only.tflite"
 }
 
 # --- 3. Run Inference (Desktop & Android) ---

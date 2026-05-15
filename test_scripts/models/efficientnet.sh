@@ -71,10 +71,10 @@ fi
 
 # --- 2. Quantize the EfficientNet model ---
 run_case "Quantize: EfficientNet Dynamic Range INT8" \
-    litert quantize "$EFFICIENTNET_TFLITE" --type int8_dynamic --output "$MODEL_DIR/efficientnet/efficientnet_b1_int8_dynamic.tflite"
+    litert quantize "$EFFICIENTNET_TFLITE" --recipe dynamic_wi8_afp32 --output "$MODEL_DIR/efficientnet/efficientnet_b1_int8_dynamic.tflite"
 
 run_case "Quantize: EfficientNet Weight-Only INT8" \
-    litert quantize "$EFFICIENTNET_TFLITE" --type int8_weight_only --output "$MODEL_DIR/efficientnet/efficientnet_b1_int8_weight_only.tflite"
+    litert quantize "$EFFICIENTNET_TFLITE" --recipe weight_only_wi8_afp32 --output "$MODEL_DIR/efficientnet/efficientnet_b1_int8_weight_only.tflite"
 
 # --- 3. Run Inference (Desktop & Android) ---
 run_case "Run: EfficientNet FP32 on Desktop (CPU)" \
