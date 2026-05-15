@@ -13,13 +13,13 @@
 # limitations under the License.
 # ==============================================================================
 
-"""Sample calibration data for MobileNetV3."""
+"""Sample calibration data for Dummy Vision Model."""
 
 import numpy as np
 
 
 def get_calibration_data():
   dataset = [
-      {"x": np.random.rand(1, 224, 224, 3).astype(np.float32)} for _ in range(5)
+      {"args_0": np.random.rand(1, 224, 224, 3).astype(np.float32)} for _ in range(5)
   ]
   return {None: dataset}

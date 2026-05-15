@@ -31,11 +31,9 @@ rm -rf "$LITERT_CLI_ROOT"
 mkdir -p "$LITERT_CLI_ROOT"
 cd "$LITERT_CLI_ROOT"
 
-# Create Python virtual environment
-python3 -m venv venv_litert_cli_oss
-source venv_litert_cli_oss/bin/activate
-# Upgrade pip and setuptools to ensure build-system requirements can be met.
-pip install --upgrade pip setuptools wheel
+# Create Python virtual environment using UV
+UV_INDEX_URL=https://pypi.org/simple uv venv --clear --python=3.13 --seed
+source .venv/bin/activate
 
 # Create output directories
 export MODEL_DIR="$LITERT_CLI_ROOT/models"
@@ -45,9 +43,7 @@ mkdir -p $MODEL_DIR
 export TEST_DATA_DIR="$REPO_ROOT/litert_cli/test_data"
 
 # Install litert-cli from source
-pip install -e "$REPO_ROOT"
-# Or install from pip
-# pip install litert-cli
+uv pip install -e "$REPO_ROOT"
 
 function generate_test_inputs() {
     echo "Generating test input files..."

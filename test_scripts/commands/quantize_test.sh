@@ -61,7 +61,7 @@ run_case "Quantize: Weight-Only INT8 (weight_only_wi8_afp32)" \
 
 # 1.3 Static W8A8 Quantization (Requires calibration data)
 run_case "Quantize: Static W8A8 with Calibration Data" \
-    litert quantize "$TEST_DATA_DIR/dummy_cv_model.tflite" --recipe static_wi8_ai8 --calibration-data "$TEST_DATA_DIR/mobilenet_v3_calib_data.py" --output "$MODEL_DIR/dummy_static.tflite"
+    litert quantize "$TEST_DATA_DIR/dummy_cv_model.tflite" --recipe static_wi8_ai8 --calibration-data "$TEST_DATA_DIR/dummy_calib_data.py" --output "$MODEL_DIR/dummy_static.tflite"
 
 
 # --- 2. Custom JSON Recipes ---
