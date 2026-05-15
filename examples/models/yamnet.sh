@@ -18,51 +18,20 @@
 set -e
 
 
-echo -e "${BLUE}${BOLD}==================================================================${NC}"
-echo -e "${BLUE}${BOLD}>>> LiteRT CLI YamNet Demo Script${NC}"
-echo -e "${BLUE}${BOLD}==================================================================${NC}"
+# Source shared utilities relative to script
+source "$(dirname "${BASH_SOURCE[0]}")/../utils.sh"
 
-# --- Environment Setup ---
-export SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-export REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-export LITERT_CLI_ROOT="/tmp/litert_cli_yamnet"
+setup_test_env "yamnet" "YamNet Demo Script"
 
-# Source shared utilities
-source "$SCRIPT_DIR/utils.sh"
-
-
-# Clean up and create work directory
-echo -e "\n${YELLOW}Setting up workspace at: $LITERT_CLI_ROOT...${NC}"
-rm -rf "$LITERT_CLI_ROOT"
-mkdir -p "$LITERT_CLI_ROOT"
-cd "$LITERT_CLI_ROOT"
-
-# Create Python virtual environment
-echo -e "${YELLOW}Creating Python virtual environment...${NC}"
-python3 -m venv venv_yamnet
-source venv_yamnet/bin/activate
-# Upgrade pip and setuptools to ensure build-system requirements can be met.
-pip install --upgrade pip setuptools wheel
-
-# Create output directories
-export MODEL_DIR="$LITERT_CLI_ROOT/models"
-mkdir -p "$MODEL_DIR"
-
-# Test data directory
-export TEST_DATA_DIR="$REPO_ROOT/litert_cli/test_data"
-
-# Install litert-cli from source
-echo -e "${YELLOW}Installing litert-cli from source...${NC}"
-pip install -e "$REPO_ROOT"
 
 
 
 
 # --- 1. Download YamNet model ---
 run_case "Download: YamNet TFLite model" \
-    litert download "https://storage.googleapis.com/download.tensorflow.org/models/tflite/task_library/audio_classification/android/lite-model_yamnet_classification_tflite_1.tflite" --output "$MODEL_DIR/yamnet"
+    litert download "https://storage.googleapis.com/download.tensorflow.org/models/tflite/task_library/audio_classification/android/lite-model_yamnet_classification_tflite_1.tflite" --output "models/yamnet"
 
-YAMNET_TFLITE="$MODEL_DIR/yamnet/lite-model_yamnet_classification_tflite_1.tflite"
+YAMNET_TFLITE="models/yamnet/lite-model_yamnet_classification_tflite_1.tflite"
 if [ ! -f "$YAMNET_TFLITE" ]; then
     echo -e "${RED}Error: Downloaded model not found at $YAMNET_TFLITE${NC}"
     exit 1
@@ -71,10 +40,10 @@ fi
 
 # --- 2. Quantize the YamNet model ---
 run_case "Quantize: YamNet Dynamic Range INT8" \
-    litert quantize "$YAMNET_TFLITE" --recipe dynamic_wi8_afp32 --output "$MODEL_DIR/yamnet/yamnet_int8_dynamic.tflite"
+    litert quantize "$YAMNET_TFLITE" --recipe dynamic_wi8_afp32 --output "models/yamnet/yamnet_int8_dynamic.tflite"
 
 run_case "Quantize: YamNet Weight-Only INT8" \
-    litert quantize "$YAMNET_TFLITE" --recipe weight_only_wi8_afp32 --output "$MODEL_DIR/yamnet/yamnet_int8_weight_only.tflite"
+    litert quantize "$YAMNET_TFLITE" --recipe weight_only_wi8_afp32 --output "models/yamnet/yamnet_int8_weight_only.tflite"
 
 # --- 3. Run Inference (Desktop & Android) ---
 run_case "Run: YamNet FP32 on Desktop (CPU)" \
@@ -89,7 +58,7 @@ fi
 
 
 run_case "Run: YamNet Dynamic INT8 on Desktop (CPU)" \
-    litert run "$MODEL_DIR/yamnet/yamnet_int8_dynamic.tflite" --desktop --cpu --iterations 1
+    litert run "models/yamnet/yamnet_int8_dynamic.tflite" --desktop --cpu --iterations 1
 
 if has_android_device; then
     echo -e "\n${GREEN}Android device detected. Running Android inference...${NC}"
@@ -101,7 +70,7 @@ if has_android_device; then
     #    litert run "$YAMNET_TFLITE" --android --gpu --iterations 1
 
     run_case "Run: YamNet Dynamic INT8 on Android (CPU)" \
-        litert run "$MODEL_DIR/yamnet/yamnet_int8_dynamic.tflite" --android --cpu --iterations 1
+        litert run "models/yamnet/yamnet_int8_dynamic.tflite" --android --cpu --iterations 1
 fi
 
 # --- 4. Benchmark (Android) ---
@@ -115,7 +84,7 @@ if has_android_device; then
     #    litert benchmark "$YAMNET_TFLITE" --android --gpu
 
     run_case "Benchmark: YamNet Dynamic INT8 on Android" \
-        litert benchmark "$MODEL_DIR/yamnet/yamnet_int8_dynamic.tflite" --android
+        litert benchmark "models/yamnet/yamnet_int8_dynamic.tflite" --android
 else
     echo -e "\n${YELLOW}No Android device detected. Skipping benchmarks (litert benchmark only supports Android/GCP).${NC}"
 fi
@@ -124,7 +93,7 @@ fi
 # --- 5. Compile (AOT Compilation) ---
 # TODO: Add this back when we fix the NPU compile issue.
 # run_case "Compile: YamNet FP32 for Qualcomm sm8750 NPU" \
-#     litert compile "$YAMNET_TFLITE" --target sm8750 --output-dir "$MODEL_DIR/yamnet"
+#     litert compile "$YAMNET_TFLITE" --target sm8750 --output-dir "models/yamnet"
 
 # --- 6. Visualize (Model Explorer) ---
 run_case "Visualize: Launch Model Explorer in the background" \

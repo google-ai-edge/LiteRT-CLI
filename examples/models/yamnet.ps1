@@ -21,7 +21,7 @@ $REPO_ROOT = (Resolve-Path "$SCRIPT_DIR/../..").Path
 $LITERT_CLI_ROOT = Join-Path $env:TEMP "litert_cli_yamnet"
 
 # Source shared utilities
-. (Join-Path $SCRIPT_DIR "utils.ps1")
+. (Join-Path $SCRIPT_DIR "..\utils.ps1")
 
 Write-Host "${BLUE}${BOLD}==================================================================${NC}"
 Write-Host "${BLUE}${BOLD}>>> LiteRT CLI YamNet Demo Script${NC}"

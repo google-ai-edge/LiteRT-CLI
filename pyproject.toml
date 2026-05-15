@@ -63,4 +63,4 @@ packages = {find = {}}
 
 [tool.setuptools.package-data]
 "litert_cli" = ["test_data/*"]
-"test_scripts" = ["*"]
+"examples" = ["*"]
