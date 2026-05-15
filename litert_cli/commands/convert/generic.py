@@ -22,6 +22,7 @@ import pathlib
 import shutil
 import sys
 from typing import Any
+import uuid
 
 import click
 from litert_cli.core import npu_utils
@@ -36,6 +37,8 @@ def convert_generic_script(
     output: str,
     target: tuple[str, ...],
     export_aipack: pathlib.Path | None,
+    quantize: str | None = None,
+    model_args: str | None = None,
 ) -> None:
   """Converts using generic PyTorch scripts and `litert_torch.convert`.
 
@@ -46,6 +49,8 @@ def convert_generic_script(
     output: Directory to save the converted model.
     target: NPU targets to apply AOT compilation.
     export_aipack: Output directory to export the AI Pack for PODAI.
+    quantize: Quantization recipe to apply.
+    model_args: Arguments to pass to custom model/input functions.
 
   Raises:
     ImportError: If the script loading fails.
@@ -58,8 +63,8 @@ def convert_generic_script(
   script_path = pathlib.Path(script).resolve()
   click.echo(f"Loading custom script from: {script_path}")
 
-  # Dynamically load the user's python file
-  module_name = "user_model_script"
+  # Dynamically load the user's python file with sandbox isolation
+  module_name = f"user_model_script_{uuid.uuid4().hex}"
   spec = importlib.util.spec_from_file_location(module_name, script_path)
   if spec is None or spec.loader is None:
     raise ImportError(f"Could not load script {script_path}")
@@ -67,8 +72,7 @@ def convert_generic_script(
   user_module = importlib.util.module_from_spec(spec)
   sys.modules[module_name] = user_module
 
-  # Add the script's directory to sys.path so it can resolve its own local
-  # imports
+  # Add the script's directory to sys.path so it can resolve its own local imports
   sys.path.insert(0, str(script_path.parent))
 
   try:
@@ -85,19 +89,71 @@ def convert_generic_script(
           f"Function '{input_func}' not found in {script_path}"
       )
 
-    click.echo(f"Instantiating model via '{model_func}'...")
-    model_result = getattr(user_module, model_func)()
+    # Parse model_args
+    parsed_args = {}
+    if model_args:
+      for item in model_args.split(","):
+        if "=" in item:
+          k, v = item.split("=", 1)
+          if v.isdigit():
+            parsed_args[k] = int(v)
+          elif v.replace(".", "", 1).isdigit():
+            parsed_args[k] = float(v)
+          elif v.lower() == "true":
+            parsed_args[k] = True
+          elif v.lower() == "false":
+            parsed_args[k] = False
+          else:
+            parsed_args[k] = v
 
-    # The user might return just the nn.Module or a tuple of
-    # (nn.Module, QuantConfig)
+    click.echo(
+        f"Instantiating model via '{model_func}' with args: {parsed_args}..."
+    )
+    model_result = getattr(user_module, model_func)(**parsed_args)
+
+    # The user might return just the nn.Module or a tuple of (nn.Module, QuantConfig)
     if isinstance(model_result, tuple):
       model, quant_config = model_result
     else:
       model = model_result
       quant_config = None
 
-    click.echo(f"Generating sample inputs via '{input_func}'...")
-    inputs_result = getattr(user_module, input_func)()
+    if quant_config is None and quantize:
+      click.echo(f"Building dynamic QuantConfig for recipe '{quantize}'...")
+      from litert_torch.quantize import quant_config as quant_config_lib
+
+      if "pt2e" in quantize.lower():
+        from litert_torch.quantize import pt2e_quantizer as pt2eq
+
+        is_dynamic = "dynamic" in quantize.lower()
+        is_per_channel = "per_channel" in quantize.lower()
+        pt2e_cfg = pt2eq.get_symmetric_quantization_config(
+            is_per_channel=is_per_channel, is_dynamic=is_dynamic
+        )
+        q = pt2eq.PT2EQuantizer().set_global(pt2e_cfg)
+        quant_config = quant_config_lib.QuantConfig(pt2e_quantizer=q)
+      else:
+        from litert_torch.generative.quantize import quant_recipe
+        from litert_torch.generative.quantize import quant_recipe_utils
+
+        if "weight_only" in quantize.lower():
+          recipe_obj = quant_recipe_utils.create_layer_quant_weight_only()
+        elif "fp16" in quantize.lower():
+          recipe_obj = quant_recipe_utils.create_layer_quant_fp16()
+        else:
+          recipe_obj = quant_recipe_utils.create_layer_quant_dynamic()
+
+        quant_config = quant_config_lib.QuantConfig(
+            generative_recipe=quant_recipe.GenerativeQuantRecipe(
+                default=recipe_obj
+            )
+        )
+
+    click.echo(
+        f"Generating sample inputs via '{input_func}' with args:"
+        f" {parsed_args}..."
+    )
+    inputs_result = getattr(user_module, input_func)(**parsed_args)
 
     sample_args: tuple[Any, ...]
     sample_kwargs: dict[str, Any]
@@ -149,6 +205,7 @@ def convert_generic_script(
     click.echo("Done!")
 
   finally:
-    # Cleanup injected sys.path modification
+    # Cleanup injected sys.path modification and sandbox module
+    sys.modules.pop(module_name, None)
     if sys.path[0] == str(script_path.parent):
       sys.path.pop(0)

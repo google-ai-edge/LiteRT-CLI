@@ -26,6 +26,7 @@ compile = [
     "ai-edge-litert-sdk-mediatek-nightly",
 ]
 convert = [
+    "ai-edge-quantizer-nightly",
     "litert-torch-nightly",
     "torch",
     "transformers",

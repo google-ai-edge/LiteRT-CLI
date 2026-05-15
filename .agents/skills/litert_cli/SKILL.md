@@ -136,17 +136,15 @@ model.tflite --desktop --input inputs="test_input.npy" --print-tensors`
 
 ### 2. Quantize
 
-**Standard Selection:** `bash litert quantize <path_to_model> --output
-<output_path>`
+**Standard Selection:** `bash litert quantize <path_to_model> --output <output_path>`
 
-**Dynamic Quantization (int8_dynamic):** `bash litert quantize model.tflite
---type int8_dynamic --output dynamic.tflite`
+**Dynamic Quantization (dynamic_wi8_afp32):** `bash litert quantize model.tflite --recipe dynamic_wi8_afp32 --output dynamic.tflite`
 
 **Static Quantization with Calibration Data:** `bash litert quantize
-model.tflite --type static --calibration-data "calib_data.py" --output
+model.tflite --recipe static_wi8_ai8 --calibration-data "calib_data.py" --output
 static.tflite`
 
-**Recipe-based Quantization:** `bash litert quantize model.tflite --recipe
+**Custom JSON Recipe:** `bash litert quantize model.tflite --custom-recipe
 "recipe.json" --output recipe.tflite`
 
 ### 3. Visualize
@@ -210,19 +208,27 @@ Convert a PyTorch or HuggingFace model into a LiteRT model.
 **From HuggingFace Model Hub:**
 ```bash
 litert convert Qwen/Qwen1.5-0.5B-Chat --output /tmp/qwen
+
+# With INT4 Weight-Only Quantization (Recommended for LLM)
+litert convert Qwen/Qwen1.5-0.5B-Chat --quantize-recipe weight_only_wi4_afp32 --output /tmp/qwen_w4
 ```
 
-**From Generic Python Script:**
-```bash
-litert convert my_model.py --output /tmp/mymodel
-```
-*   `--model-func`: Name of function that returns the model
-    (`torch.nn.Module`). Default: `get_model`.
-*   `--input-func`: Name of function that returns sample inputs. Default: `get_args`.
+**From Generic Python Script:** ```bash litert convert my_model.py --output
+/tmp/mymodel
+
+# With INT8 Dynamic Quantization
+
+litert convert my_model.py --quantize-recipe dynamic_wi8_afp32 --output
+/tmp/mymodel_quant ```*`--model-func`: Name of function that returns the model
+(`torch.nn.Module`). Default:`get_model`. *`--input-func`: Name of function that
+returns sample inputs. Default:`get_args`.
+*`--quantize-recipe`(Alias`--quantize`): Quantization recipe to apply
+(e.g.,`dynamic_wi8_afp32`,`weight_only_wi4_afp32`).
 
 ### 8. Large Language Models (LM)
 
-Interact with LLM generative models (like Qwen 1.5 or Gemma 4) using native `litert-lm` CLI.
+Interact with LLM generative models (like Qwen 1.5 or Gemma 4) using native
+`litert-lm` CLI.
 
 > [!TIP] **Non-interactive / Background Execution best practice:** When running
 > generative LLM inferences using the `litert lm run` command in scripts or in
@@ -353,7 +359,7 @@ use them directly in agent queries:
 ### Prompt 1: Dynamic Quantization & Android GPU Benchmarking
 
 > "Download the FP32 EfficientNet model `litert-community/efficientnet_b1` from
-> HuggingFace. Quantize it to INT8 dynamic range (`--type int8_dynamic`),
+> HuggingFace. Quantize it to INT8 dynamic range (`--recipe dynamic_wi8_afp32`),
 > then benchmark both the original FP32 model and the newly quantized INT8 model
 > on the GPU of my connected Android device. Compare the average latency and
 > report the throughput speedup."

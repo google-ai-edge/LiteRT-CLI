@@ -71,10 +71,10 @@ fi
 
 # --- 2. Quantize the YamNet model ---
 run_case "Quantize: YamNet Dynamic Range INT8" \
-    litert quantize "$YAMNET_TFLITE" --type int8_dynamic --output "$MODEL_DIR/yamnet/yamnet_int8_dynamic.tflite"
+    litert quantize "$YAMNET_TFLITE" --recipe dynamic_wi8_afp32 --output "$MODEL_DIR/yamnet/yamnet_int8_dynamic.tflite"
 
 run_case "Quantize: YamNet Weight-Only INT8" \
-    litert quantize "$YAMNET_TFLITE" --type int8_weight_only --output "$MODEL_DIR/yamnet/yamnet_int8_weight_only.tflite"
+    litert quantize "$YAMNET_TFLITE" --recipe weight_only_wi8_afp32 --output "$MODEL_DIR/yamnet/yamnet_int8_weight_only.tflite"
 
 # --- 3. Run Inference (Desktop & Android) ---
 run_case "Run: YamNet FP32 on Desktop (CPU)" \

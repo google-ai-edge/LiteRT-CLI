@@ -149,16 +149,16 @@ function test_quantize() {
     local mobilenet=$(get_mobilenet)
 
     run_case "Quantize: Dynamic Range INT8" \
-        litert quantize "$mobilenet" --type int8_dynamic --output "$MODEL_DIR/dynamic.tflite"
+        litert quantize "$mobilenet" --recipe dynamic_wi8_afp32 --output "$MODEL_DIR/dynamic.tflite"
 
     run_case "Quantize: Weight-Only INT8" \
-        litert quantize "$mobilenet" --type int8_weight_only --output "$MODEL_DIR/weight_only.tflite"
+        litert quantize "$mobilenet" --recipe weight_only_wi8_afp32 --output "$MODEL_DIR/weight_only.tflite"
 
     run_case "Quantize: Static Range with Calibration Data" \
-        litert quantize "$mobilenet" --type static --calibration-data "$TEST_DATA_DIR/mobilenet_v3_calib_data.py" --output "$MODEL_DIR/static.tflite"
+        litert quantize "$mobilenet" --recipe static_wi8_ai8 --calibration-data "$TEST_DATA_DIR/mobilenet_v3_calib_data.py" --output "$MODEL_DIR/static.tflite"
 
     run_case "Quantize: Recipe-based" \
-        litert quantize "$mobilenet" --recipe "$TEST_DATA_DIR/quantize_recipe.json" --output "$MODEL_DIR/recipe.tflite"
+        litert quantize "$mobilenet" --custom-recipe "$TEST_DATA_DIR/quantize_recipe.json" --output "$MODEL_DIR/recipe.tflite"
 }
 
 function test_compile() {
@@ -265,12 +265,6 @@ function test_benchmark() {
             echo "Compiled model not found: $compiled_model. Skipping NPU benchmark."
         fi
     fi
-
-    run_case "Benchmark: MobileNet Quant on GCP (AI Edge Portal)" \
-        litert benchmark "$mobilenet_quant" --gcp
-
-    run_case "Benchmark: EfficientNet on GCP (AI Edge Portal GPU)" \
-        litert benchmark "$efficientnet" --gcp --gpu
 }
 
 function test_convert() {

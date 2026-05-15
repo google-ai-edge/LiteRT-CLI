@@ -41,16 +41,16 @@ from litert_cli.core import deps
           Weight-Only INT8 Quantization:
 
             $ litert quantize raw_model.tflite --output quant_model.tflite \
-                --type int8_weight_only
+                --recipe weight_only_wi8_afp32
 
           Static Quantization (Requires calibration data):
 
-            $ litert quantize raw_model.tflite --type static \
+            $ litert quantize raw_model.tflite --recipe static_wi8_ai8 \
                 --calibration-data calib_data.py --output quant_model.tflite
 
           Custom Recipe:
 
-            $ litert quantize raw_model.tflite --recipe recipe.json \
+            $ litert quantize raw_model.tflite --custom-recipe recipe.json \
                 --output quant_model.tflite
         """),
 )
@@ -63,13 +63,15 @@ from litert_cli.core import deps
     help="Path to save the output quantized .tflite model.",
 )
 @click.option(
-    "--type",
-    "quant_type",
-    type=click.Choice(
-        ["int8_dynamic", "int8_weight_only", "int16_weight_only", "static"]
+    "--recipe",
+    "quant_recipe",
+    type=str,
+    default="dynamic_wi8_afp32",
+    help=(
+        "Built-in quantization recipe to apply (e.g., dynamic_wi8_afp32,"
+        " weight_only_wi8_afp32, static_wi8_ai8). See"
+        " 'ai_edge_quantizer.recipe' for full list."
     ),
-    default="int8_dynamic",
-    help="Type of quantization to apply.",
 )
 @click.option(
     "--calibration-data",
@@ -78,11 +80,11 @@ from litert_cli.core import deps
     ),
     help=(
         "Path to Python script providing calibration data (required for"
-        " 'static')."
+        " 'static_wi8_ai8')."
     ),
 )
 @click.option(
-    "--recipe",
+    "--custom-recipe",
     type=click.Path(
         exists=True, dir_okay=False, resolve_path=True, path_type=pathlib.Path
     ),
@@ -92,18 +94,18 @@ from litert_cli.core import deps
 def quantize_cmd(
     model: str,
     output: pathlib.Path | None,
-    quant_type: str,
+    quant_recipe: str,
     calibration_data: pathlib.Path | None,
-    recipe: pathlib.Path | None,
+    custom_recipe: pathlib.Path | None,
 ) -> None:
   r"""Quantize a LiteRT model.
 
   Args:
     model: Path to the input .tflite model or Model Reference.
     output: Path to save the output quantized .tflite model.
-    quant_type: Type of quantization to apply.
+    quant_recipe: Built-in quantization recipe to apply.
     calibration_data: Path to Python script providing calibration data.
-    recipe: Path to JSON recipe file for custom configurations.
+    custom_recipe: Path to JSON recipe file for custom configurations.
 
   Raises:
     click.UsageError: If calibration data is missing when required.
@@ -121,9 +123,9 @@ def quantize_cmd(
 
   model_path = pathlib.Path(resolved_model_path)
 
-  if quant_type == "static" and calibration_data is None:
+  if quant_recipe == "static_wi8_ai8" and calibration_data is None:
     raise click.UsageError(
-        "--calibration-data is required when --type is 'static'."
+        "--calibration-data is required when --recipe is 'static_wi8_ai8'."
     )
 
   resolved_output = output or model_path.with_name(
@@ -133,39 +135,29 @@ def quantize_cmd(
   click.echo(f"Quantizing '{model_path}' to '{resolved_output}'...")
   quantizer = aeq.Quantizer(str(model_path))
 
-  if recipe:
-    click.echo(f"Loading recipe from '{recipe}'...")
+  if custom_recipe:
+    click.echo(f"Loading custom recipe from '{custom_recipe}'...")
     import json
 
-    with open(recipe, "r") as f:
+    with open(custom_recipe, "r") as f:
       recipe_content = json.load(f)
     quantizer.load_quantization_recipe(recipe_content)
-  elif quant_type == "static":
-    click.echo("Configuring static quantization (A8W8)...")
-    quantizer.add_static_config(
-        regex=".*",
-        operation_name=qtyping.TFLOperationName.ALL_SUPPORTED,
-        activation_num_bits=8,
-        weight_num_bits=8,
-    )
-  elif quant_type == "int8_dynamic":
-    quantizer.add_dynamic_config(
-        regex=".*",
-        operation_name=qtyping.TFLOperationName.ALL_SUPPORTED,
-        num_bits=8,
-    )
-  elif quant_type == "int8_weight_only":
-    quantizer.add_weight_only_config(
-        regex=".*",
-        operation_name=qtyping.TFLOperationName.ALL_SUPPORTED,
-        num_bits=8,
-    )
-  elif quant_type == "int16_weight_only":
-    quantizer.add_weight_only_config(
-        regex=".*",
-        operation_name=qtyping.TFLOperationName.ALL_SUPPORTED,
-        num_bits=16,
-    )
+  else:
+    from ai_edge_quantizer import recipe as aeq_recipe
+
+    if hasattr(aeq_recipe, quant_recipe):
+      click.echo(f"Loading built-in recipe '{quant_recipe}'...")
+      recipe_obj = getattr(aeq_recipe, quant_recipe)()
+      quantizer.load_quantization_recipe(recipe_obj)
+    else:
+      click.echo(
+          f"Fallback configuring dynamic quantization for '{quant_recipe}'..."
+      )
+      quantizer.add_dynamic_config(
+          regex=".*",
+          operation_name=qtyping.TFLOperationName.ALL_SUPPORTED,
+          num_bits=8,
+      )
 
   calibration_result = None
   if quantizer.need_calibration:

@@ -13,19 +13,14 @@
 # limitations under the License.
 # ==============================================================================
 
-"""ResNet18 model for LiteRT conversion."""
+"""Sample calibration data for Dummy Vision Model."""
 
-import torch
-import torchvision
-
-
-def get_model(batch_size: int = 1) -> torch.nn.Module:
-  model = torchvision.models.resnet18(
-      weights=torchvision.models.ResNet18_Weights.IMAGENET1K_V1
-  )
-  model.eval()
-  return model
+import numpy as np
 
 
-def get_args(batch_size: int = 1) -> tuple[torch.Tensor, ...]:
-  return (torch.randn(batch_size, 3, 224, 224),)
+def get_calibration_data():
+  dataset = [
+      {"args_0": np.random.rand(1, 224, 224, 3).astype(np.float32)}
+      for _ in range(5)
+  ]
+  return {None: dataset}
