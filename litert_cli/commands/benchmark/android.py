@@ -27,7 +27,18 @@ from litert_cli.core import constants
 from litert_cli.core import npu_utils as npu
 
 
-def run_android(*, model_path: pathlib.Path, accelerator: str) -> None:
+def run_android(
+    *,
+    model_path: pathlib.Path,
+    accelerator: str,
+    num_runs: int = 50,
+    warmup_runs: int = 1,
+    min_secs: float = 1.0,
+    max_secs: float = 150.0,
+    warmup_min_secs: float = 0.5,
+    input_layer_value_range: str | None = None,
+    signature_key: str | None = None,
+) -> None:
   """Runs the model on an Android device.
 
   Pushes the model and benchmark_model binary to the device and runs it.
@@ -35,6 +46,13 @@ def run_android(*, model_path: pathlib.Path, accelerator: str) -> None:
   Args:
     model_path: Path to the local LiteRT model file.
     accelerator: Hardware accelerator to use (cpu, gpu, npu).
+    num_runs: Target number of benchmark iterations.
+    warmup_runs: Number of warmup iterations before benchmarking.
+    min_secs: Minimum seconds to run.
+    max_secs: Maximum seconds to run.
+    warmup_min_secs: Minimum warmup duration in seconds.
+    input_layer_value_range: Value range for input layers.
+    signature_key: The signature key to benchmark.
 
   Raises:
     subprocess.CalledProcessError: If any adb command fails on the device.
@@ -136,6 +154,23 @@ def run_android(*, model_path: pathlib.Path, accelerator: str) -> None:
           bench_args.append("--mediatek_nerun_pilot_version=version9")
         elif "v8" in recommend_version:
           bench_args.append("--mediatek_nerun_pilot_version=version8")
+
+    if num_runs != 50:
+      bench_args.append(f"--num_runs={num_runs}")
+    if warmup_runs != 1:
+      bench_args.append(f"--warmup_runs={warmup_runs}")
+    if min_secs != 1.0:
+      bench_args.append(f"--min_secs={min_secs}")
+    if max_secs != 150.0:
+      bench_args.append(f"--max_secs={max_secs}")
+    if warmup_min_secs != 0.5:
+      bench_args.append(f"--warmup_min_secs={warmup_min_secs}")
+    if input_layer_value_range:
+      bench_args.append(
+          f"--input_layer_value_range={shlex.quote(input_layer_value_range)}"
+      )
+    if signature_key:
+      bench_args.append(f"--signature_to_run_for={shlex.quote(signature_key)}")
 
     env_vars = ""
     if remote_dispatch_dir:

@@ -129,12 +129,30 @@ def _ensure_desktop_binary(tool_name: str) -> pathlib.Path:
     ) from e
 
 
-def run_desktop(*, model_path: pathlib.Path, accelerator: str) -> None:
+def run_desktop(
+    *,
+    model_path: pathlib.Path,
+    accelerator: str,
+    num_runs: int = 50,
+    warmup_runs: int = 1,
+    min_secs: float = 1.0,
+    max_secs: float = 150.0,
+    warmup_min_secs: float = 0.5,
+    input_layer_value_range: str | None = None,
+    signature_key: str | None = None,
+) -> None:
   """Runs the benchmark_model binary on the local desktop machine.
 
   Args:
     model_path: Path to the local LiteRT model file.
     accelerator: Hardware accelerator to use (cpu, gpu, npu).
+    num_runs: Target number of benchmark iterations.
+    warmup_runs: Number of warmup iterations before benchmarking.
+    min_secs: Minimum seconds to run.
+    max_secs: Maximum seconds to run.
+    warmup_min_secs: Minimum warmup duration in seconds.
+    input_layer_value_range: Value range for input layers.
+    signature_key: The signature key to benchmark.
 
   Raises:
     click.ClickException: If execution fails.
@@ -161,6 +179,21 @@ def run_desktop(*, model_path: pathlib.Path, accelerator: str) -> None:
           fg="yellow",
       )
       bench_args.append("--use_npu=true")
+
+    if num_runs != 50:
+      bench_args.append(f"--num_runs={num_runs}")
+    if warmup_runs != 1:
+      bench_args.append(f"--warmup_runs={warmup_runs}")
+    if min_secs != 1.0:
+      bench_args.append(f"--min_secs={min_secs}")
+    if max_secs != 150.0:
+      bench_args.append(f"--max_secs={max_secs}")
+    if warmup_min_secs != 0.5:
+      bench_args.append(f"--warmup_min_secs={warmup_min_secs}")
+    if input_layer_value_range:
+      bench_args.append(f"--input_layer_value_range={input_layer_value_range}")
+    if signature_key:
+      bench_args.append(f"--signature_to_run_for={signature_key}")
 
     process = subprocess.Popen(
         bench_args,
