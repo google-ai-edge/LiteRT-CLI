@@ -51,3 +51,4 @@ google_tensor_runtime/
 *.tflite
 work_dir/
 scratch/
+uv.lock
