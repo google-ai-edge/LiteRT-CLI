@@ -20,18 +20,12 @@ from __future__ import annotations
 import os
 import types
 
-# Check if we are in Google3 environment
-try:
-  import google3  # pylint: disable=unused-import,g-import-not-at-top
-
-  _AUTO_IN_GOOGLE3 = True
-except ImportError:
-  _AUTO_IN_GOOGLE3 = False
+# Flag to indicate if the CLI is running in internal environment
+IS_INTERNAL_ENV: bool = False
 
 # Environment variable names
 ENV_LITERT_CLI_ROOT: str = "LITERT_CLI_ROOT"
 ENV_LITERT_CLI_ANDROID_ROOT: str = "LITERT_CLI_ANDROID_ROOT"
-ENV_LITERT_CLI_FORCE_OSS: str = "LITERT_CLI_FORCE_OSS"
 ENV_LITERT_VERBOSE: str = "LITERT_VERBOSE"
 ENV_LITERT_ENABLE_MODEL_PLUGINS: str = "LITERT_ENABLE_MODEL_PLUGINS"
 
@@ -39,14 +33,6 @@ DEFAULT_QUIET: bool = os.environ.get(ENV_LITERT_VERBOSE, "0") != "1"
 ENABLE_MODEL_PLUGINS: bool = (
     os.environ.get(ENV_LITERT_ENABLE_MODEL_PLUGINS, "0") == "1"
 )
-
-_FORCE_OSS = os.environ.get(ENV_LITERT_CLI_FORCE_OSS, "").lower() in (
-    "1",
-    "true",
-    "yes",
-)
-
-IN_GOOGLE3: bool = _AUTO_IN_GOOGLE3 and not _FORCE_OSS
 
 # Cache directory
 LITERT_CLI_CACHE_DIR: str = os.path.join(

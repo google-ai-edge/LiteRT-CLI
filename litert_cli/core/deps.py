@@ -70,7 +70,7 @@ def ensure_extra(extra_name: str, *, silent: bool = False) -> bool:
     click.Abort: If `silent` is False and the dependency cannot be ensured
       (e.g., unknown extra or installation failure).
   """
-  if constants.IN_GOOGLE3:
+  if constants.IS_INTERNAL_ENV:
     return True
 
   packages_to_check = _PACKAGE_BY_EXTRA.get(extra_name)

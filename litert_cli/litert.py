@@ -110,7 +110,7 @@ def main_bridge(unused_argv):
 
 if __name__ == '__main__':
   try:
-    # Try to run in google3
+    # Try to run in internal environment
     from absl import app  # pylint: disable=g-import-not-at-top
 
     app.run(main_bridge, argv=[sys.argv[0]])

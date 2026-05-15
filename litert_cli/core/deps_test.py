@@ -27,7 +27,7 @@ class DepsTest(absltest.TestCase):
 
   def setUp(self):
     super().setUp()
-    self.enter_context(mock.patch.object(constants, 'IN_GOOGLE3', False))
+    self.enter_context(mock.patch.object(constants, 'IS_INTERNAL_ENV', False))
 
   @mock.patch.object(importlib.metadata, 'version', autospec=True)
   def test_ensure_extra_already_installed(self, mock_version):

@@ -275,8 +275,8 @@ def run_desktop(
   with ctx:
     try:
       env = None
-      if constants.IN_GOOGLE3:
-        # In Google3 environment, we need to fallback to LD_LIBRARY_PATH for
+      if constants.IS_INTERNAL_ENV:
+        # In internal environment, we need to fallback to LD_LIBRARY_PATH for
         # loading GPU accelerators in hermetic .par file. Otherwise, use
         # default path.
         env = Environment.create(runtime_path="")
