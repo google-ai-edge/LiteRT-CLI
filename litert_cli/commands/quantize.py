@@ -66,7 +66,7 @@ from litert_cli.core import deps
     "--type",
     "quant_type",
     type=click.Choice(
-        ["int8_dynamic", "int8_weight_only", "int16_weight_only", "static"]
+        ["int8_dynamic", "int8_weight_only", "static"]
     ),
     default="int8_dynamic",
     help="Type of quantization to apply.",
@@ -140,13 +140,6 @@ def quantize_cmd(
     with open(recipe, "r") as f:
       recipe_content = json.load(f)
     quantizer.load_quantization_recipe(recipe_content)
-  elif quant_type == "int16_weight_only":
-    click.echo("Configuring weight-only quantization (W16)...")
-    quantizer.add_weight_only_config(
-        regex=".*",
-        operation_name=qtyping.TFLOperationName.ALL_SUPPORTED,
-        num_bits=16,
-    )
   else:
     from ai_edge_quantizer import recipe as aeq_recipe
 
