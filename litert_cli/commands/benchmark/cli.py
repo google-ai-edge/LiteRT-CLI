@@ -123,6 +123,46 @@ Examples:
     type=str,
     help="GCS bucket name for uploading model (Only for GCP target).",
 )
+@click.option(
+    "--num-runs",
+    type=int,
+    default=50,
+    help="Target number of benchmark iterations. Default is 50.",
+)
+@click.option(
+    "--warmup-runs",
+    type=int,
+    default=1,
+    help="Number of warmup iterations before benchmarking. Default is 1.",
+)
+@click.option(
+    "--min-secs",
+    type=float,
+    default=1.0,
+    help="Minimum seconds to run. Default is 1.0.",
+)
+@click.option(
+    "--max-secs",
+    type=float,
+    default=150.0,
+    help="Maximum seconds to run. Default is 150.0.",
+)
+@click.option(
+    "--warmup-min-secs",
+    type=float,
+    default=0.5,
+    help="Minimum warmup duration in seconds. Default is 0.5.",
+)
+@click.option(
+    "--input-layer-value-range",
+    type=str,
+    help="A map-like string representing value range for input layers (e.g. input1,1.0,2.0:input2,0,254).",
+)
+@click.option(
+    "--signature-key",
+    type=str,
+    help="The signature key to benchmark. If not specified, the default signature is used.",
+)
 def benchmark_cmd(
     model: str,
     target: str,
@@ -130,6 +170,13 @@ def benchmark_cmd(
     devices: tuple[str, ...],
     gcp_project: str | None = None,
     gcp_bucket: str | None = None,
+    num_runs: int = 50,
+    warmup_runs: int = 1,
+    min_secs: float = 1.0,
+    max_secs: float = 150.0,
+    warmup_min_secs: float = 0.5,
+    input_layer_value_range: str | None = None,
+    signature_key: str | None = None,
 ) -> None:
   """Benchmarks LiteRT models on different platforms.
 
@@ -140,6 +187,13 @@ def benchmark_cmd(
     devices: Target device model(s) (e.g., 'pixel 7').
     gcp_project: GCP project ID for benchmarking.
     gcp_bucket: GCS bucket name for uploading model.
+    num_runs: Target number of benchmark iterations.
+    warmup_runs: Number of warmup iterations before benchmarking.
+    min_secs: Minimum seconds to run.
+    max_secs: Maximum seconds to run.
+    warmup_min_secs: Minimum warmup duration in seconds.
+    input_layer_value_range: Value range for input layers.
+    signature_key: The signature key to benchmark.
   """
   from litert_cli.core import models as core_models
 
@@ -161,7 +215,17 @@ def benchmark_cmd(
     if not model_path.exists():
       raise click.ClickException(f"Local model file not found: {model_path}")
 
-    android.run_android(model_path=model_path, accelerator=accelerator)
+    android.run_android(
+        model_path=model_path,
+        accelerator=accelerator,
+        num_runs=num_runs,
+        warmup_runs=warmup_runs,
+        min_secs=min_secs,
+        max_secs=max_secs,
+        warmup_min_secs=warmup_min_secs,
+        input_layer_value_range=input_layer_value_range,
+        signature_key=signature_key,
+    )
   elif target == "desktop":
     # pylint: disable=g-import-not-at-top
     from litert_cli.commands.benchmark import desktop
@@ -169,7 +233,17 @@ def benchmark_cmd(
     if not model_path.exists():
       raise click.ClickException(f"Local model file not found: {model_path}")
 
-    desktop.run_desktop(model_path=model_path, accelerator=accelerator)
+    desktop.run_desktop(
+        model_path=model_path,
+        accelerator=accelerator,
+        num_runs=num_runs,
+        warmup_runs=warmup_runs,
+        min_secs=min_secs,
+        max_secs=max_secs,
+        warmup_min_secs=warmup_min_secs,
+        input_layer_value_range=input_layer_value_range,
+        signature_key=signature_key,
+    )
   elif target == "gcp":
     # pylint: disable=g-import-not-at-top
     from litert_cli.commands.benchmark import gcp
@@ -183,3 +257,4 @@ def benchmark_cmd(
     )
   else:
     click.secho(f"Target '{target}' is not yet supported.", fg="red")
+
