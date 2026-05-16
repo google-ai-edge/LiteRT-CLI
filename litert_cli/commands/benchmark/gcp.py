@@ -65,6 +65,8 @@ def run_gcp(
     devices: list[str],
     gcp_project: str | None = None,
     gcp_bucket: str | None = None,
+    compilation_mode: str | None = None,
+    soc_model: str | None = None,
 ) -> None:
   """Runs the model on GCP via AI Edge Portal Cloud API.
 
@@ -78,15 +80,9 @@ def run_gcp(
     devices: Target device model(s) (e.g., 'pixel 7', 'pixel 8').
     gcp_project: GCP project ID for benchmarking.
     gcp_bucket: GCS bucket name for uploading model.
+    compilation_mode: Compilation mode for NPU (jit, aot).
+    soc_model: Target SoC model for NPU AOT mode.
   """
-  if accelerator.lower() == "npu":
-    click.secho(
-        "Warning: NPU benchmarking on GCP is not fully implemented via CLI yet."
-        " Please use the Google AI Edge Portal web UI to run and test NPU"
-        " benchmarks.",
-        fg="yellow",
-    )
-    return
 
   device_list = []
   if isinstance(devices, str):
@@ -223,15 +219,34 @@ def run_gcp(
 
   accel_name = accelerator.upper()
 
+  run_spec: dict[str, any] = {
+      "accelerator": accel_name,
+      "id": accelerator.lower(),
+      "display_name": f"{accelerator.lower()}_test",
+  }
+
+  if accel_name == "NPU":
+    comp_mode = (compilation_mode or "jit").upper()
+    if comp_mode == "AOT":
+      run_spec["npu_config"] = {
+          "npu_compilation_mode": "AOT",
+          "soc_configs": [{
+              "soc_model": soc_model or "SM8750",
+              "aot_model_path": model_path.replace("gs://", ""),
+          }],
+      }
+    else:
+      run_spec["model_path"] = model_path.replace("gs://", "")
+      run_spec["npu_config"] = {
+          "npu_compilation_mode": "JIT",
+      }
+  else:
+    run_spec["model_path"] = model_path.replace("gs://", "")
+
   body = {
       "display_name": job_id,
       "device_configs": [{"device_model": d} for d in device_list],
-      "run_specs": [{
-          "accelerator": accel_name,
-          "model_path": model_path.replace("gs://", ""),
-          "id": accelerator.lower(),
-          "display_name": f"{accelerator.lower()}_test",
-      }],
+      "run_specs": [run_spec],
   }
 
   # Submit the benchmark job via http requests to AI Edge Portal Cloud API.
