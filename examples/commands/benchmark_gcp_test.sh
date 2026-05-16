@@ -51,16 +51,11 @@ run_case "Download: EfficientNet-B1" \
     litert download litert-community/efficientnet_b1 --file "*.tflite" --output "models/efficientnet"
 
 echo -e "\n${BLUE}${BOLD}--- Running Live GCP Benchmarks for Project: $GCP_PROJECT ---${NC}"
-run_case "Benchmark: GCP NPU JIT Mode (Live)" \
-    litert benchmark models/efficientnet/efficientnet_b1.tflite --gcp --npu --jit --device 'sm-s931u1' --soc-model SM8750 --gcp-project "$GCP_PROJECT"
-
-run_case "Compile: EfficientNet for Qualcomm SM8750 NPU" \
-    litert compile models/efficientnet/efficientnet_b1.tflite --target SM8750 --output-dir models/compiled
-
-run_case "Benchmark: GCP NPU AOT Mode (Live)" \
-    litert benchmark models/compiled/efficientnet_b1_Qualcomm_SM8750.tflite --gcp --npu --aot --soc-model SM8750 --device 'sm-s931u1' --gcp-project "$GCP_PROJECT"
 
 run_case "Benchmark: GCP GPU Mode (Live)" \
     litert benchmark models/efficientnet/efficientnet_b1.tflite --gcp --gpu --device 'pixel 8, sm-s931u1' --gcp-project "$GCP_PROJECT"
+
+run_case "Benchmark: GCP NPU JIT Mode (Live)" \
+    litert benchmark models/efficientnet/efficientnet_b1.tflite --gcp --npu --jit --device 'sm-s931u1' --soc-model SM8750 --gcp-project "$GCP_PROJECT"
 
 print_summary_report "Benchmark GCP Commands"

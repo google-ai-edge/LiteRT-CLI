@@ -32,6 +32,8 @@ _DEFAULT_GCP_PROJECT = os.environ.get("LITERT_GCP_PROJECT")
 _DEFAULT_GCP_LOCATION = "us-central1"
 _GCP_BUCKET = os.environ.get("LITERT_GCP_BUCKET")
 _DEFAULT_PORTAL_ENDPOINT = "https://aiedgeportal.googleapis.com/v1alpha"
+# NOTE: Keep in sync with Google AI Edge Portal runtime versions.
+_DEFAULT_PORTAL_LITERT_RUNTIME_VERSION = "litert-v2.0.3"
 
 
 def _get_submission_url(
@@ -225,25 +227,29 @@ def run_gcp(
       "accelerator": accel_name,
       "id": accelerator.lower(),
       "displayName": f"{accelerator.lower()}_test",
-      "runtimeVersion": "litert-v2.0.3",
+      "runtimeVersion": _DEFAULT_PORTAL_LITERT_RUNTIME_VERSION,
   }
 
   if accel_name == "NPU":
     comp_mode = (compilation_mode or "jit").upper()
-    if not soc_model:
+    if comp_mode == "AOT":
       raise click.ClickException(
-          f"Error: --soc-model is required when using NPU {comp_mode} compilation mode."
+          "Error: NPU AOT compilation mode is temporarily disabled for GCP"
+          " benchmarking. Please use JIT compilation mode (--jit) instead."
       )
 
-    aot_path = model_path.replace("gs://", "") if comp_mode == "AOT" else ""
-    if comp_mode != "AOT":
-      run_spec["modelPath"] = model_path.replace("gs://", "")
+    if not soc_model:
+      raise click.ClickException(
+          "Error: --soc-model is required when using NPU JIT compilation"
+          " mode."
+      )
 
+    run_spec["modelPath"] = model_path.replace("gs://", "")
     run_spec["npuConfig"] = {
-        "npuCompilationMode": comp_mode,
+        "npuCompilationMode": "JIT",
         "socConfigs": [{
             "socModel": soc_model,
-            "aotModelPath": aot_path,
+            "aotModelPath": "",
         }],
         "cpuFallbackConfig": {"threadCount": 4},
     }
