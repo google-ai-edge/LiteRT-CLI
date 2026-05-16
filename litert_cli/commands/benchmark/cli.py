@@ -101,6 +101,25 @@ Examples:
     help="Use NPU accelerator",
 )
 @click.option(
+    "--jit",
+    "compilation_mode",
+    flag_value="jit",
+    default=True,
+    help="Use JIT (Just-in-time) compilation mode for NPU (Default).",
+)
+@click.option(
+    "--aot",
+    "compilation_mode",
+    flag_value="aot",
+    help="Use AOT (Ahead-of-time) compilation mode for NPU.",
+)
+@click.option(
+    "--soc-model",
+    type=str,
+    default="SM8750",
+    help="Target SoC model name for NPU AOT mode (e.g., 'SM8750').",
+)
+@click.option(
     "--device",
     "--devices",
     "devices",
@@ -174,6 +193,8 @@ def benchmark_cmd(
     target: str,
     accelerator: str,
     devices: tuple[str, ...],
+    compilation_mode: str,
+    soc_model: str,
     gcp_project: str | None = None,
     gcp_bucket: str | None = None,
     num_runs: int = 50,
@@ -191,6 +212,8 @@ def benchmark_cmd(
     target: Target platform for benchmark (android, gcp, desktop).
     accelerator: Accelerator to use (cpu, gpu, npu).
     devices: Target device model(s) (e.g., 'pixel 7').
+    compilation_mode: Compilation mode for NPU (jit, aot).
+    soc_model: Target SoC model for NPU AOT mode.
     gcp_project: GCP project ID for benchmarking.
     gcp_bucket: GCS bucket name for uploading model.
     num_runs: Target number of benchmark iterations.
@@ -254,12 +277,18 @@ def benchmark_cmd(
     # pylint: disable=g-import-not-at-top
     from litert_cli.commands.benchmark import gcp
 
+    if accelerator != "npu":
+      compilation_mode = None
+      soc_model = None
+
     gcp.run_gcp(
         str(model_path),
         accelerator,
         devices,
         gcp_project,
         gcp_bucket,
+        compilation_mode,
+        soc_model,
     )
   else:
     click.secho(f"Target '{target}' is not yet supported.", fg="red")

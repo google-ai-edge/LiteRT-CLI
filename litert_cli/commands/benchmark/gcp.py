@@ -32,6 +32,8 @@ _DEFAULT_GCP_PROJECT = os.environ.get("LITERT_GCP_PROJECT")
 _DEFAULT_GCP_LOCATION = "us-central1"
 _GCP_BUCKET = os.environ.get("LITERT_GCP_BUCKET")
 _DEFAULT_PORTAL_ENDPOINT = "https://aiedgeportal.googleapis.com/v1alpha"
+# NOTE: Keep in sync with Google AI Edge Portal runtime versions.
+_DEFAULT_PORTAL_LITERT_RUNTIME_VERSION = "litert-v2.0.3"
 
 
 def _get_submission_url(
@@ -65,6 +67,8 @@ def run_gcp(
     devices: list[str],
     gcp_project: str | None = None,
     gcp_bucket: str | None = None,
+    compilation_mode: str | None = None,
+    soc_model: str | None = None,
 ) -> None:
   """Runs the model on GCP via AI Edge Portal Cloud API.
 
@@ -75,18 +79,12 @@ def run_gcp(
   Args:
     model_path_str: Path to the LiteRT model file (local or gs://).
     accelerator: Hardware accelerator to use (cpu, gpu, npu).
-    devices: Target device model(s) (e.g., 'pixel 7', 'pixel 8').
+    devices: Target device model(s) (e.g., 'pixel 7', 'sm-s931u1').
     gcp_project: GCP project ID for benchmarking.
     gcp_bucket: GCS bucket name for uploading model.
+    compilation_mode: Compilation mode for NPU (jit, aot).
+    soc_model: Target SoC model for NPU AOT mode.
   """
-  if accelerator.lower() == "npu":
-    click.secho(
-        "Warning: NPU benchmarking on GCP is not fully implemented via CLI yet."
-        " Please use the Google AI Edge Portal web UI to run and test NPU"
-        " benchmarks.",
-        fg="yellow",
-    )
-    return
 
   device_list = []
   if isinstance(devices, str):
@@ -100,7 +98,9 @@ def run_gcp(
       device_list.extend(parts)
 
   if not device_list:
-    device_list = ["pixel 7"]
+    raise click.ClickException(
+        "Error: --device is required for running GCP benchmark tests."
+    )
 
   if not gcp_project:
     gcp_project = _DEFAULT_GCP_PROJECT
@@ -223,15 +223,43 @@ def run_gcp(
 
   accel_name = accelerator.upper()
 
+  run_spec: dict[str, any] = {
+      "accelerator": accel_name,
+      "id": accelerator.lower(),
+      "displayName": f"{accelerator.lower()}_test",
+      "runtimeVersion": _DEFAULT_PORTAL_LITERT_RUNTIME_VERSION,
+  }
+
+  if accel_name == "NPU":
+    comp_mode = (compilation_mode or "jit").upper()
+    if comp_mode == "AOT":
+      raise click.ClickException(
+          "Error: NPU AOT compilation mode is temporarily disabled for GCP"
+          " benchmarking. Please use JIT compilation mode (--jit) instead."
+      )
+
+    if not soc_model:
+      raise click.ClickException(
+          "Error: --soc-model is required when using NPU JIT compilation mode."
+      )
+
+    run_spec["modelPath"] = model_path.replace("gs://", "")
+    run_spec["npuConfig"] = {
+        "npuCompilationMode": "JIT",
+        "socConfigs": [{
+            "socModel": soc_model,
+            "aotModelPath": "",
+        }],
+        "cpuFallbackConfig": {"threadCount": 4},
+    }
+  else:
+    run_spec["modelPath"] = model_path.replace("gs://", "")
+
   body = {
-      "display_name": job_id,
-      "device_configs": [{"device_model": d} for d in device_list],
-      "run_specs": [{
-          "accelerator": accel_name,
-          "model_path": model_path.replace("gs://", ""),
-          "id": accelerator.lower(),
-          "display_name": f"{accelerator.lower()}_test",
-      }],
+      "displayName": job_id,
+      "modelPaths": [],
+      "deviceConfigs": [{"deviceModel": d} for d in device_list],
+      "runSpecs": [run_spec],
   }
 
   # Submit the benchmark job via http requests to AI Edge Portal Cloud API.

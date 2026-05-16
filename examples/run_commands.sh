@@ -35,6 +35,10 @@ echo "Running LiteRT CLI command demo(s) with shared virtual environment..."
 if [ "$TARGET_COMMANDS" == "--all" ] || [ -z "$1" ]; then
   echo "Executing all command test scripts under commands/ directory..."
   for test_script in "$SCRIPT_DIR/commands/"*_test.sh; do
+    if [[ "$test_script" == *"benchmark_gcp_test"* ]]; then
+      echo -e "\n[Note: $(basename "$test_script") is excluded from default execution. Please run it manually.]\n"
+      continue
+    fi
     echo -e "\n=================================================================="
     echo ">>> Executing $test_script..."
     echo -e "==================================================================\n"
@@ -57,7 +61,7 @@ else
     echo -e "\n=================================================================="
     echo ">>> Executing $target_script..."
     echo -e "==================================================================\n"
-    bash "$target_script"
+      bash "$target_script"
   done
   echo -e "\nLiteRT CLI command demo(s) for '$TARGET_COMMANDS' completed successfully!"
 fi
