@@ -24,7 +24,34 @@
 #      ./examples/run_commands.sh download,compile,quantize
 set -e
 
-TARGET_COMMANDS=${1:-"--all"}
+TARGET_COMMANDS="--all"
+GCP_PROJECT=""
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --all)
+      TARGET_COMMANDS="--all"
+      shift
+      ;;
+    --gcp-project)
+      GCP_PROJECT="$2"
+      shift 2
+      ;;
+    --gcp-project=*)
+      GCP_PROJECT="${1#*=}"
+      shift
+      ;;
+    -*)
+      echo "Unknown option: $1"
+      exit 1
+      ;;
+    *)
+      TARGET_COMMANDS="$1"
+      shift
+      ;;
+  esac
+done
+
 export TARGET_COMMANDS
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -32,13 +59,21 @@ export LITERT_CLI_SHARED_VENV="true"
 
 echo "Running LiteRT CLI command demo(s) with shared virtual environment..."
 
-if [ "$TARGET_COMMANDS" == "--all" ] || [ -z "$1" ]; then
+if [ "$TARGET_COMMANDS" == "--all" ]; then
   echo "Executing all command test scripts under commands/ directory..."
   for test_script in "$SCRIPT_DIR/commands/"*_test.sh; do
     echo -e "\n=================================================================="
     echo ">>> Executing $test_script..."
     echo -e "==================================================================\n"
-    bash "$test_script"
+    if [[ "$test_script" == *"benchmark_gcp_test"* ]]; then
+      if [[ -n "$GCP_PROJECT" ]]; then
+        bash "$test_script" --gcp-project "$GCP_PROJECT"
+      else
+        echo -e "\n[Skipping $test_script: --gcp-project is required for GCP benchmarks]\n"
+      fi
+    else
+      bash "$test_script"
+    fi
   done
   echo -e "\nAll LiteRT CLI command demos completed successfully!"
 else
@@ -57,7 +92,15 @@ else
     echo -e "\n=================================================================="
     echo ">>> Executing $target_script..."
     echo -e "==================================================================\n"
-    bash "$target_script"
+    if [[ "$target_script" == *"benchmark_gcp_test"* ]]; then
+      if [[ -n "$GCP_PROJECT" ]]; then
+        bash "$target_script" --gcp-project "$GCP_PROJECT"
+      else
+        echo -e "\n[Skipping $target_script: --gcp-project is required for GCP benchmarks]\n"
+      fi
+    else
+      bash "$target_script"
+    fi
   done
   echo -e "\nLiteRT CLI command demo(s) for '$TARGET_COMMANDS' completed successfully!"
 fi
