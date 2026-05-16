@@ -52,10 +52,13 @@ run_case "Download: EfficientNet-B1" \
 
 echo -e "\n${BLUE}${BOLD}--- Running Live GCP Benchmarks for Project: $GCP_PROJECT ---${NC}"
 
-run_case "Benchmark: GCP GPU Mode (Live)" \
-    litert benchmark models/efficientnet/efficientnet_b1.tflite --gcp --gpu --device 'pixel 8, sm-s931u1' --gcp-project "$GCP_PROJECT"
+run_case "Benchmark: CPU Mode on Google AI Edge Portal" \
+    litert benchmark models/efficientnet/efficientnet_b1.tflite --gcp --cpu --device 'pixel 10 pro, sm-s931u1' --gcp-project "$GCP_PROJECT"
 
-run_case "Benchmark: GCP NPU JIT Mode (Live)" \
+run_case "Benchmark: GPU Mode on Google AI Edge Portal" \
+    litert benchmark models/efficientnet/efficientnet_b1.tflite --gcp --gpu --device 'sm-s931u1' --gcp-project "$GCP_PROJECT"
+
+run_case "Benchmark: NPU JIT Mode on Google AI Edge Portal" \
     litert benchmark models/efficientnet/efficientnet_b1.tflite --gcp --npu --jit --device 'sm-s931u1' --soc-model SM8750 --gcp-project "$GCP_PROJECT"
 
 print_summary_report "Benchmark GCP Commands"
