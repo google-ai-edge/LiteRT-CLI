@@ -66,8 +66,11 @@ uv pip install -e .
 
 #### 3. Run Commands
 
-Check more comprehensive usage examples under the `test_scripts/` directory
-(e.g., `test_scripts/models/efficientnet.sh`). You can run the CLI via `uv run`:
+Check more comprehensive usage examples under the `examples/` directory. You can
+run our automated demo drivers: - **Run all command demos**:
+`./examples/run_commands.sh` - **Run all model demos**:
+`./examples/run_models.sh` - **Run a specific model demo**:
+`./examples/run_models.sh efficientnet`
 
 ```bash
 # Run help command

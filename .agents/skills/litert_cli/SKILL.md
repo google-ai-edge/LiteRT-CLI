@@ -342,9 +342,13 @@ Agents should run tests after modifying code to ensure no regressions.
 
 To run unit tests locally:
 ```bash
-python litert_test.py
-python litert_help_test.py
+python litert_cli/litert_test.py
+python litert_cli/litert_help_test.py
 ```
+
+To run comprehensive end-to-end regression tests: `bash
+./examples/run_smoke_tests.sh ./examples/run_commands.sh
+./examples/run_models.sh`
 
 ## Best Practices for Agents
 
