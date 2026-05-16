@@ -230,9 +230,9 @@ def run_gcp(
 
   if accel_name == "NPU":
     comp_mode = (compilation_mode or "jit").upper()
-    if comp_mode == "AOT" and not soc_model:
+    if not soc_model:
       raise click.ClickException(
-          "Error: --soc-model is required when using NPU AOT compilation mode."
+          f"Error: --soc-model is required when using NPU {comp_mode} compilation mode."
       )
 
     aot_path = model_path.replace("gs://", "") if comp_mode == "AOT" else ""
@@ -242,7 +242,7 @@ def run_gcp(
     run_spec["npuConfig"] = {
         "npuCompilationMode": comp_mode,
         "socConfigs": [{
-            "socModel": soc_model or "",
+            "socModel": soc_model,
             "aotModelPath": aot_path,
         }],
         "cpuFallbackConfig": {"threadCount": 4},
