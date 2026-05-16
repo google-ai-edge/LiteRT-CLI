@@ -96,7 +96,9 @@ def run_gcp(
       device_list.extend(parts)
 
   if not device_list:
-    device_list = ["sm-s931u1"]
+    raise click.ClickException(
+        "Error: --device is required for running GCP benchmark tests."
+    )
 
   if not gcp_project:
     gcp_project = _DEFAULT_GCP_PROJECT
@@ -229,10 +231,14 @@ def run_gcp(
   if accel_name == "NPU":
     comp_mode = (compilation_mode or "jit").upper()
     if comp_mode == "AOT":
+      if not soc_model:
+        raise click.ClickException(
+            "Error: --soc-model is required when using NPU AOT compilation mode."
+        )
       run_spec["npuConfig"] = {
           "npuCompilationMode": "AOT",
           "socConfigs": [{
-              "socModel": soc_model or "",
+              "socModel": soc_model,
               "aotModelPath": model_path.replace("gs://", ""),
           }],
           "cpuFallbackConfig": {"threadCount": 4},
@@ -241,10 +247,6 @@ def run_gcp(
       run_spec["modelPath"] = model_path.replace("gs://", "")
       run_spec["npuConfig"] = {
           "npuCompilationMode": "JIT",
-          "socConfigs": [{
-              "socModel": soc_model or "",
-              "aotModelPath": "",
-          }],
           "cpuFallbackConfig": {"threadCount": 4},
       }
   else:
