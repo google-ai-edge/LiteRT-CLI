@@ -27,6 +27,10 @@ while [[ $# -gt 0 ]]; do
       GCP_PROJECT="$2"
       shift 2
       ;;
+    --gcp-project=*)
+      GCP_PROJECT="${1#*=}"
+      shift
+      ;;
     *)
       shift
       ;;
