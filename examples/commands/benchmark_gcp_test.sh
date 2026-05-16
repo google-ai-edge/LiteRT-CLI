@@ -37,36 +37,30 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ -z "$GCP_PROJECT" ]]; then
+    echo -e "${RED}Error: --gcp-project is required for running GCP benchmark tests.${NC}"
+    echo -e "${YELLOW}Usage: $0 --gcp-project <YOUR_GCP_PROJECT_ID>${NC}"
+    exit 1
+fi
+
 setup_test_env "benchmark_gcp_test" "Benchmark GCP Commands Demo"
 
 echo -e "\n${BLUE}${BOLD}--- 1. Benchmark GCP Commands ---${NC}"
 
-run_case "Download: MobileNet-v3-large" \
-    litert download litert-community/MobileNet-v3-large --file "*.tflite" --output "models/mobilenet"
+run_case "Download: EfficientNet-B1" \
+    litert download litert-community/efficientnet_b1 --file "*.tflite" --output "models/efficientnet"
 
-# In open-source environment, GCP benchmarking requires real credentials and billing projects.
-# We verify that the CLI successfully parses the parameters and correctly errors out with GCP project missing message.
+echo -e "\n${BLUE}${BOLD}--- Running Live GCP Benchmarks for Project: $GCP_PROJECT ---${NC}"
+run_case "Benchmark: GCP NPU JIT Mode (Live)" \
+    litert benchmark models/efficientnet/efficientnet_b1.tflite --gcp --npu --jit --device 'sm-s931u1' --soc-model SM8750 --gcp-project "$GCP_PROJECT"
 
-if [[ -n "$GCP_PROJECT" ]]; then
-    echo -e "\n${BLUE}${BOLD}--- Running Live GCP Benchmarks for Project: $GCP_PROJECT ---${NC}"
-    run_case "Benchmark: GCP NPU JIT Mode (Live)" \
-        litert benchmark models/mobilenet/mobilenet_v3_large.tflite --gcp --npu --jit --device 'pixel 8' --gcp-project "$GCP_PROJECT"
+run_case "Compile: EfficientNet for Qualcomm SM8750 NPU" \
+    litert compile models/efficientnet/efficientnet_b1.tflite --target SM8750 --output-dir models/compiled
 
-    run_case "Benchmark: GCP NPU AOT Mode (Live)" \
-        litert benchmark models/mobilenet/mobilenet_v3_large.tflite --gcp --npu --aot --soc-model SM8750 --device 'pixel 8' --gcp-project "$GCP_PROJECT"
+run_case "Benchmark: GCP NPU AOT Mode (Live)" \
+    litert benchmark models/compiled/efficientnet_b1_Qualcomm_SM8750.tflite --gcp --npu --aot --soc-model SM8750 --device 'sm-s931u1' --gcp-project "$GCP_PROJECT"
 
-    run_case "Benchmark: GCP GPU Mode (Live)" \
-        litert benchmark models/mobilenet/mobilenet_v3_large.tflite --gcp --gpu --device 'pixel 8' --gcp-project "$GCP_PROJECT"
-else
-    echo -e "\n${YELLOW}Note: --gcp-project not provided. Running dry-run validation mode...${NC}"
-    run_case "Benchmark: GCP NPU JIT Mode (Verify Project Missing Interception)" \
-        bash -c "litert benchmark models/mobilenet/mobilenet_v3_large.tflite --gcp --npu --jit --device 'pixel 8' 2>&1 | grep -q 'Missing GCP project'"
-
-    run_case "Benchmark: GCP NPU AOT Mode (Verify Project Missing Interception)" \
-        bash -c "litert benchmark models/mobilenet/mobilenet_v3_large.tflite --gcp --npu --aot --soc-model SM8750 --device 'pixel 8' 2>&1 | grep -q 'Missing GCP project'"
-
-    run_case "Benchmark: GCP GPU Mode (Verify Project Missing Interception)" \
-        bash -c "litert benchmark models/mobilenet/mobilenet_v3_large.tflite --gcp --gpu --device 'pixel 8' 2>&1 | grep -q 'Missing GCP project'"
-fi
+run_case "Benchmark: GCP GPU Mode (Live)" \
+    litert benchmark models/efficientnet/efficientnet_b1.tflite --gcp --gpu --device 'pixel 8, sm-s931u1' --gcp-project "$GCP_PROJECT"
 
 print_summary_report "Benchmark GCP Commands"

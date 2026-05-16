@@ -77,7 +77,7 @@ def run_gcp(
   Args:
     model_path_str: Path to the LiteRT model file (local or gs://).
     accelerator: Hardware accelerator to use (cpu, gpu, npu).
-    devices: Target device model(s) (e.g., 'pixel 7', 'pixel 8').
+    devices: Target device model(s) (e.g., 'pixel 7', 'sm-s931u1').
     gcp_project: GCP project ID for benchmarking.
     gcp_bucket: GCS bucket name for uploading model.
     compilation_mode: Compilation mode for NPU (jit, aot).
@@ -96,7 +96,7 @@ def run_gcp(
       device_list.extend(parts)
 
   if not device_list:
-    device_list = ["pixel 7"]
+    device_list = ["sm-s931u1"]
 
   if not gcp_project:
     gcp_project = _DEFAULT_GCP_PROJECT
@@ -222,31 +222,39 @@ def run_gcp(
   run_spec: dict[str, any] = {
       "accelerator": accel_name,
       "id": accelerator.lower(),
-      "display_name": f"{accelerator.lower()}_test",
+      "displayName": f"{accelerator.lower()}_test",
+      "runtimeVersion": "litert-v2.0.3",
   }
 
   if accel_name == "NPU":
     comp_mode = (compilation_mode or "jit").upper()
     if comp_mode == "AOT":
-      run_spec["npu_config"] = {
-          "npu_compilation_mode": "AOT",
-          "soc_configs": [{
-              "soc_model": soc_model or "SM8750",
-              "aot_model_path": model_path.replace("gs://", ""),
+      run_spec["npuConfig"] = {
+          "npuCompilationMode": "AOT",
+          "socConfigs": [{
+              "socModel": soc_model or "",
+              "aotModelPath": model_path.replace("gs://", ""),
           }],
+          "cpuFallbackConfig": {"threadCount": 4},
       }
     else:
-      run_spec["model_path"] = model_path.replace("gs://", "")
-      run_spec["npu_config"] = {
-          "npu_compilation_mode": "JIT",
+      run_spec["modelPath"] = model_path.replace("gs://", "")
+      run_spec["npuConfig"] = {
+          "npuCompilationMode": "JIT",
+          "socConfigs": [{
+              "socModel": soc_model or "",
+              "aotModelPath": "",
+          }],
+          "cpuFallbackConfig": {"threadCount": 4},
       }
   else:
-    run_spec["model_path"] = model_path.replace("gs://", "")
+    run_spec["modelPath"] = model_path.replace("gs://", "")
 
   body = {
-      "display_name": job_id,
-      "device_configs": [{"device_model": d} for d in device_list],
-      "run_specs": [run_spec],
+      "displayName": job_id,
+      "modelPaths": [],
+      "deviceConfigs": [{"deviceModel": d} for d in device_list],
+      "runSpecs": [run_spec],
   }
 
   # Submit the benchmark job via http requests to AI Edge Portal Cloud API.
