@@ -18,52 +18,18 @@
 set -e
 
 
-echo -e "${BLUE}${BOLD}==================================================================${NC}"
-echo -e "${BLUE}${BOLD}>>> LiteRT CLI EfficientNet Demo Script${NC}"
-echo -e "${BLUE}${BOLD}==================================================================${NC}"
+# Source shared utilities relative to script
+source "$(dirname "${BASH_SOURCE[0]}")/../utils.sh"
 
-# --- Environment Setup ---
-export SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-export REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-export LITERT_CLI_ROOT="/tmp/litert_cli_efficientnet"
+setup_test_env "efficientnet" "EfficientNet Demo Script"
 
-# Source shared utilities
-source "$SCRIPT_DIR/utils.sh"
-
-
-# Clean up and create work directory
-echo -e "\n${YELLOW}Setting up workspace at: $LITERT_CLI_ROOT...${NC}"
-rm -rf "$LITERT_CLI_ROOT"
-mkdir -p "$LITERT_CLI_ROOT"
-cd "$LITERT_CLI_ROOT"
-
-# Create Python virtual environment
-echo -e "${YELLOW}Creating Python virtual environment...${NC}"
-python3 -m venv venv_efficientnet
-source venv_efficientnet/bin/activate
-
-# Create output directories
-export MODEL_DIR="$LITERT_CLI_ROOT/models"
-mkdir -p "$MODEL_DIR"
-
-# Test data directory
-export TEST_DATA_DIR="$REPO_ROOT/litert_cli/test_data"
-
-# Install litert-cli from source
-echo -e "${YELLOW}Installing litert-cli from source...${NC}"
-pip install -e "$REPO_ROOT"
-
-# Upgrade pip and setuptools to ensure build-system requirements (like
-# setuptools>=61.0) can be met
-echo -e "${YELLOW}Upgrading pip and setuptools...${NC}"
-pip install --upgrade pip setuptools wheel
 
 # --- 1. Download EfficientNet-B1 model ---
 run_case "Download: EfficientNet-B1 from HuggingFace" \
-    litert download litert-community/efficientnet_b1 --file "*.tflite" --output "$MODEL_DIR/efficientnet"
+    litert download litert-community/efficientnet_b1 --file "*.tflite" --output "models/efficientnet"
 
 # Verify the downloaded model exists
-EFFICIENTNET_TFLITE="$MODEL_DIR/efficientnet/efficientnet_b1.tflite"
+EFFICIENTNET_TFLITE="models/efficientnet/efficientnet_b1.tflite"
 if [ ! -f "$EFFICIENTNET_TFLITE" ]; then
     echo -e "${RED}Error: Downloaded model not found at $EFFICIENTNET_TFLITE${NC}"
     exit 1
@@ -71,10 +37,10 @@ fi
 
 # --- 2. Quantize the EfficientNet model ---
 run_case "Quantize: EfficientNet Dynamic Range INT8" \
-    litert quantize "$EFFICIENTNET_TFLITE" --recipe dynamic_wi8_afp32 --output "$MODEL_DIR/efficientnet/efficientnet_b1_int8_dynamic.tflite"
+    litert quantize "$EFFICIENTNET_TFLITE" --recipe dynamic_wi8_afp32 --output "models/efficientnet/efficientnet_b1_int8_dynamic.tflite"
 
 run_case "Quantize: EfficientNet Weight-Only INT8" \
-    litert quantize "$EFFICIENTNET_TFLITE" --recipe weight_only_wi8_afp32 --output "$MODEL_DIR/efficientnet/efficientnet_b1_int8_weight_only.tflite"
+    litert quantize "$EFFICIENTNET_TFLITE" --recipe weight_only_wi8_afp32 --output "models/efficientnet/efficientnet_b1_int8_weight_only.tflite"
 
 # --- 3. Run Inference (Desktop & Android) ---
 run_case "Run: EfficientNet FP32 on Desktop (CPU)" \
@@ -89,7 +55,7 @@ fi
 
 
 run_case "Run: EfficientNet Dynamic INT8 on Desktop (CPU)" \
-    litert run "$MODEL_DIR/efficientnet/efficientnet_b1_int8_dynamic.tflite" --desktop --cpu --iterations 1
+    litert run "models/efficientnet/efficientnet_b1_int8_dynamic.tflite" --desktop --cpu --iterations 1
 
 if has_android_device; then
     echo -e "\n${GREEN}Android device detected. Running Android inference...${NC}"
@@ -104,7 +70,7 @@ if has_android_device; then
     #     litert run "$EFFICIENTNET_TFLITE" --android --npu --iterations 1
 
     run_case "Run: EfficientNet Dynamic INT8 on Android (CPU)" \
-        litert run "$MODEL_DIR/efficientnet/efficientnet_b1_int8_dynamic.tflite" --android --cpu --iterations 1
+        litert run "models/efficientnet/efficientnet_b1_int8_dynamic.tflite" --android --cpu --iterations 1
 fi
 
 # --- 4. Benchmark (Android) ---
@@ -121,31 +87,36 @@ if has_android_device; then
     #     litert benchmark "$EFFICIENTNET_TFLITE" --android --npu
 
     run_case "Benchmark: EfficientNet Dynamic INT8 on Android" \
-        litert benchmark "$MODEL_DIR/efficientnet/efficientnet_b1_int8_dynamic.tflite" --android
+        litert benchmark "models/efficientnet/efficientnet_b1_int8_dynamic.tflite" --android
 else
     echo -e "\n${YELLOW}No Android device detected. Skipping benchmarks on Android.${NC}"
 fi
 
 
 # --- 5. Compile (AOT Compilation) ---
-run_case "Compile: EfficientNet FP32 for Qualcomm sm8750 NPU" \
-    litert compile "$EFFICIENTNET_TFLITE" --target sm8750 --output-dir "$MODEL_DIR/efficientnet"
-run_case "Compile: EfficientNet FP32 for MediaTek MT6993 NPU" \
-    litert compile "$EFFICIENTNET_TFLITE" --target MT6993 --output-dir "$MODEL_DIR/efficientnet"
+if [[ "$(uname)" == "Linux" ]]; then
+    run_case "Compile: EfficientNet FP32 for Qualcomm sm8750 NPU" \
+        litert compile "$EFFICIENTNET_TFLITE" --target sm8750 --output-dir "models/efficientnet"
+    run_case "Compile: EfficientNet FP32 for MediaTek MT6993 NPU" \
+        litert compile "$EFFICIENTNET_TFLITE" --target MT6993 --output-dir "models/efficientnet"
+else
+    echo -e "\n${YELLOW}Skipping offline AOT compilation on non-Linux platform ($(uname)).${NC}"
+fi
+
 
 # --- 6. Benchnark compiled model ---
 # Enable those use cases, or change to your own targets, if you have connected those android
 # devices through NPU.
 #
 # run_case "Run Qualcomm compiled EfficientNet" \
-#   litert run "$MODEL_DIR/efficientnet/efficientnet_b1_Qualcomm_SM8750.tflite" --android --npu
+#   litert run "models/efficientnet/efficientnet_b1_Qualcomm_SM8750.tflite" --android --npu
 # run_case "Benchmark Qualcomm compiled EfficientNet" \
-#   litert benchmark "$MODEL_DIR/efficientnet/efficientnet_b1_Qualcomm_SM8750.tflite" --android --npu
+#   litert benchmark "models/efficientnet/efficientnet_b1_Qualcomm_SM8750.tflite" --android --npu
 
 # run_case "Run MediaTek compiled EfficientNet" \
-#    litert run "$MODEL_DIR/efficientnet/efficientnet_b1_MediaTek_MT6993.tflite" --android --npu
+#    litert run "models/efficientnet/efficientnet_b1_MediaTek_MT6993.tflite" --android --npu
 # run_case "Benchmark MediaTek compiled EfficientNet" \
-#    litert benchmark "$MODEL_DIR/efficientnet/efficientnet_b1_MediaTek_MT6993.tflite" --android --npu
+#    litert benchmark "models/efficientnet/efficientnet_b1_MediaTek_MT6993.tflite" --android --npu
 
 # --- 7. Visualize (Model Explorer) ---
 run_case "Visualize: Launch Model Explorer in the background" \

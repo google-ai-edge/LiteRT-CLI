@@ -31,13 +31,16 @@ pwd
 python3 -m venv venv_smoke_test
 source venv_smoke_test/bin/activate
 
+# Upgrade setuptools and pip to satisfy PEP 517 build requirements
+pip install -i https://pypi.org/simple --upgrade pip setuptools wheel
+
 # Install package with optional dependencies
 cd "$REPO_ROOT"
-pip install -e .[test,lm]
+pip install -i https://pypi.org/simple -e .[test,lm]
 
-# Set PYTHONPATH dynamically to resolve google3 and litert_cli imports
-G3_PARENT="$(cd "$REPO_ROOT/../../../../" && pwd)"
-export PYTHONPATH="$G3_PARENT:$PYTHONPATH"
+# Set PYTHONPATH dynamically to resolve internal root and litert_cli imports
+INTERNAL_ROOT="$(cd "$REPO_ROOT/../../../../" && pwd)"
+export PYTHONPATH="$INTERNAL_ROOT:$PYTHONPATH"
 
 # Run a subset of CLI commands to verify they load
 litert --help
@@ -48,8 +51,8 @@ litert benchmark --help
 litert lm --help
 litert clean --help
 
-# Find and run all tests automatically
-for test_file in $(find . -name "*_test.py"); do
+# Find and run all tests automatically in litert_cli directory
+for test_file in $(find litert_cli -name "*_test.py"); do
   echo "Running test: $test_file"
   python3 "$test_file"
 done

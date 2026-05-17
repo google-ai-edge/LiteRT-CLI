@@ -60,6 +60,68 @@ except Exception:
 
 
 
+# Auto-detect REPO_ROOT from utils.sh location
+export UTILS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export REPO_ROOT="$(cd "$UTILS_DIR/.." && pwd)"
+
+# Shared environment initialization for demo scripts
+function setup_test_env() {
+  local test_name="$1"
+  local title="$2"
+  local extra_deps="${3:-}"
+
+  echo -e "${BLUE}${BOLD}==================================================================${NC}"
+  echo -e "${BLUE}${BOLD}>>> LiteRT CLI $title${NC}"
+  echo -e "${BLUE}${BOLD}==================================================================${NC}"
+
+  if [ "${LITERT_CLI_SHARED_VENV:-false}" == "true" ]; then
+    export LITERT_CLI_ROOT="/tmp/litert_cli_shared"
+    local test_root="$LITERT_CLI_ROOT"
+    mkdir -p "$test_root"
+    cd "$test_root"
+
+    if [ ! -d ".venv" ]; then
+      echo -e "\n${YELLOW}Creating Shared Python virtual environment with UV...${NC}"
+      UV_INDEX_URL=https://pypi.org/simple uv venv --clear --python=3.13 --seed
+      source .venv/bin/activate
+      echo -e "${YELLOW}Installing litert-cli with all extras into shared venv...${NC}"
+      uv pip install -e "$REPO_ROOT[convert,quantize,lm,compile]"
+    else
+      echo -e "\n${GREEN}Reusing existing shared virtual environment at $test_root...${NC}"
+      source .venv/bin/activate
+    fi
+  else
+    export LITERT_CLI_ROOT="/tmp/litert_cli_$test_name"
+    local test_root="$LITERT_CLI_ROOT"
+
+    echo -e "\n${YELLOW}Setting up isolated workspace at: $test_root...${NC}"
+    rm -rf "$test_root"
+    mkdir -p "$test_root"
+    cd "$test_root"
+
+    echo -e "${YELLOW}Creating Isolated Python virtual environment with UV...${NC}"
+    UV_INDEX_URL=https://pypi.org/simple uv venv --clear --python=3.13 --seed
+    source .venv/bin/activate
+
+    if [ -n "$extra_deps" ]; then
+      echo -e "${YELLOW}Installing litert-cli with [$extra_deps] extra...${NC}"
+      uv pip install -e "$REPO_ROOT[$extra_deps]"
+    else
+      echo -e "${YELLOW}Installing litert-cli...${NC}"
+      uv pip install -e "$REPO_ROOT"
+    fi
+  fi
+
+  export MODEL_DIR="$test_root/models"
+  export MODELS_CACHE="$test_root/models"
+  mkdir -p "$MODEL_DIR"
+
+  export TEST_DATA_DIR="$REPO_ROOT/litert_cli/test_data"
+  # Symlink test data directly into workspace for clean command syntax
+  ln -sf "$TEST_DATA_DIR/"* .
+}
+
+
 # Robust runner for a test command with isolation and formatting
 function run_case() {
     local title="$1"
