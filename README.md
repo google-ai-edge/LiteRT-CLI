@@ -105,7 +105,7 @@ If you have cloned the repo, you can run the following commands to see the demos
 ## 🤖 Use in Coding Agent
 
 Add the LiteRT CLI skill
-[`SKILL.md`](file:///.agents/skills/litert_cli/SKILL.md)
+[`SKILL.md`]([file:///.agents/skills/litert_cli/SKILL.md](https://github.com/google-ai-edge/LiteRT-CLI/blob/main/.agents/skills/litert_cli/SKILL.md))
 into your AI coding agent (like Google Antigravity) and try prompts such as:
 
 *   "Download LiteRT model `litert-community/efficientnet_b1` and run it on
