@@ -103,14 +103,6 @@ else
     echo -e "\n${YELLOW}Skipping offline AOT compilation on non-Linux platform ($(uname)).${NC}"
 fi
 
-# --- 6. Benchmark compiled model ---
-# Enable those use cases, or change to your own targets, if you have connected those android
-# devices through NPU.
-#
-# run_case "Run Qualcomm compiled ConvNeXt" \
-#   litert run "models/convnext/convnext_tiny_Qualcomm_SM8750.tflite" --android --npu
-# run_case "Benchmark Qualcomm compiled ConvNeXt" \
-#   litert benchmark "models/convnext/convnext_tiny_Qualcomm_SM8750.tflite" --android --npu
 
 # --- 7. Visualize (Model Explorer) ---
 run_case "Visualize: Launch Model Explorer in the background" \
