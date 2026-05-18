@@ -63,6 +63,11 @@ uv pip install -e .
 
 ## Quick Start
 
+### Try colab
+
+Try [LiteRT CLI Colab](https://github.com/google-ai-edge/LiteRT-CLI/blob/main/examples/litert_cli.ipynb) to
+explore different features quickly.
+
 ### Follow command help
 
 You can always follow `litert --help` or `litert {command} --help` to find how to use the CLI tool. Check detailed instructions for each command below.
@@ -118,13 +123,15 @@ virtual environments, `litert-cli-nightly`, and all required dependencies.
 
 ### Verified Platforms
 
+Verified in Python 3.13.
+
 *   **Host Machines**:
-    *   Linux (Ubuntu) with Python 3.13
-    *   macOS (Apple Silicon) with Python 3.13
-    *   Windows: partially support
-*   **Android NPU Related Features**:
-    *   Android: Qualcomm
-    *   Android: MediaTek (partly)
+    *   Linux (Ubuntu)
+    *   macOS (Apple Silicon): don't support `litert compile`
+    *   Windows: partially supported
+*   **Android**:
+    * CPU, GPU  
+    * NPU: Qualcomm (supported), MediaTek (soon), Google Tensor (soon)
 
 --------------------------------------------------------------------------------
 
