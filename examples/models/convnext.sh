@@ -103,8 +103,7 @@ else
     echo -e "\n${YELLOW}Skipping offline AOT compilation on non-Linux platform ($(uname)).${NC}"
 fi
 
-
-# --- 7. Visualize (Model Explorer) ---
+# --- 6. Visualize (Model Explorer) ---
 run_case "Visualize: Launch Model Explorer in the background" \
     litert visualize "$CONVNEXT_TFLITE"
 
