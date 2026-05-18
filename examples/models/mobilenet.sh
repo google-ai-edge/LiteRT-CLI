@@ -61,10 +61,10 @@ if has_android_device; then
 
     run_case "Run: MobileNet FP32 on Android (GPU)" \
         litert run "$MOBILENET_TFLITE" --android --gpu --iterations 1
-
-    # If you have Android devices with NPU connected, enable those use cases.
-    run_case "Run: MobileNet FP32 on Android (NPU)" \
-        litert run "$MOBILENET_TFLITE" --android --npu --iterations 1
+   
+    # If you have Android devices with NPU connected, enable those use cases for MacOS
+    # run_case "Run: MobileNet FP32 on Android (NPU)" \
+    #     litert run "$MOBILENET_TFLITE" --android --npu --iterations 1
 
     run_case "Run: MobileNet Dynamic INT8 on Android (CPU)" \
         litert run "models/mobilenet/mobilenet_v3_large_int8_dynamic.tflite" --android --cpu --iterations 1
@@ -85,8 +85,9 @@ if has_android_device; then
     run_case "Benchmark: MobileNet FP32 on Android (GPU)" \
         litert benchmark "$MOBILENET_TFLITE" --android --gpu
 
-    run_case "Benchmark: MobileNet FP32 on Android (NPU)" \
-        litert benchmark "$MOBILENET_TFLITE" --android --npu
+    # If you have Android devices with NPU connected, enable those use cases for MacOS
+    # run_case "Benchmark: MobileNet FP32 on Android (NPU)" \
+    #     litert benchmark "$MOBILENET_TFLITE" --android --npu
 
     run_case "Benchmark: MobileNet Dynamic INT8 on Android" \
         litert benchmark "models/mobilenet/mobilenet_v3_large_int8_dynamic.tflite" --android
