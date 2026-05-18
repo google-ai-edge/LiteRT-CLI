@@ -1,17 +1,110 @@
 # LiteRT CLI (Preview)
 
-A convenient command-line toolkit to streamline LiteRT development workflow,
-including converting, quantizing, compiling, managing, running, and benchmarking
-LiteRT (TFLite) models on various hardware (CPU / GPU / NPU) across platforms
-(desktop, mobile, or cloud).
+A convenient command-line toolkit to streamline [LiteRT](https://ai.google.dev/edge/litert)
+related development workflow, including converting, quantizing, compiling,
+managing, running, and benchmarking LiteRT (TFLite) models on various hardware
+(CPU / GPU / NPU) across platforms (desktop, mobile, or cloud).
+
+> [!NOTE]
+> It's a still early preview release under active development, thus has limited
+> platform and feature support, plus possible bugs. We appreciate your patience
+> and feedback to help us improve it.
+
+--------------------------------------------------------------------------------
+
+## 🚀 Installation
+
+You can install `litert-cli-nightly` from PyPI or from local clone. LiteRT CLI
+will install the dependencies on-demands, based on which commands to run, to speed up
+initial installation.
+
+We support installation using either **[uv](https://docs.astral.sh/uv/getting-started/installation/)**
+(recommended for ultra-fast dependency resolution) or standard **[pip](https://pip.pypa.io/)**
+within a Python virtual environment.
+
+#### Option 1: Use UV (Recommended)
+
+`uv` is an extremely fast Python package manager written in Rust.
+
+```bash
+# 1. Create a virtual environment with Python 3.13.
+# TIP: When meeting dependency resolution error, try to set environment variable:
+#    export UV_INDEX_URL=https://pypi.org/simple
+uv venv --clear --python=3.13 --seed
+source .venv/bin/activate
+
+# 2. Install the package into the active virtual environment
+uv pip install litert-cli-nightly
+
+# 3. Run help command
+litert --help
+```
+
+### Option 2: Use Standard Pip
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -q litert-cli-nightly
+litert --help
+```
+
+#### Option 3. Install from Local Clone (for development)
+
+```bash
+uv venv --clear --python=3.13 --seed
+source .venv/bin/activate
+git clone git@github.com:google-ai-edge/LiteRT-CLI.git
+cd LiteRT-CLI
+uv pip install -e .
+```
+
+--------------------------------------------------------------------------------
+
+## Quick Start
+
+### Follow command help
+
+You can always follow `litert --help` or `litert {command} --help` to find how to use the CLI tool. Check detailed instructions for each command below.
+
+```bash
+# Run help command
+litert --help
+
+# Download a LiteRT model
+litert download --help
+litert download litert-community/efficientnet_b1 --file "*.tflite" --output efficientnet
+
+# Run and benchmark a LiteRT model on your devices
+litert run --help
+litert run efficientnet/efficientnet_b1.tflite --desktop --cpu
+litert benchmark --help
+litert benchmark efficientnet/efficientnet_b1.tflite --android --gpu
+```
+### Quick Demos
+Check comprehensive usage examples under the `examples/` directory, which contains per-command demos and model-specific demos.
+
+If you have cloned the repo, you can run the following commands to see the demos:
+
+```bash
+# Run all command demos
+./examples/run_commands.sh
+
+# Run all model demos
+./examples/run_models.sh
+
+# Run a specific model demo
+./examples/run_models.sh efficientnet
+```
 
 ## 🤖 Use in Coding Agent
 
 Add the LiteRT CLI skill
-[`SKILL.md`](file:///.agents/skills/litert_cli/SKILL.md) into your AI coding
-agent (like Antigravity or Gemini CLI) to enable prompts such as:
+[`SKILL.md`](file:///.agents/skills/litert_cli/SKILL.md)
+into your AI coding agent (like Google Antigravity) and try prompts such as:
 
-*   "Download LiteRT model `litert-community/efficientnet_b1` and run it on CPU"
+*   "Download LiteRT model `litert-community/efficientnet_b1` and run it on
+    CPU"
 *   "Benchmark LiteRT model `litert-community/efficientnet_b1` on my Android
     GPU"
 *   "Compile LiteRT model `litert-community/efficientnet_b1` for NPU target
@@ -19,115 +112,19 @@ agent (like Antigravity or Gemini CLI) to enable prompts such as:
 *   "Visualize LiteRT model `litert-community/efficientnet_b1`"
 
 The agent will automatically install the necessary tools, including Python
-virtual environments, `litert-cli`, and all required dependencies.
+virtual environments, `litert-cli-nightly`, and all required dependencies.
 
 --------------------------------------------------------------------------------
 
-## 🚀 Installation
-
-We support installation using either **`uv`** (recommended for ultra-fast
-dependency resolution) or standard **`pip`** within a virtual environment.
-
-### Option 1: Use UV (Recommended)
-
-`uv` is an extremely fast Python package manager written in Rust.
-
-#### 1. Create and Activate Virtual Environment
-
-```bash
-# Create a virtual environment with Python 3.13 in the current directory.
-# When meeting dependency resolution error, try to set environment variable:
-# UV_INDEX_URL=https://pypi.org/simple
-uv venv --clear --python=3.13 --seed
-source .venv/bin/activate
-```
-
-#### 2. Install `litert-cli`
-
-##### 2a. Install from PyPI
-
-```bash
-# Install the package into the active virtual environment
-uv pip install -q litert-cli-nightly
-```
-
-##### 2b. Or Install from Local Clone (Recommended for Development)
-
-```bash
-# Clone the repository via SSH
-git clone git@github.com:google-ai-edge/LiteRT-CLI.git
-# Or clone using your Personal Access Token (PAT)
-git clone https://<your-access-token>@github.com/google-ai-edge/LiteRT-CLI.git
-cd LiteRT-CLI
-
-# Install in editable mode inside the active virtual environment
-uv pip install -e .
-```
-
-#### 3. Run Commands
-
-Check more comprehensive usage examples under the `examples/` directory. You can
-run our automated demo drivers: - **Run all command demos**:
-`./examples/run_commands.sh` - **Run all model demos**:
-`./examples/run_models.sh` - **Run a specific model demo**:
-`./examples/run_models.sh efficientnet`
-
-```bash
-# Run help command
-litert --help
-
-# Download a LiteRT model
-litert download litert-community/MobileNet-v3-large --file "*.tflite" --output mobilenet
-```
-
---------------------------------------------------------------------------------
-
-### Option 2: Use Standard Pip
-
-#### 1. Create and Activate Virtual Environment
-
-```bash
-# Create and activate a Python virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-#### 2. Install `litert-cli`
-
-##### 2a. Install from PyPI
-
-```bash
-pip install -q litert-cli-nightly
-```
-
-##### 2b. Or Install from Local Clone
-
-```bash
-# Clone the repository
-git clone git@github.com:google-ai-edge/LiteRT-CLI.git
-cd LiteRT-CLI
-
-# Install in editable mode
-pip install -e .
-```
-
-#### 3. Run Commands
-
-```bash
-# Run help command
-litert --help
-
-# Download a LiteRT model
-litert download litert-community/MobileNet-v3-large --file "*.tflite" --output mobilenet
-```
-
-### Tested Platforms
+### Verified Platforms
 
 *   **Host Machines**:
     *   Linux (Ubuntu) with Python 3.13
     *   macOS (Apple Silicon) with Python 3.13
-*   **Android Devices**:
-    *   Qualcomm Snapdragon 8750
+    *   Windows: partially support
+*   **Android NPU Related Features**:
+    *   Android: Qualcomm
+    *   Android: MediaTek (partly)
 
 --------------------------------------------------------------------------------
 
