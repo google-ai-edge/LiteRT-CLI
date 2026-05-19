@@ -1,7 +1,7 @@
 # LiteRT CLI (Preview)
 
 A convenient command-line toolkit to streamline
-[LiteRT](https://ai.google.dev/edge/litert) related development workflow,
+[LiteRT](https://ai.google.dev/edge/litert) related development workflows,
 including converting, quantizing, compiling, managing, running, and benchmarking
 LiteRT (TFLite) models on various hardware (CPU / GPU / NPU) across platforms
 (desktop, mobile, or cloud).
@@ -148,8 +148,8 @@ Verified in Python 3.13.
 
 *   **Host Machines**:
     *   Linux (Ubuntu)
-    *   macOS (Apple Silicon): don't support `litert compile`
-    *   Windows: partially supported
+    *   macOS (Apple Silicon): don't support `litert compile` yet.
+    *   Windows: `litert compile` and `litert convert` not supported yet
 *   **Android**:
     *   CPU, GPU
     *   NPU: Qualcomm, MediaTek (soon), Google Tensor (soon)
@@ -352,10 +352,19 @@ litert delete my_model
 
 ### 11. Run and benchmark a generative LLM model using LiteRT-LM CLI
 
+`litert lm` command will utlitize `litert-lm`, and you can use the same command
+with `litert-lm`, for example, when you use `litert lm run`, you can also use
+`litert-lm run`.
+
+Please follow the
+[LiteRT-LM CLI guide](https://ai.google.dev/edge/litert-lm/cli) for detailed
+instructions.
+
 ```bash
 # Run a generative LLM model, and load from hugging face
-litert lm run \
+litert lm run  \
   --from-huggingface-repo=litert-community/gemma-4-E2B-it-litert-lm \
+  gemma-4-E2B-it.litertlm \
   --prompt="What is the capital of France?"
 
 # Or load from local LLM model file
