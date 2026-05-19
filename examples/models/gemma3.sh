@@ -25,12 +25,12 @@ setup_test_env "gemma3" "Gemma3 LLM Demo Script"
 # --- Part 1: Convert from HuggingFace Hub, then Run & Benchmark ---
 # Convert HuggingFace Model google/gemma-3-1b-it
 run_case "Convert: HuggingFace google/gemma-3-1b-it" \
-    litert convert google/gemma-3-1b-it --quantize-recipe weight_only_wi4_afp32 --output "models/gemma3_converted"
+    litert convert google/gemma-3-1b-it --output "models/gemma3_converted"
 
 # Run the converted model
 # Redirect stdin from /dev/null to prevent hanging in non-interactive executions
 run_case "Run Gemma3: Converted Model" \
-    litert lm run "models/gemma3_converted/model.litertlm" --prompt="What is the capital of France?" < /dev/null
+    litert lm run "models/gemma3_converted/model.litertlm" --prompt="What is the capital of France?"
 
 # Benchmark the converted model
 run_case "Benchmark Gemma3: Converted Model" \
