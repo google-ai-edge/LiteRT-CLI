@@ -29,7 +29,7 @@ run_case "Convert: HuggingFace google/gemma-4-E2B-it" \
     litert convert google/gemma-4-E2B-it --output "models/gemma4"
 
 run_case "Run Gemma4: Convert: HuggingFace google/gemma-4-E2B-it" \
-    litert lm run models/gemma4/gemma-4-E2B-it.litertlm --prompt="What is the capital of France?" < /dev/null
+    litert lm run models/gemma4/model.litertlm --prompt="What is the capital of France?" < /dev/null
 
 # --- 2. Run Gemma4 Generative LLM Model ---
 run_case "Run Gemma4: Generative inference with custom prompt" \
