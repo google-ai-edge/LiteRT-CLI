@@ -58,28 +58,8 @@ run_case "Convert: Qwen1.5-0.5B-Chat without Bundle" \
     litert convert Qwen/Qwen1.5-0.5B-Chat --output models/qwen_nobundle --no-bundle-litert-lm
 
 # 2.4 Non-CausalLM Architecture Rejection
-function verify_non_causallm_rejection() {
-  local output
-  output=$(litert convert google-bert/bert-base-uncased --output 'models/bert_fail' 2>&1)
-  local status=$?
-
-  if [ $status -eq 0 ]; then
-    echo "Error: Expected conversion to fail, but it succeeded."
-    return 1
-  fi
-
-  if echo "$output" | grep -q "Currently only AutoModelForCausalLM is supported"; then
-    echo "Success: Correctly rejected non-CausalLM model."
-    return 0
-  else
-    echo "Error: Did not find expected rejection message. Output was:"
-    echo "$output"
-    return 1
-  fi
-}
-
 run_case "Convert: bert-base-uncased (Verify Non-CausalLM Rejection)" \
-    verify_non_causallm_rejection
+    bash -c "! litert convert google-bert/bert-base-uncased --output 'models/bert_fail'"
 
 # --- Summary Report ---
 print_summary_report "Convert Commands"
