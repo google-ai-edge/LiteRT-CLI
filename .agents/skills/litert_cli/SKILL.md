@@ -213,6 +213,17 @@ litert convert Qwen/Qwen1.5-0.5B-Chat --output /tmp/qwen
 litert convert Qwen/Qwen1.5-0.5B-Chat --quantize-recipe weight_only_wi4_afp32 --output /tmp/qwen_w4
 ```
 
+**Converting Gemma 3/3n/4 Vision-Language Models (VLM):**
+The CLI automatically detects Gemma VLM conditional generation architectures (Gemma 3, 3n, 4) and dynamically configures advanced VLM-specific conversion settings:
+*   Sets `--task=image_text_to_text`
+*   Enables `--export_vision_encoder` and `--externalize_embedder` automatically
+*   For Gemma 4, automatically configures chat template overrides (`--jinja_chat_template_override`) and enables Jinja template rendering (`--use_jinja_template`)
+
+```bash
+# Automatically compiles VLM task, vision encoder, externalizes embedders, and packages the model
+litert convert google/gemma-4-E2B-it --output models/gemma4
+```
+
 **From Generic Python Script:** ```bash litert convert my_model.py --output
 /tmp/mymodel
 

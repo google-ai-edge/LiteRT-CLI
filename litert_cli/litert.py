@@ -92,6 +92,7 @@ class LazyCLI(click.Group):
     '--enable-model-plugins',
     is_flag=True,
     default=False,
+    hidden=True,
     help='Enable experimental model-specific plugin handlers.',
 )
 @click.pass_context

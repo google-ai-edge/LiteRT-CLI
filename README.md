@@ -6,7 +6,8 @@ including converting, quantizing, compiling, managing, running, and benchmarking
 LiteRT (TFLite) models on various hardware (CPU / GPU / NPU) across platforms
 (desktop, mobile, or cloud).
 
-> [!NOTE] It's a still early preview release under active development, thus has
+> [!NOTE]
+> It's a still early preview release under active development, thus has
 > limited platform and feature support, plus possible bugs. We appreciate your
 > patience and feedback to help us improve it.
 
@@ -109,7 +110,7 @@ demos:
 ./examples/run_models.sh efficientnet
 ```
 
-## 🤖 Use in Coding Agent
+### 🤖 Use in Coding Agent
 
 Add the LiteRT CLI skill
 [`SKILL.md`]([file:///.agents/skills/litert_cli/SKILL.md]\(https://github.com/google-ai-edge/LiteRT-CLI/blob/main/.agents/skills/litert_cli/SKILL.md\))
@@ -121,6 +122,19 @@ into your AI coding agent (like Google Antigravity) and try prompts such as:
 *   "Compile LiteRT model `litert-community/efficientnet_b1` for NPU target
     `sm8750`"
 *   "Visualize LiteRT model `litert-community/efficientnet_b1`"
+*   "Download the FP32 EfficientNet model `litert-community/efficientnet_b1` from
+    HuggingFace. Quantize it to INT8 dynamic range (`--recipe dynamic_wi8_afp32`),
+    then benchmark both the original FP32 model and the newly quantized INT8 model
+    on the GPU of my connected Android device. Compare the average latency and
+    report the throughput speedup."
+*   "convert the model `Qwen/Qwen1.5-0.5B-Chat` from HuggingFace Hub to LiteRT format, 
+    and run it locally using the prompt 'Explain edge machine learning in one sentence'."
+*   "Download EfficientNet from huggingface repo `litert-community/efficientnet_b1`
+    . Offline compile (AOT) the model for the `sm8750` target NPU, and output 
+    the compiled model into `./models/compiled`. Then, run an on-device inference 
+    and benchmark using this newly compiled AOT model on the connected Android 
+    device's NPU (`--npu`). Confirm that the graph loads directly without 
+    dynamic JIT compilation warmup latency."
 
 The agent will automatically install the necessary tools, including Python
 virtual environments, `litert-cli-nightly`, and all required dependencies.
@@ -137,7 +151,28 @@ Verified in Python 3.13.
     *   Windows: partially supported
 *   **Android**:
     *   CPU, GPU
-    *   NPU: Qualcomm (supported), MediaTek (soon), Google Tensor (soon)
+    *   NPU: Qualcomm, MediaTek (soon), Google Tensor (soon)
+
+--------------------------------------------------------------------------------
+
+### Troubleshooting & Tips
+
+* Always active the virtual environment before running `litert` command, to avoid conflicts.
+* When `uv` fails to resolve dependencies, try to set environment variable:
+  `export UV_INDEX_URL=https://pypi.org/simple` before running `uv` command.
+* `litert compile` only supports running on Linux now, and it requires newer
+  Clang has version `18.x.x` or above. Try
+  `sudo apt install clang libc++-dev libc++abi-dev`
+* When run or benchmark failed on GPU using `--gpu` flag, try to add both `--cpu --gpu` flags
+  in the command, then the CLI will try CPU first, and fall back to GPU when CPU fails.
+* When running `litert run` on Android device, if the device is not detected, try to
+  run `adb kill-server && adb start-server` first. You can also forward your device USB port
+  to host machine using `adb forward tcp:50000 localabstract:adb-hub`.
+* When benchmark using `--gcp` flag, you need to
+  1) [Join the EAP program in Google AI Edge Portal](https://ai.google.dev/edge/ai-edge-portal);
+  2) Login to GCP using `gcloud auth login`; 
+  3) Set your GCP project using `--gcp=<Your-GCP-Project>`;
+* When `litert visualize` fails to launch Model Explorer, try to run `litert visualize --stop-all` first.
 
 --------------------------------------------------------------------------------
 

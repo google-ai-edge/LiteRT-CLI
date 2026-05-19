@@ -65,6 +65,8 @@ if has_android_device; then
         litert run "$RESNET_TFLITE" --android --cpu --iterations 1
 
     # ResNet18 PADV2 op is currently not fully supported by Android OpenCL GPU delegate.
+    run_case "Run: ResNet18 FP32 on Android GPU with CPU fallback" \
+        litert run "$RESNET_TFLITE" --android --cpu --gpu --iterations 1
 
     run_case "Run: ResNet18 Dynamic INT8 on Android (CPU)" \
         litert run "models/resnet18/resnet18_int8_dynamic.tflite" --android --cpu --iterations 1
