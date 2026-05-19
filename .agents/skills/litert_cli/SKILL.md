@@ -112,9 +112,11 @@ Run a tflite model locally on desktop or on a adb connected Android device.
 * Output logs are **clean by default**.
 * To enable C++ verbose debug setup logs, set the environment variable: `export LITERT_VERBOSE=1`.
 * `--gpu`: Use desktop GPU if available.
+* **Accelerator Fallback**: If running on GPU (`--gpu`) fails, you can pass both **`--gpu --cpu`** (or `--accelerator gpu,cpu`). The CLI will attempt GPU first and gracefully fall back to CPU on failure.
 
 **Android Execution (CPU, GPU, or NPU):** `litert run <path_to_model> --android --cpu`
 * `--gpu`: Run on Android GPU using OpenCL/WebGPU.
+* **Accelerator Fallback**: Similarly, pass both **`--gpu --cpu`** (or `--accelerator gpu,cpu`) on Android to use CPU as a fallback if GPU delegate creation fails.
 * `--npu`: Run on Android device NPU. Supports **two execution paradigms** based on the input model:
 
 **1. JIT (Just-In-Time) compilation mode:** Pass a standard, non-compiled
@@ -211,17 +213,6 @@ litert convert Qwen/Qwen1.5-0.5B-Chat --output /tmp/qwen
 
 # With INT4 Weight-Only Quantization (Recommended for LLM)
 litert convert Qwen/Qwen1.5-0.5B-Chat --quantize-recipe weight_only_wi4_afp32 --output /tmp/qwen_w4
-```
-
-**Converting Gemma 3/3n/4 Vision-Language Models (VLM):**
-The CLI automatically detects Gemma VLM conditional generation architectures (Gemma 3, 3n, 4) and dynamically configures advanced VLM-specific conversion settings:
-*   Sets `--task=image_text_to_text`
-*   Enables `--export_vision_encoder` and `--externalize_embedder` automatically
-*   For Gemma 4, automatically configures chat template overrides (`--jinja_chat_template_override`) and enables Jinja template rendering (`--use_jinja_template`)
-
-```bash
-# Automatically compiles VLM task, vision encoder, externalizes embedders, and packages the model
-litert convert google/gemma-4-E2B-it --output models/gemma4
 ```
 
 **From Generic Python Script:** ```bash litert convert my_model.py --output
