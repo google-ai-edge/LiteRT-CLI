@@ -76,7 +76,7 @@ def convert_huggingface(
 
       if not (is_causal_lm or is_gemma_vlm):
         raise ValueError(
-            f"Currently only AutoModelForCausalLM or Gemma VLM architectures (Gemma3, Gemma3n, Gemma4) are supported. "
+            f"Currently only AutoModelForCausalLM is supported (or Gemma VLM architectures: Gemma3, Gemma3n, Gemma4). "
             f"Model '{model}' has architectures {architectures}."
         )
     except Exception as e:
