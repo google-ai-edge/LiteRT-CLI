@@ -4,6 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "litert-cli"
+readme = "README.md"
 dynamic = ["version"]
 
 description = "LiteRT Toolkit Command Line Interface"
