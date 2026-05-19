@@ -62,6 +62,12 @@ def convert_huggingface(
   click.echo(f"Starting conversion for model '{model}''")
 
   try:
+    is_causal_lm = False
+    is_gemma3 = False
+    is_gemma3n = False
+    is_gemma4 = False
+    is_gemma_vlm = False
+
     # Verify AutoModelForCausalLM architecture
     try:
       config = transformers.AutoConfig.from_pretrained(
@@ -103,6 +109,10 @@ def convert_huggingface(
       task = "image_text_to_text"
       export_kwargs["export_vision_encoder"] = True
       export_kwargs["externalize_embedder"] = True
+      if is_gemma3 or is_gemma3n:
+        export_kwargs["vision_encoder_quantization_recipe"] = (
+            "weight_only_wi8_afp32"
+        )
       if is_gemma4:
         export_kwargs["jinja_chat_template_override"] = (
             "litert-community/gemma-4-E2B-it-litert-lm"
