@@ -25,12 +25,15 @@ setup_test_env "gemma4" "Gemma4 LLM Demo Script"
 
 # --- 1. Convert HuggingFace Model google/gemma-4-E2B-it ---
 # Wait for LiteRT Torch release.
-# run_case "Convert: HuggingFace google/gemma-4-E2B-it" \
-#    litert convert google/gemma-4-E2B-it --output "models/gemma4"
+run_case "Convert: HuggingFace google/gemma-4-E2B-it" \
+    litert convert google/gemma-4-E2B-it --output "models/gemma4"
+
+run_case "Run Gemma4: Convert: HuggingFace google/gemma-4-E2B-it" \
+    litert lm run models/gemma4/gemma-4-E2B-it.litertlm --prompt="What is the capital of France?" < /dev/null
 
 # --- 2. Run Gemma4 Generative LLM Model ---
 run_case "Run Gemma4: Generative inference with custom prompt" \
-    litert lm run --from-huggingface-repo=litert-community/gemma-4-E2B-it-litert-lm gemma-4-E2B-it.litertlm --prompt="What is the capital of France?"
+    litert lm run --from-huggingface-repo=litert-community/gemma-4-E2B-it-litert-lm gemma-4-E2B-it.litertlm --prompt="What is the capital of France?" < /dev/null
 
 # --- 3. Benchmark Gemma4 LLM Model ---
 run_case "Benchmark Gemma4: Local benchmark of LLM generation" \
