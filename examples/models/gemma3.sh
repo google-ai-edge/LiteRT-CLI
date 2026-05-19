@@ -28,7 +28,6 @@ run_case "Convert: HuggingFace google/gemma-3-1b-it" \
     litert convert google/gemma-3-1b-it --output "models/gemma3_converted"
 
 # Run the converted model
-# Redirect stdin from /dev/null to prevent hanging in non-interactive executions
 run_case "Run Gemma3: Converted Model" \
     litert lm run "models/gemma3_converted/model.litertlm" --prompt="What is the capital of France?"
 
@@ -39,18 +38,17 @@ run_case "Benchmark Gemma3: Converted Model" \
 
 # --- Part 2: Directly Download, Run, and Benchmark Pre-converted Model ---
 # Run pre-converted Gemma3 directly from huggingface repo
-# Redirect stdin from /dev/null to prevent hanging in non-interactive executions
 run_case "Run Gemma3: Direct HuggingFace execution" \
     litert lm run \
-        --from-huggingface-repo=litert-community/gemma-3-1b-it-litert-lm \
-        gemma-3-1b-it.litertlm \
-        --prompt="What is the capital of France?" < /dev/null
+        --from-huggingface-repo=litert-community/Gemma3-1B-IT \
+        gemma3-1b-it-int4.litertlm \
+        --prompt="What is the capital of France?"
 
 # Benchmark pre-converted Gemma3 directly
 run_case "Benchmark Gemma3: Direct HuggingFace execution" \
     litert lm benchmark \
-        gemma-3-1b-it.litertlm \
-        --from-huggingface-repo=litert-community/gemma-3-1b-it-litert-lm \
+        --from-huggingface-repo=litert-community/Gemma3-1B-IT \
+        gemma3-1b-it-int4.litertlm \
         -p 128 -d 128
 
 # --- Summary Report ---
