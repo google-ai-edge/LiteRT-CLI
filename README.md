@@ -150,7 +150,7 @@ Verified in Python 3.13.
 *   **Host Machines**:
     *   Linux (Ubuntu)
     *   macOS (Apple Silicon): don't support `litert compile` yet.
-    *   Windows: partially supported (`litert compile` and `litert convert` not supported yet)
+    *   Windows: `litert compile` and `litert convert` not supported yet
 *   **Android**:
     *   CPU, GPU
     *   NPU: Qualcomm, MediaTek (soon), Google Tensor (soon)
