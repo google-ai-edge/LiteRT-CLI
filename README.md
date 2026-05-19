@@ -352,10 +352,17 @@ litert delete my_model
 
 ### 11. Run and benchmark a generative LLM model using LiteRT-LM CLI
 
+`litert lm` command will utlitize `litert-lm`, and you can use the same command with `litert-lm`,
+for example, when you use `litert lm run`, you can also use `litert-lm run`.
+
+Please follow the [LiteRT-LM CLI guide](https://ai.google.dev/edge/litert-lm/cli) for detailed
+instructions.
+
 ```bash
 # Run a generative LLM model, and load from hugging face
-litert lm run \
+litert lm run  \
   --from-huggingface-repo=litert-community/gemma-4-E2B-it-litert-lm \
+  gemma-4-E2B-it.litertlm \
   --prompt="What is the capital of France?"
 
 # Or load from local LLM model file

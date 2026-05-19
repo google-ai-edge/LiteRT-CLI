@@ -9,66 +9,56 @@ This skill allows the agent to download, convert, quantize, run, benchmark, and
 visualize LiteRT models using the `litert` command on desktop, device, or Google
 Cloud.
 
-## Setup & Prerequisites
+## Setup & Prerequisites (Agent Auto-Setup Guide)
 
-Before running any `litert` commands, an agent should ensure it is in a Python
-virtual environment and `litert-cli` is installed.
+When an agent invokes this skill, they **MUST** automatically verify the environment and install dependencies using the following logical workflow. Do not prompt the user; perform these checks and setup steps proactively:
 
-### 1. Check/Create Virtual Environment
-
-We highly recommend using **`uv`** (written in Rust) for extremely fast environment management and package installs.
-
-**Option A: Use UV (Recommended - Super Fast):**
+### Step 1. Check if `litert` is already installed
+First, check if the `litert` command-line tool is already available and functioning:
 ```bash
-
-# Create a virtual environment with Python 3.13.
-
-# We use --seed to pre-install pip, setuptools, and wheel inside the venv.
-
-# This is critical to allow our CLI dynamic dependency auto-installers (deps.py) to function.
-
-# When meeting dependency resolution error, try to set environment variable:
-
-# UV_INDEX_URL=https://pypi.org/simple
-
-uv venv --clear --python=3.13 --seed source .venv/bin/activate ```
-
-**Option B: Use Standard Pip/Venv:** ```bash
-
-# Create and activate a standard Python virtual environment.
-
-python3 -m venv litert-cli-venv source litert-cli-venv/bin/activate
-
-# Upgrade pip, setuptools, and wheel immediately.
-
-# This is crucial to meet the project's PEP 517 requirements (setuptools>=61.0).
-
-pip install --upgrade pip setuptools wheel ```
-
-### 2. Check/Install LiteRT CLI
-
-Ensure `litert-cli` and any required optional extensions (extras) are installed:
-
-**Using UV:**
-```bash
-# Install in editable mode from local source
-uv pip install -e .
-
-# Or install from local source with extras (e.g., convert, lm, compile)
-
-uv pip install -e ".[convert,lm,compile]"
+litert --help
 ```
+If this succeeds, you can **skip the remaining setup steps** and proceed directly to executing commands!
 
-**Using standard Pip:** ```bash
+### Step 2. Verify or create a Python Virtual Environment
+If `litert` is not found, check if a Python virtual environment is currently active (e.g., by checking if the `$VIRTUAL_ENV` environment variable is set). If not, create and activate one:
 
-# Install in editable mode
+*   **If `uv` is installed (Recommended - Extremely Fast)**:
+    ```bash
+    # Create venv with seed packages (critical for dynamic dependency auto-installers)
+    # Use UV_INDEX_URL if you encounter dependency resolution issues
+    UV_INDEX_URL=https://pypi.org/simple uv venv --clear --python=3.13 --seed
+    source .venv/bin/activate
+    ```
+*   **Otherwise (Use standard venv/pip)**:
+    ```bash
+    python3 -m venv .venv
+    source .venv/bin/activate
+    pip install --upgrade pip setuptools wheel
+    ```
 
-pip install -e .
+### Step 3. Install `litert-cli`
+Verify if you are in the `LiteRT-CLI` local repository directory (containing `pyproject.toml`) to decide the installation source:
 
-# Or install with extras
+*   **Option A: If local repository clone exists** (Install in editable mode):
+    *   **Using `uv`**:
+        ```bash
+        uv pip install -e .
+        ```
+    *   **Using `pip`**:
+        ```bash
+        pip install -e .
+        ```
 
-pip install -e ".[convert,lm,compile]"
-```
+*   **Option B: Otherwise** (Install the pre-built nightly package from PyPI):
+    *   **Using `uv`**:
+        ```bash
+        uv pip install litert-cli-nightly
+        ```
+    *   **Using `pip`**:
+        ```bash
+        pip install litert-cli-nightly
+        ```
 
 ## Core Commands
 
