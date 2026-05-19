@@ -62,7 +62,7 @@ if has_android_device; then
     run_case "Run: ShuffleNet FP32 on Android (GPU)" \
         litert run "$SHUFFLENET_TFLITE" --android --gpu --cpu --iterations 1
    
-    # If you have Android devices with NPU connected, enable those use cases for MacOS
+    # If you have Android devices with NPU connected, enable those use cases.
     run_case "Run: ShuffleNet FP32 on Android (NPU)" \
         litert run "$SHUFFLENET_TFLITE" --android --npu --iterations 1
 
@@ -85,7 +85,7 @@ if has_android_device; then
     run_case "Benchmark: ShuffleNet FP32 on Android (GPU)" \
         litert benchmark "$SHUFFLENET_TFLITE" --android --gpu
 
-    # If you have Android devices with NPU connected, enable those use cases for MacOS
+    # If you have Android devices with NPU connected, enable those use cases.
     run_case "Benchmark: ShuffleNet FP32 on Android (NPU)" \
         litert benchmark "$SHUFFLENET_TFLITE" --android --npu
 
