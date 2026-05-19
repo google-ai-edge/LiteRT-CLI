@@ -31,7 +31,6 @@ from litert_cli.core import npu_utils
 from ai_edge_litert.aot import aot_compile as aot_lib
 from ai_edge_litert.aot.ai_pack import export_lib as ai_pack_export
 
-
 def convert_huggingface(
     model: str,
     output: str,
@@ -69,10 +68,23 @@ def convert_huggingface(
           model, trust_remote_code=True
       )
       architectures = getattr(config, "architectures", [])
-      if not any("CausalLM" in arch for arch in architectures):
+      is_causal_lm = any("CausalLM" in arch for arch in architectures)
+      is_gemma3 = any(
+          "Gemma3ForConditionalGeneration" in arch for arch in architectures
+      )
+      is_gemma3n = any(
+          "Gemma3nForConditionalGeneration" in arch for arch in architectures
+      )
+      is_gemma4 = any(
+          "Gemma4ForConditionalGeneration" in arch for arch in architectures
+      )
+      is_gemma_vlm = is_gemma3 or is_gemma3n or is_gemma4
+
+      if not (is_causal_lm or is_gemma_vlm):
         raise ValueError(
-            f"Currently only AutoModelForCausalLM is supported. Model '{model}'"
-            f" has architectures {architectures}."
+            "Currently only AutoModelForCausalLM is supported (or Gemma VLM"
+            f" architectures: Gemma3, Gemma3n, Gemma4). Model '{model}' has"
+            f" architectures {architectures}."
         )
     except Exception as e:
       if isinstance(e, ValueError):
@@ -84,15 +96,29 @@ def convert_huggingface(
 
     # Call the auto-export function from litert_torch.
     # It automatically saves to the output.
+    task = "text_generation"
+    export_kwargs = {}
+    use_jinja_template = is_gemma4
+    if is_gemma_vlm:
+      task = "image_text_to_text"
+      export_kwargs["export_vision_encoder"] = True
+      export_kwargs["externalize_embedder"] = True
+      if is_gemma4:
+        export_kwargs["jinja_chat_template_override"] = (
+            "litert-community/gemma-4-E2B-it-litert-lm"
+        )
+
     hf_export.export(
         model=model,
         output_dir=output,
-        task="text_generation",
+        task=task,
         quantization_recipe=quantize,
         prefill_lengths=parsed_prefill,
         cache_length=cache_length,
         bundle_litert_lm=bundle_litert_lm,
-        use_jinja_template=False,
+        trust_remote_code=False,
+        use_jinja_template=use_jinja_template,
+        **export_kwargs,
     )
 
     if target:

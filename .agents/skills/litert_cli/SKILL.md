@@ -112,10 +112,14 @@ Run a tflite model locally on desktop or on a adb connected Android device.
 * Output logs are **clean by default**.
 * To enable C++ verbose debug setup logs, set the environment variable: `export LITERT_VERBOSE=1`.
 * `--gpu`: Use desktop GPU if available.
+* **Accelerator Fallback**: If running on GPU (`--gpu`) fails, you can pass both **`--gpu --cpu`** (or `--accelerator gpu,cpu`). The CLI will attempt GPU first and gracefully fall back to CPU on failure.
 
-**Android Execution (CPU, GPU, or NPU):** `litert run <path_to_model> --android --cpu`
-* `--gpu`: Run on Android GPU using OpenCL/WebGPU.
-* `--npu`: Run on Android device NPU. Supports **two execution paradigms** based on the input model:
+**Android Execution (CPU, GPU, or NPU):** `litert run <path_to_model> --android
+--cpu` * `--gpu`: Run on Android GPU using OpenCL/WebGPU. * **Accelerator
+Fallback**: Similarly, pass both **`--gpu --cpu`** (or `--accelerator gpu,cpu`)
+on Android to use CPU as a fallback if GPU delegate creation fails. * `--npu`:
+Run on Android device NPU. Supports **two execution paradigms** based on the
+input model:
 
 **1. JIT (Just-In-Time) compilation mode:** Pass a standard, non-compiled
 `.tflite` model. The on-device LiteRT runtime will automatically download/invoke

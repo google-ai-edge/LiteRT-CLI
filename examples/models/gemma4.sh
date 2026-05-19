@@ -24,9 +24,9 @@ source "$(dirname "${BASH_SOURCE[0]}")/../utils.sh"
 setup_test_env "gemma4" "Gemma4 LLM Demo Script"
 
 # --- 1. Convert HuggingFace Model google/gemma-4-E2B-it ---
-# TODO: Bring this back when we add support for --externalize_embedder in CLI convert command.
+# Wait for LiteRT Torch release.
 # run_case "Convert: HuggingFace google/gemma-4-E2B-it" \
-#     litert convert google/gemma-4-E2B-it --output "models/gemma4"
+#    litert convert google/gemma-4-E2B-it --output "models/gemma4"
 
 # --- 2. Run Gemma4 Generative LLM Model ---
 run_case "Run Gemma4: Generative inference with custom prompt" \

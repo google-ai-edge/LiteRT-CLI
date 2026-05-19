@@ -29,23 +29,15 @@ echo -e "\n${BLUE}${BOLD}--- 1. Generic Script Mode (resnet18.py) ---${NC}"
 run_case "Convert: PyTorch ResNet18 Base" \
     litert convert resnet18.py --output models/resnet18_base
 
-# 1.2 Conversion with Quantization (pt2e_dynamic)
-run_case "Convert: PyTorch ResNet18 with PT2E Dynamic Quantization" \
-    litert convert resnet18.py --output models/resnet18_pt2e --quantize pt2e_dynamic
-
-# 1.3 Conversion with Model Args (e.g. batch_size=4)
+# 1.2 Conversion with Model Args (e.g. batch_size=4)
 run_case "Convert: PyTorch ResNet18 with Model Args (batch_size=4)" \
     litert convert resnet18.py --output models/resnet18_b4 --model-args "batch_size=4"
 
-# 1.4 Conversion with Quantization (pt2e_per_channel)
-run_case "Convert: PyTorch ResNet18 with PT2E Per-Channel Quantization" \
-    litert convert resnet18.py --output models/resnet18_pt2e_pc --quantize-recipe pt2e_per_channel
-
-# 1.5 Conversion with Quantization (dynamic_wi8_afp32)
+# 1.3 Conversion with Quantization (dynamic_wi8_afp32)
 run_case "Convert: PyTorch ResNet18 with Dynamic INT8 Recipe" \
     litert convert resnet18.py --output models/resnet18_dyn_wi8 --quantize-recipe dynamic_wi8_afp32
 
-# 1.6 Conversion with Quantization (weight_only_wi8_afp32)
+# 1.4 Conversion with Quantization (weight_only_wi8_afp32)
 run_case "Convert: PyTorch ResNet18 with Weight-Only INT8 Recipe" \
     litert convert resnet18.py --output models/resnet18_wo_wi8 --quantize-recipe weight_only_wi8_afp32
 
