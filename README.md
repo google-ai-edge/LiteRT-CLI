@@ -24,7 +24,7 @@ We support installation using either
 for ultra-fast dependency resolution) or standard
 **[pip](https://pip.pypa.io/)** within a Python virtual environment.
 
-#### Option 1: Use UV (Recommended)
+### Option 1: Use UV (Recommended)
 
 `uv` is an extremely fast Python package manager written in Rust.
 
@@ -51,7 +51,7 @@ pip install -q litert-cli-nightly
 litert --help
 ```
 
-#### Option 3. Install from Local Clone (for development)
+### Option 3: Install from Local Clone (for development)
 
 ```bash
 uv venv --clear --python=3.13 --seed
@@ -93,8 +93,8 @@ litert benchmark efficientnet/efficientnet_b1.tflite --android --gpu
 
 ### Quick Demos
 
-Check comprehensive usage examples under the `examples/` directory, which
-contains per-command demos and model-specific demos.
+Check comprehensive usage examples under the [examples/](https://github.com/google-ai-edge/LiteRT-CLI/tree/main/examples)
+directory, which contains per-command demos and model-specific demos.
 
 If you have cloned the repo, you can run the following commands to see the
 demos:
@@ -163,11 +163,10 @@ Verified in Python 3.13.
 * `litert compile` only supports running on Linux now, and it requires newer
   Clang has version `18.x.x` or above. Try
   `sudo apt install clang libc++-dev libc++abi-dev`
-* When run or benchmark failed on GPU using `--gpu` flag, try to add both `--cpu --gpu` flags
+* When run fails on GPU using `--gpu` flag, try to add both `--cpu --gpu` flags
   in the command, then the CLI will try CPU first, and fall back to GPU when CPU fails.
-* When running `litert run` on Android device, if the device is not detected, try to
-  run `adb kill-server && adb start-server` first. You can also forward your device USB port
-  to host machine using `adb forward tcp:50000 localabstract:adb-hub`.
+* When `litert run` fails on Android device, if the device is not detected, try to
+  run `adb kill-server && adb start-server` first.
 * When benchmark using `--gcp` flag, you need to
   1) [Join the EAP program in Google AI Edge Portal](https://ai.google.dev/edge/ai-edge-portal);
   2) Login to GCP using `gcloud auth login`; 
