@@ -13,12 +13,16 @@
 # limitations under the License.
 # ==============================================================================
 
+import importlib.util
 from unittest import mock
 
 from absl.testing import absltest
 from litert_cli.commands.convert import huggingface
 
+_HAS_LITERT_TORCH = importlib.util.find_spec("litert_torch") is not None
 
+
+@absltest.skipUnless(_HAS_LITERT_TORCH, "Requires litert-torch optional dependency.")
 class HuggingfaceTest(absltest.TestCase):
 
   @mock.patch("transformers.AutoConfig.from_pretrained")
