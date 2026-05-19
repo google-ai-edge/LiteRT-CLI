@@ -236,7 +236,8 @@ litert quantize model.tflite \
 
 ### 4. Compile a LiteRT model for NPU AOT
 
-> [!NOTE] Currently only supported on Linux hosts and Qualcomm NPUs.
+> [!NOTE]
+> Currently only supported on Linux hosts and Qualcomm NPUs, and other NPUs are coming soon!
 
 ```bash
 # Basic compilation for specific Qualcomm NPU (e.g., sm8750 in Xiaomi 15 Pro)
@@ -270,12 +271,12 @@ litert run model_sm8450.tflite --android --npu
 # Run multiple iterations and print output tensors
 litert run model.tflite \
   --iterations 5 \
-  --print_tensors
+  --print-tensors
 
 # Run with custom input formats (supports image, raw binary, numpy array)
 litert run model.tflite \
   --input "image.png" \
-  --print_tensors
+  --print-tensors
 ```
 
 ### 6. Benchmark a model's performance
@@ -345,19 +346,27 @@ litert list my_model
 litert delete my_model
 ```
 
-### 11. Run a generative LLM model using LiteRT-LM CLI
+### 11. Run and benchmark a generative LLM model using LiteRT-LM CLI
 
 ```bash
-# Run a generative LLM model
+# Run a generative LLM model, and load from hugging face
+litert lm run \
+  --from-huggingface-repo=litert-community/gemma-4-E2B-it-litert-lm \
+  --prompt="What is the capital of France?"
+
+# Or load from local LLM model file
 litert lm run gemma-4-E2B-it.litertlm
 
 # Example with a custom prompt
 litert lm run gemma-4-E2B-it.litertlm --prompt "Hello, how are you?"
+
+# Benchmark a generative LLM model
+litert lm benchmark gemma-4-E2B-it.litertlm
 ```
 
 ### 12. Clean up all caches
 
 ```bash
-# Clean up model cache, etc.
+# Clean up local cache, like model files and binaries.
 litert clean
 ```
