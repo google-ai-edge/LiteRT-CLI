@@ -1,12 +1,13 @@
 # LiteRT CLI (Preview)
 
 A convenient command-line toolkit to streamline
-[LiteRT](https://ai.google.dev/edge/litert) related development workflow,
+[LiteRT](https://ai.google.dev/edge/litert) related development workflows,
 including converting, quantizing, compiling, managing, running, and benchmarking
 LiteRT (TFLite) models on various hardware (CPU / GPU / NPU) across platforms
 (desktop, mobile, or cloud).
 
-> [!NOTE] It's a still early preview release under active development, thus has
+> [!NOTE]
+> It's a still early preview release under active development, thus has
 > limited platform and feature support, plus possible bugs. We appreciate your
 > patience and feedback to help us improve it.
 
