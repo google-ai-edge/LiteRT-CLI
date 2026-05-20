@@ -77,13 +77,13 @@ Once a model is registered, **all CLI commands** (including `run`, `benchmark`,
 file path! The CLI will automatically resolve it to the correct absolute cache
 file path on the fly.
 
-**Examples:**
+Here are some examples of using model references in action:
+
 ```bash
 # Run inference using the central alias directly
 litert run mobilenet --android --cpu
 
 # Benchmark using a specific sub-reference GPU file
-
 litert benchmark resnet18:gpu --android --gpu
 
 # Compile for NPU directly using the reference alias
