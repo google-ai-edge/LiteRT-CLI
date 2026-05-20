@@ -10,6 +10,11 @@ platforms (desktop, mobile, or cloud).
 [Common commands](#-common-commands) ｜ 📓 [Try Colab](#-try-colab) | 🌟
 [Quick demos](#-quick-demos) | 🤖 [Use in coding agent](#-use-in-coding-agent)
 
+> [!NOTE]
+> It's still an early preview under active development, thus has limited
+> platform and feature support, plus possible bugs. We appreciate your patience
+> and feedback to help us improve it. Welcome issues and PRs!
+
 LiteRT CLI is built on top of [Google AI Edge](https://ai.google.dev/edge)
 stacks, including [LiteRT](https://github.com/google-ai-edge/LiteRT),
 [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM),
@@ -17,10 +22,6 @@ stacks, including [LiteRT](https://github.com/google-ai-edge/LiteRT),
 [AI Edge Quantizer](https://github.com/google-ai-edge/ai-edge-quantizer),
 [AI Edge Portal](https://ai.google.dev/edge/ai-edge-portal), and
 [Model Explorer](https://ai.google.dev/edge/model-explorer).
-
-> [!NOTE] It's still an early preview under active development, thus has limited
-> platform and feature support, plus possible bugs. We appreciate your patience
-> and feedback to help us improve it. Welcome issues and PRs!
 
 --------------------------------------------------------------------------------
 
