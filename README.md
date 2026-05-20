@@ -129,26 +129,25 @@ Add the LiteRT CLI skill
 into your coding agent (like [Google Antigravity](https://antigravity.google/))
 and try prompts such as:
 
-*   "Download LiteRT model `litert-community/efficientnet_b1` and run it on CPU"
-*   "Benchmark LiteRT model `litert-community/efficientnet_b1` on my Android
-    GPU"
-*   "Compile LiteRT model `litert-community/efficientnet_b1` for NPU target
-    `sm8750`"
-*   "Visualize LiteRT model `litert-community/efficientnet_b1`"
-*   "Download the FP32 EfficientNet model `litert-community/efficientnet_b1`
-    from HuggingFace. Quantize it to INT8 dynamic range (`--recipe
+*   *Download LiteRT model `litert-community/efficientnet_b1` and run it on CPU*
+*   *Benchmark LiteRT model `litert-community/efficientnet_b1` on my Android
+    GPU*
+*   *Compile LiteRT model `litert-community/efficientnet_b1` for NPU target
+    `sm8750`*
+*   *Visualize LiteRT model `litert-community/efficientnet_b1`*
+*   *Download the FP32 model `litert-community/efficientnet_b1`
+    , quantize it to INT8 dynamic range (`--recipe
     dynamic_wi8_afp32`), then benchmark both the original FP32 model and the
     newly quantized INT8 model on the GPU of my connected Android device.
-    Compare the average latency and report the throughput speedup."
-*   "Convert the model `Qwen/Qwen1.5-0.5B-Chat` from HuggingFace Hub to LiteRT
-    format, and run it locally using the prompt 'Explain edge machine learning
-    in one sentence'."
-*   "Download EfficientNet from huggingface repo
-    `litert-community/efficientnet_b1` . Offline compile (AOT) the model for the
+    Compare the average latency and report the throughput speedup.*
+*   *Convert the model `Qwen/Qwen1.5-0.5B-Chat` from HuggingFace, and run it
+    locally using the prompt 'Explain edge machine learning one sentence'*
+*   *Download EfficientNet from huggingface repo
+    `litert-community/efficientnet_b1`, offline compile (AOT) the model for the
     `sm8750` target NPU, and output the compiled model into `./models/compiled`.
     Then, run an on-device inference and benchmark using this newly compiled AOT
     model on the connected Android device's NPU (`--npu`). Confirm that the
-    graph loads directly without dynamic JIT compilation warmup latency."
+    graph loads directly without dynamic JIT compilation warmup latency.*
 
 The agent will automatically install the necessary tools, including Python
 virtual environments, `litert-cli-nightly`, and all required dependencies.
