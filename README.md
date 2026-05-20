@@ -10,6 +10,10 @@ platforms (desktop, mobile, or cloud).
 [Common commands](#-common-commands) ｜ 📓 [Try Colab](#-try-colab) | 🌟
 [Quick demos](#-quick-demos) | 🤖 [Use in coding agent](#-use-in-coding-agent)
 
+> [!NOTE] It's still an early preview under active development, thus has limited
+> platform and feature support, plus possible bugs. We appreciate your patience
+> and feedback to help us improve it. Welcome issues and PRs!
+
 LiteRT CLI is built on top of [Google AI Edge](https://ai.google.dev/edge)
 stacks, including [LiteRT](https://github.com/google-ai-edge/LiteRT),
 [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM),
@@ -17,10 +21,6 @@ stacks, including [LiteRT](https://github.com/google-ai-edge/LiteRT),
 [AI Edge Quantizer](https://github.com/google-ai-edge/ai-edge-quantizer),
 [AI Edge Portal](https://ai.google.dev/edge/ai-edge-portal), and
 [Model Explorer](https://ai.google.dev/edge/model-explorer).
-
-> [!NOTE] It's still an early preview under active development, thus has limited
-> platform and feature support, plus possible bugs. We appreciate your patience
-> and feedback to help us improve it. Welcome issues and PRs!
 
 --------------------------------------------------------------------------------
 
@@ -343,44 +343,7 @@ litert benchmark model.tflite --gcp --device "pixel 7" --gcp-project "your-gcp-p
 litert benchmark model.tflite --gcp --devices "pixel 7, sm-s931u1" --gpu
 ```
 
-### 7. Visualize a model's architecture
-
-```bash
-# Open in Model Explorer graph
-litert visualize model.tflite
-
-# Clean up and stop visualizer background servers
-litert visualize --stop-all
-```
-
-### 8. Import a local model
-
-```bash
-# Import a local file into the centralized cache
-litert import my_model.tflite --model-ref my_model
-
-# Import a directory and associate with a Hugging Face ID
-litert import ./my_model_dir --model-ref my_model --hf-id my_org_name/my_model
-```
-
-### 9. List managed models
-
-```bash
-# List all managed models
-litert list
-
-# Show detailed contents of a specific model using model reference.
-litert list my_model
-```
-
-### 10. Delete a managed model
-
-```bash
-# Delete a model from cache
-litert delete my_model
-```
-
-### 11. Run and benchmark a generative LLM model using LiteRT-LM CLI
+### 7. Run and benchmark a generative LLM model using LiteRT-LM CLI
 
 `litert lm` command will utlitize `litert-lm`, and you can use the same command
 with `litert-lm`, for example, both `litert lm run` and `litert-lm run` or
@@ -407,6 +370,42 @@ litert lm run ./my_model.litertlm --prompt "Hello, how are you?"
 litert lm benchmark ./my_model.litertlm
 ```
 
+### 8. Visualize a model's architecture
+
+```bash
+# Open in Model Explorer graph
+litert visualize model.tflite
+
+# Clean up and stop visualizer background servers
+litert visualize --stop-all
+```
+
+### 9. Import a local model
+
+```bash
+# Import a local file into the centralized cache
+litert import my_model.tflite --model-ref my_model
+
+# Import a directory and associate with a Hugging Face ID
+litert import ./my_model_dir --model-ref my_model --hf-id my_org_name/my_model
+```
+
+### 10. List managed models
+
+```bash
+# List all managed models
+litert list
+
+# Show detailed contents of a specific model using model reference.
+litert list my_model
+```
+
+### 11. Delete a managed model
+
+```bash
+# Delete a model from cache
+litert delete my_model
+```
 ### 12. Clean up all caches
 
 ```bash
