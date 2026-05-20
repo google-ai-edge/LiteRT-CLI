@@ -32,7 +32,9 @@ classifiers = [
 
 keywords = [
     "On-Device ML",
-    "AI",
+    "Edge AI",
+    "Gemma",
+    "NPU",
     "Google",
     "TFLite",
     "LiteRT",
