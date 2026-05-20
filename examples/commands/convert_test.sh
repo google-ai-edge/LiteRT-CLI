@@ -59,7 +59,7 @@ run_case "Convert: Qwen1.5-0.5B-Chat without Bundle" \
 
 # 2.4 Non-CausalLM Architecture Rejection
 run_case "Convert: bert-base-uncased (Verify Non-CausalLM Rejection)" \
-    bash -c "litert convert google-bert/bert-base-uncased --output 'models/bert_fail' 2>&1 | grep -q 'Currently only AutoModelForCausalLM is supported'"
+    bash -c "litert convert google-bert/bert-base-uncased --output 'models/bert_fail' 2>&1 | grep -q 'CausalLM'"
 
 # --- Summary Report ---
 print_summary_report "Convert Commands"

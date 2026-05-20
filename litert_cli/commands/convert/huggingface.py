@@ -62,6 +62,12 @@ def convert_huggingface(
   click.echo(f"Starting conversion for model '{model}''")
 
   try:
+    is_causal_lm = False
+    is_gemma3 = False
+    is_gemma3n = False
+    is_gemma4 = False
+    is_gemma_vlm = False
+
     # Verify AutoModelForCausalLM architecture
     try:
       config = transformers.AutoConfig.from_pretrained(
@@ -69,15 +75,22 @@ def convert_huggingface(
       )
       architectures = getattr(config, "architectures", [])
       is_causal_lm = any("CausalLM" in arch for arch in architectures)
-      is_gemma3 = any("Gemma3ForConditionalGeneration" in arch for arch in architectures)
-      is_gemma3n = any("Gemma3nForConditionalGeneration" in arch for arch in architectures)
-      is_gemma4 = any("Gemma4ForConditionalGeneration" in arch for arch in architectures)
+      is_gemma3 = any(
+          "Gemma3ForConditionalGeneration" in arch for arch in architectures
+      )
+      is_gemma3n = any(
+          "Gemma3nForConditionalGeneration" in arch for arch in architectures
+      )
+      is_gemma4 = any(
+          "Gemma4ForConditionalGeneration" in arch for arch in architectures
+      )
       is_gemma_vlm = is_gemma3 or is_gemma3n or is_gemma4
 
       if not (is_causal_lm or is_gemma_vlm):
         raise ValueError(
-            f"Currently only AutoModelForCausalLM is supported (or Gemma VLM architectures: Gemma3, Gemma3n, Gemma4). "
-            f"Model '{model}' has architectures {architectures}."
+            "Currently only AutoModelForCausalLM is supported (or Gemma VLM"
+            f" architectures: Gemma3, Gemma3n, Gemma4). Model '{model}' has"
+            f" architectures {architectures}."
         )
     except Exception as e:
       if isinstance(e, ValueError):
@@ -96,9 +109,14 @@ def convert_huggingface(
       task = "image_text_to_text"
       export_kwargs["export_vision_encoder"] = True
       export_kwargs["externalize_embedder"] = True
+      if is_gemma3 or is_gemma3n:
+        export_kwargs["vision_encoder_quantization_recipe"] = (
+            "weight_only_wi8_afp32"
+        )
       if is_gemma4:
-        export_kwargs["jinja_chat_template_override"] = "litert-community/gemma-4-E2B-it-litert-lm"
-
+        export_kwargs["jinja_chat_template_override"] = (
+            "litert-community/gemma-4-E2B-it-litert-lm"
+        )
 
     hf_export.export(
         model=model,

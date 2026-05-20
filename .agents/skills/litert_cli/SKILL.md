@@ -9,7 +9,7 @@ This skill allows the agent to download, convert, quantize, run, benchmark, and
 visualize LiteRT models using the `litert` command on desktop, device, or Google
 Cloud.
 
-## Setup & Prerequisites
+## Setup & Prerequisites (Agent Auto-Setup Guide)
 
 Before running any `litert` commands, you must ensure a Python virtual environment is active and the `litert-cli` package is correctly installed.
 

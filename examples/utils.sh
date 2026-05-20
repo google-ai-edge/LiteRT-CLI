@@ -80,7 +80,7 @@ function setup_test_env() {
     mkdir -p "$test_root"
     cd "$test_root"
 
-    if [ ! -d ".venv" ]; then
+    if [ ! -d ".venv" ] || [ ! -f ".venv/bin/litert" ]; then
       echo -e "\n${YELLOW}Creating Shared Python virtual environment with UV...${NC}"
       UV_INDEX_URL=https://pypi.org/simple uv venv --clear --python=3.13 --seed
       source .venv/bin/activate
