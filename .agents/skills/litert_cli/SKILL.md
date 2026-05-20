@@ -66,12 +66,11 @@ pip install litert-cli-nightly
 
 To avoid handling complex and fragile absolute filesystem paths, the LiteRT CLI uses a centralized **Model Reference (`model-ref`)** catalog.
 
-When you download or import a model to the centralized cache, you can assign it
-a reference alias (and optional sub-references): * **Format**: `<alias_name>` or
-`<alias_name>:<sub_reference>` (e.g., `mobilenet`, `resnet18:gpu`,
-`efficientnet:int8`). * **Default alias**: For HuggingFace downloads, if
-`--model-ref` is omitted, the CLI automatically assigns a flattened repository
-ID (e.g., `litert-community__MobileNet-v3-large`) as the default alias.
+When you download or import a model to the centralized cache, you can assign it a reference alias (and optional sub-references):
+
+*   **Format**: `<alias_name>` or `<alias_name>:<sub_reference>` (e.g., `mobilenet`, `resnet18:gpu`, `efficientnet:int8`).
+*   **Default alias**: For HuggingFace downloads, if `--model-ref` is omitted, the CLI automatically assigns a flattened repository ID (e.g., `litert-community__MobileNet-v3-large`) as the default alias.
+
 
 Once a model is registered, **all CLI commands** (including `run`, `benchmark`,
 `compile`, `delete`, `list`) accept this `<model_ref>` directly instead of a
