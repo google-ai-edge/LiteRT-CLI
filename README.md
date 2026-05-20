@@ -6,11 +6,16 @@ including converting, quantizing, compiling, running, benchmarking and
 visualizing LiteRT (TFLite) models on various hardware (CPU / GPU / NPU) across
 platforms (desktop, mobile, or cloud).
 
-🚀 [Installation](#-installation) &nbsp;|&nbsp; ⚡ [Quick start](#-quick-start) &nbsp;|&nbsp; 💡 [Common commands](#-common-commands)
-<br>
-📓 [Try Colab](#-try-colab) &nbsp;|&nbsp; 🌟 [Quick demos](#-quick-demos) &nbsp;|&nbsp; 🤖 [Use in coding agent](#-use-in-coding-agent)
+🚀 [Installation](#-installation) | ⚡ [Quick start](#-quick-start) | 💡 [Common commands](#-common-commands) ｜
+📓 [Try Colab](#-try-colab) | 🌟 [Quick demos](#-quick-demos) | 🤖 [Use in coding agent](#-use-in-coding-agent)
 
-> [!NOTE] It's still an early preview under active development, thus has limited
+LiteRT CLI is built on top of [Google AI Edge](https://ai.google.dev/edge) stacks, including
+[LiteRT](https://github.com/google-ai-edge/LiteRT), [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM),
+[LiteRT Torch](https://github.com/google-ai-edge/LiteRT-Torch), [AI Edge Quantizer](https://github.com/google-ai-edge/ai-edge-quantizer),
+[AI Edge Portal](https://ai.google.dev/edge/ai-edge-portal), and [Model Explorer](https://ai.google.dev/edge/model-explorer).
+
+> [!NOTE]
+> It's still an early preview under active development, thus has limited
 > platform and feature support, plus possible bugs. We appreciate your patience
 > and feedback to help us improve it. Welcome issues and PRs!
 
@@ -263,7 +268,8 @@ litert quantize model.tflite \
 
 ### 4. AOT Compile a LiteRT model for NPU
 
-> [!NOTE] Currently only support on Linux hosts and Qualcomm NPUs, and other NPU
+> [!NOTE]
+> Currently only support on Linux hosts and Qualcomm NPUs, and other NPU
 > supports are coming soon!
 
 ```bash
