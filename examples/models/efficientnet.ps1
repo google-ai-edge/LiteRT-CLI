@@ -74,9 +74,9 @@ Run-Case "Quantize: EfficientNet Weight-Only INT8" {
 }
 
 # --- 3. Run Inference (Desktop & Android) ---
-# Run-Case "Run: EfficientNet FP32 on Desktop (CPU)" {
-#     litert run "$EFFICIENTNET_TFLITE" --desktop --cpu --iterations 1
-# }
+Run-Case "Run: EfficientNet FP32 on Desktop (CPU)" {
+    litert run "$EFFICIENTNET_TFLITE" --desktop --cpu --iterations 1
+}
 
 if (Has-DesktopGpu "$EFFICIENTNET_TFLITE") {
     Run-Case "Run: EfficientNet FP32 on Desktop (GPU)" {
@@ -87,9 +87,9 @@ if (Has-DesktopGpu "$EFFICIENTNET_TFLITE") {
     Write-Host "${YELLOW}Desktop GPU delegate is not supported. Skipping Desktop GPU run.${NC}"
 }
 
-# Run-Case "Run: EfficientNet Dynamic INT8 on Desktop (CPU)" {
-#     litert run "$MODEL_DIR/efficientnet/efficientnet_b1_int8_dynamic.tflite" --desktop --cpu --iterations 1
-# }
+Run-Case "Run: EfficientNet Dynamic INT8 on Desktop (CPU)" {
+    litert run "$MODEL_DIR/efficientnet/efficientnet_b1_int8_dynamic.tflite" --desktop --cpu --iterations 1
+}
 
 if (Has-AndroidDevice) {
     Write-Host ""

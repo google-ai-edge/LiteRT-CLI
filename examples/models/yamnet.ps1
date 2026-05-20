@@ -73,9 +73,9 @@ Run-Case "Quantize: YamNet Weight-Only INT8" {
 }
 
 # --- 3. Run Inference (Desktop & Android) ---
-# Run-Case "Run: YamNet FP32 on Desktop (CPU)" {
-#     litert run "$YAMNET_TFLITE" --desktop --cpu --iterations 1
-# }
+Run-Case "Run: YamNet FP32 on Desktop (CPU)" {
+    litert run "$YAMNET_TFLITE" --desktop --cpu --iterations 1
+}
 
 if (Has-DesktopGpu "$YAMNET_TFLITE") {
     Run-Case "Run: YamNet FP32 on Desktop (GPU)" {
@@ -86,9 +86,9 @@ if (Has-DesktopGpu "$YAMNET_TFLITE") {
     Write-Host "${YELLOW}Desktop GPU delegate is not supported. Skipping Desktop GPU run.${NC}"
 }
 
-# Run-Case "Run: YamNet Dynamic INT8 on Desktop (CPU)" {
-#     litert run "$MODEL_DIR/yamnet/yamnet_int8_dynamic.tflite" --desktop --cpu --iterations 1
-# }
+Run-Case "Run: YamNet Dynamic INT8 on Desktop (CPU)" {
+    litert run "$MODEL_DIR/yamnet/yamnet_int8_dynamic.tflite" --desktop --cpu --iterations 1
+}
 
 if (Has-AndroidDevice) {
     Write-Host ""
