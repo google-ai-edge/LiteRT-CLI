@@ -16,39 +16,45 @@ Before running any `litert` commands, you must ensure a Python virtual environme
 ### Option 1: Install from Local Clone (Editable Mode)
 Use this method if you are developing inside the cloned repository clone:
 
-*   **Using `uv` (Recommended - Super Fast)**:
-    ```bash
-    # Create a venv with seed packages (critical for dynamic deps.py auto-installers)
-    uv venv --clear --python=3.13 --seed
-    source .venv/bin/activate
+#### Using `uv` (Recommended - Super Fast)
 
-    # Install local clone
-    uv pip install -e .
-    ```
-*   **Using standard venv & pip**:
-    ```bash
-    python3 -m venv .venv
-    source .venv/bin/activate
-    pip install --upgrade pip setuptools wheel
-    pip install -e .
-    ```
+```bash
+# Create a venv with seed packages (critical for dynamic deps.py auto-installers)
+uv venv --clear --python=3.13 --seed
+source .venv/bin/activate
+
+# Install local clone
+uv pip install -e .
+```
+
+#### Using standard venv & pip
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip setuptools wheel
+pip install -e .
+```
 
 ### Option 2: Install Standalone from PyPI (Nightly)
 Use this method if you are installing the published package:
 
-*   **Using `uv`**:
-    ```bash
-    uv venv --clear --python=3.13 --seed
-    source .venv/bin/activate
-    uv pip install litert-cli-nightly
-    ```
-*   **Using standard venv & pip**:
-    ```bash
-    python3 -m venv .venv
-    source .venv/bin/activate
-    pip install --upgrade pip setuptools wheel
-    pip install litert-cli-nightly
-    ```
+#### Using `uv`
+
+```bash
+uv venv --clear --python=3.13 --seed
+source .venv/bin/activate
+uv pip install litert-cli-nightly
+```
+
+#### Using standard venv & pip
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip setuptools wheel
+pip install litert-cli-nightly
+```
 
 > [!TIP]
 > If you encounter package resolution or network errors with `uv`, set the standard PyPI index URL first: `export UV_INDEX_URL=https://pypi.org/simple`
