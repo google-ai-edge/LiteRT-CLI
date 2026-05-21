@@ -186,7 +186,8 @@ Verified in Python 3.13.
     try to run `adb kill-server` first.
 *   When convert a traditional PyTorch model, you need to write a script to wrap
     it with required functions `get_model` and `get_args`. Check the script
-    format in `examples/convert_model.py`.
+    format in
+    [resnet18.py](https://github.com/google-ai-edge/LiteRT-CLI/blob/main/litert_cli/test_data/resnet18.py).
 *   LLM conversion only supports HuggingFace models with type
     AutoModelForCausalLM and
 *   Gemma family now.
