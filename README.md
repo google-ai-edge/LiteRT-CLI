@@ -26,6 +26,15 @@ stacks, including [LiteRT](https://github.com/google-ai-edge/LiteRT),
 
 --------------------------------------------------------------------------------
 
+## ⚙️ Build Status
+
+Build Type                 |    Status     |
+-----------                | --------------|
+Unit Tests (Linux, macOS)  | [![](https://github.com/google-ai-edge/LiteRT-CLI/actions/workflows/nightly_unittests.yml/badge.svg?branch=main)](https://github.com/google-ai-edge/LiteRT-CLI/actions/workflows/nightly_unittests.yml) |
+Nightly Release            | [![](https://github.com/google-ai-edge/LiteRT-CLI/actions/workflows/nightly_release.yml/badge.svg?branch=main)](https://github.com/google-ai-edge/LiteRT-CLI/actions/workflows/nightly_release.yml) |
+
+--------------------------------------------------------------------------------
+
 ## 🚀 Installation
 
 Please install `litert-cli-nightly` from PyPI or from local clone. LiteRT CLI
