@@ -199,7 +199,8 @@ def run_gcp(
   click.echo("Fetching GCP access token...")
   try:
     token = subprocess.check_output(
-        ["gcloud", "auth", "print-access-token"], text=True
+        ["gcloud", "auth", "application-default", "print-access-token"],
+        text=True,
     ).strip()
   except subprocess.CalledProcessError as e:
     click.secho(
