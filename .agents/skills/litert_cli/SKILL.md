@@ -11,9 +11,11 @@ Cloud.
 
 ## Setup & Prerequisites (Agent Auto-Setup Guide)
 
-Before running any `litert` commands, you must ensure a Python virtual environment is active and the `litert-cli` package is correctly installed.
+Before running any `litert` commands, you must ensure a Python virtual
+environment is active and the `litert-cli` package is correctly installed.
 
 ### Option 1: Install from Local Clone (Editable Mode)
+
 Use this method if you are developing inside the cloned repository clone:
 
 #### Using `uv` (Recommended - Super Fast)
@@ -57,20 +59,26 @@ pip install --upgrade pip setuptools wheel
 pip install litert-cli-nightly
 ```
 
-> [!TIP] If you encounter package resolution or network errors with `uv`, set
-> the standard PyPI index URL first: `export
-> UV_INDEX_URL=https://pypi.org/simple`
+> [!TIP]
+>
+> If you encounter package resolution or network errors with `uv`, set the
+> standard PyPI index URL first: `export UV_INDEX_URL=https://pypi.org/simple`
 
 ## Core Commands
 
 ### 💡 The Model Reference (`model-ref`) System
 
-To avoid handling complex and fragile absolute filesystem paths, the LiteRT CLI uses a centralized **Model Reference (`model-ref`)** catalog.
+To avoid handling complex and fragile absolute filesystem paths, the LiteRT CLI
+uses a centralized **Model Reference (`model-ref`)** catalog.
 
-When you download or import a model to the centralized cache, you can assign it a reference alias (and optional sub-references):
+When you download or import a model to the centralized cache, you can assign it
+a reference alias (and optional sub-references):
 
-*   **Format**: `<alias_name>` or `<alias_name>:<sub_reference>` (e.g., `mobilenet`, `resnet18:gpu`, `efficientnet:int8`).
-*   **Default alias**: For HuggingFace downloads, if `--model-ref` is omitted, the CLI automatically assigns a flattened repository ID (e.g., `litert-community__MobileNet-v3-large`) as the default alias.
+*   **Format**: `<alias_name>` or `<alias_name>:<sub_reference>` (e.g.,
+    `mobilenet`, `resnet18:gpu`, `efficientnet:int8`).
+*   **Default alias**: For HuggingFace downloads, if `--model-ref` is omitted,
+    the CLI automatically assigns a flattened repository ID (e.g.,
+    `litert-community__MobileNet-v3-large`) as the default alias.
 
 Once a model is registered, **all CLI commands** (including `run`, `benchmark`,
 `compile`, `delete`, `list`) accept this `<model_ref>` directly instead of a
@@ -108,8 +116,10 @@ litert download litert-community/MobileNet-v3-large --file "*.tflite" --output .
 litert download litert-community/MobileNet-v3-large --model-ref my_model_ref
 ```
 
-> [!NOTE] If `--output` is omitted during HuggingFace downloads, the model is
-> downloaded to `~/.cache/litert-cli/models/` and cataloged automatically via
+> [!NOTE]
+>
+> If `--output` is omitted during HuggingFace downloads, the model is downloaded
+> to `~/.cache/litert-cli/models/` and cataloged automatically via
 > `metadata.json` (associating it with the repo ID as the `model-ref`). If
 > `--output` is provided, it is treated as a standalone folder and is **not**
 > cataloged.
@@ -129,18 +139,24 @@ litert convert Qwen/Qwen1.5-0.5B-Chat --quantize-recipe weight_only_wi8_afp32 --
 litert convert my_model.py --quantize-recipe dynamic_wi8_afp32 --output /tmp/mymodel
 ```
 
-> [!NOTE] **Custom Python Script Interface (`my_model.py`):** To convert from a
-> custom Python script, the file must expose functions to return the
-> instantiated PyTorch model and generate sample inputs for tracer graph
-> execution: * `--model-func`: Function name returning the model
-> (`torch.nn.Module`). Default: `get_model`. * `--input-func`: Function name
-> returning sample trace inputs (tuple/dict). Default: `get_args`.
+> [!NOTE]
+>
+> **Custom Python Script Interface (`my_model.py`):** To convert from a custom
+> Python script, the file must expose functions to return the instantiated
+> PyTorch model and generate sample inputs for tracer graph execution: *
+> `--model-func`: Function name returning the model (`torch.nn.Module`).
+> Default: `get_model`. * `--input-func`: Function name returning sample trace
+> inputs (tuple/dict). Default: `get_args`.
 
-**Minimal Script Example:** ```python import torch
+**Minimal Script Example:**
+
+```python
+import torch
 
 def get_model() -> torch.nn.Module: return MyPyTorchModel()
 
-def get_args() -> tuple: return (torch.randn(1, 3, 224, 224),) ```
+def get_args() -> tuple: return (torch.randn(1, 3, 224, 224),)
+```
 
 ### 3. Quantize
 
@@ -162,10 +178,13 @@ litert quantize model.tflite --custom-recipe recipe.json --output recipe.tflite
 
 ### 4. Compile (NPU Offline AOT Compilation)
 
-Apply Ahead-of-Time (AOT) offline compilation to a standard TFLite model for edge SoC target NPUs.
+Apply Ahead-of-Time (AOT) offline compilation to a standard TFLite model for
+edge SoC target NPUs.
 
-> [!NOTE] Currently only supported on Linux hosts for Qualcomm targets. Other
-> targets are coming soon!
+> [!NOTE]
+>
+> Currently only supported on Linux hosts for Qualcomm targets. Other targets
+> are coming soon!
 
 ```bash
 # Basic offline compile for Qualcomm sm8750 NPU
@@ -182,8 +201,9 @@ litert compile --update-targets main
 
 Run a TFLite model locally on desktop or on an adb-connected Android device.
 
-**Desktop Execution:** ```bash
+**Desktop Execution:**
 
+```bash
 # Run locally on desktop (CPU)
 
 litert run model.tflite --desktop --cpu
@@ -194,12 +214,15 @@ litert run my_model_ref --desktop --cpu
 
 # Enable GPU acceleration with CPU fallback (multi-accelerator)
 
-litert run model.tflite --desktop --accelerator gpu,cpu ```* Output logs are
-**clean by default**. To enable C++ verbose debug logs, set the environment
-variable:`export LITERT_VERBOSE=1`.
+litert run model.tflite --desktop --accelerator gpu,cpu
+```
 
-**Android Execution (CPU, GPU, or NPU):** ```bash
+*   Output logs are **clean by default**. To enable C++ verbose debug logs, set
+    the environment variable:`export LITERT_VERBOSE=1`.
 
+**Android Execution (CPU, GPU, or NPU):**
+
+```bash
 # Run on connected Android device (CPU side)
 
 litert run model.tflite --android --cpu
@@ -210,14 +233,21 @@ litert run model.tflite --android --accelerator gpu,cpu
 
 # Enable NPU acceleration with CPU fallback (JIT compilation mode)
 
-litert run standard_model.tflite --android --accelerator npu,cpu ``* **NPU
-Ahead-Of-Time (AOT) execution mode**: Pass an already NPU-compiled TFLite model
-(compiled offline via `litert compile`). The on-device runtime loads the
-compiled binary block directly, avoiding graph-compilation warmup
-overhead:``bash litert run resnet18_compiled_sm8750.tflite --android --npu ```
+litert run standard_model.tflite --android --accelerator npu,cpu
+```
 
-**Custom Inputs and Formats:** ```bash
+*   **NPU Ahead-Of-Time (AOT) execution mode**: Pass an already NPU-compiled
+    TFLite model (compiled offline via `litert compile`). The on-device runtime
+    loads the compiled binary block directly, avoiding graph-compilation warmup
+    overhead:
 
+```bash
+litert run resnet18_compiled_sm8750.tflite --android --npu
+```
+
+**Custom Inputs and Formats:**
+
+```bash
 # Run multiple iterations and print output tensors
 litert run model.tflite --iterations 5 --print-tensors
 
@@ -227,7 +257,8 @@ litert run model.tflite --desktop --input inputs="[0.5, 0.5, 0.5]"
 
 # Multi-Input Formats using files (numpy arrays, raw binaries, or images)
 
-litert run model.tflite --desktop --input "image.png" --print-tensors ```
+litert run model.tflite --desktop --input "image.png" --print-tensors
+```
 
 ### 6. Benchmark
 
@@ -258,12 +289,15 @@ litert benchmark model.tflite --gcp --device "pixel 7" --gcp-project "your-gcp-p
 
 ### 7. Large Language Models (LM)
 
-Interact with LLM generative models (like Qwen 1.5 or Gemma 4) using native `litert-lm` utilities.
+Interact with LLM generative models (like Qwen 1.5 or Gemma 4) using native
+`litert-lm` utilities.
 
-> [!TIP] **Non-interactive / Background Execution:** When running LLM inferences
-> in scripts or background tasks, the process will block waiting for chat
-> prompts on `stdin`. To prevent hanging, **always redirect stdin from
-> `/dev/null`** (i.e. append `< /dev/null` to the end of command).
+> [!TIP]
+>
+> **Non-interactive / Background Execution:** When running LLM inferences in
+> scripts or background tasks, the process will block waiting for chat prompts
+> on `stdin`. To prevent hanging, **always redirect stdin from `/dev/null`**
+> (i.e. append `< /dev/null` to the end of command).
 
 ```bash
 # Run a generative model loading from Hugging Face
@@ -335,22 +369,35 @@ litert clean
 Agents should run tests after modifying code to ensure no regressions.
 
 To run unit tests locally:
+
 ```bash
 python litert_cli/litert_test.py
 python litert_cli/litert_help_test.py
 ```
 
-To run comprehensive end-to-end regression tests: `bash
+To run comprehensive end-to-end regression tests:
+
+```bash
 ./examples/run_smoke_tests.sh ./examples/run_commands.sh
-./examples/run_models.sh`
+./examples/run_models.sh
+```
 
 ## Best Practices for Agents
 
 *   Pipe outputs to text files or grep them if you are looking for specific
     tensor shapes or runtime metrics.
-*   **Avoid hanging background processes**: When executing the `litert lm run` command in a script or in the background, **always** append `< /dev/null` to redirect standard input. Otherwise, the process will block indefinitely waiting on stdin.
-*   **Explore Demos**: Refer to the `examples/` directory to explore comprehensive per-command demos (under `examples/commands/`) and model-specific demos (under `examples/models/`) for complete automation patterns.
-*   **Read Troubleshooting Guides**: Refer to the main project `README.md` file's **Troubleshooting & Tips** section for platform-specific environmental setup guides, adb port recoveries, and NPU offline compiler clang version requirements.
+*   **Avoid hanging background processes**: When executing the `litert lm run`
+    command in a script or in the background, **always** append `< /dev/null` to
+    redirect standard input. Otherwise, the process will block indefinitely
+    waiting on stdin.
+*   **Explore Demos**: Refer to the `examples/` directory to explore
+    comprehensive per-command demos (under `examples/commands/`) and
+    model-specific demos (under `examples/models/`) for complete automation
+    patterns.
+*   **Read Troubleshooting Guides**: Refer to the main project `README.md`
+    file's **Troubleshooting & Tips** section for platform-specific
+    environmental setup guides, adb port recoveries, and NPU offline compiler
+    clang version requirements.
 
 ## 🤖 Example Agent Prompts
 
@@ -358,7 +405,8 @@ These prompts demonstrate how developers can leverage this skill. You can copy
 and use them directly in your agent queries:
 
 *   "Download LiteRT model `litert-community/efficientnet_b1` and run it on CPU"
-*   "Benchmark LiteRT model `litert-community/efficientnet_b1` on my Android GPU"
+*   "Benchmark LiteRT model `litert-community/efficientnet_b1` on my Android
+    GPU"
 *   "Compile LiteRT model `litert-community/efficientnet_b1` for NPU target
     `sm8750`"
 *   "Visualize LiteRT model `litert-community/efficientnet_b1`"
