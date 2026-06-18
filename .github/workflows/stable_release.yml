@@ -24,6 +24,12 @@ name: Python Package Build and Release (stable)
 
 on:
   workflow_dispatch:  # Allow manual triggers for stable releases
+    inputs:
+      dry_run:
+        description: 'When true, wheels will not be published to PyPI.'
+        required: true
+        default: true
+        type: boolean
 
 jobs:
   build-stable:
@@ -83,6 +89,7 @@ jobs:
   publish-stable:
     name: Publish to PyPI
     needs: test-before-publish
+    if: success() && inputs.dry_run == false
     runs-on: ubuntu-latest
     steps:
       - name: Download Stable Wheel
