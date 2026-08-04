@@ -112,6 +112,19 @@ function setup_test_env() {
     fi
   fi
 
+  # Ensure libunwind.so.1 compatibility on Linux for Qualcomm compiler plugin
+  if [[ "$(uname)" == "Linux" ]]; then
+    local plugin_dir
+    plugin_dir="$(find "$test_root/.venv" -type d -path "*/vendors/qualcomm/compiler" 2>/dev/null | head -n 1 || true)"
+    if [ -n "$plugin_dir" ] && [ ! -f "$plugin_dir/libunwind.so.1" ]; then
+      local sys_unwind
+      sys_unwind="$(find /usr/lib /lib /usr/local/lib -name "libunwind*.so*" 2>/dev/null | head -n 1 || true)"
+      if [ -n "$sys_unwind" ]; then
+        ln -sf "$sys_unwind" "$plugin_dir/libunwind.so.1"
+      fi
+    fi
+  fi
+
   export MODEL_DIR="$test_root/models"
   export MODELS_CACHE="$test_root/models"
   mkdir -p "$MODEL_DIR"
