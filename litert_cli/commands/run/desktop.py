@@ -72,7 +72,9 @@ def _load_label_file(path_str: str) -> dict[int, str] | list[str] | None:
       with open(p, "r", encoding="utf-8") as f:
         data = json.load(f)
       if isinstance(data, dict):
-        return {int(k) if str(k).isdigit() else k: str(v) for k, v in data.items()}
+        return {
+            int(k) if str(k).isdigit() else k: str(v) for k, v in data.items()
+        }
       elif isinstance(data, list):
         return [str(x) for x in data]
     else:
@@ -92,14 +94,17 @@ def _resolve_labels(
 
   1. Explicit --labels option.
   2. Model directory for labels.txt or labels.json.
-  3. Automatic download of ImageNet-1k labels from HuggingFace if num_classes is 1000/1001.
+  3. Automatic download of ImageNet-1k labels from HuggingFace if num_classes is
+  1000/1001.
   """
   if labels_option:
     lbls = _load_label_file(labels_option)
     if lbls:
       return lbls
 
-  model_dir = pathlib.Path(model_path).parent if model_path else pathlib.Path(".")
+  model_dir = (
+      pathlib.Path(model_path).parent if model_path else pathlib.Path(".")
+  )
   for candidate_name in ["labels.txt", "labels.json", "imagenet_labels.txt"]:
     candidate_path = model_dir / candidate_name
     lbls = _load_label_file(str(candidate_path))
@@ -109,6 +114,7 @@ def _resolve_labels(
   if num_classes in (1000, 1001):
     try:
       from huggingface_hub import hf_hub_download
+
       json_path = hf_hub_download(
           repo_id="huggingface/label-files",
           filename="imagenet-1k-id2label.json",
@@ -283,7 +289,9 @@ def _print_outputs(
                 lbl = labels[idx]
               if lbl:
                 label_str = f" ({lbl})"
-            click.echo(f"    {i+1}: index {idx}{label_str} - score {scores[idx]:.4f}")
+            click.echo(
+                f"    {i+1}: index {idx}{label_str} - score {scores[idx]:.4f}"
+            )
         else:
           click.echo(
               f"  {out_name}: mean={np.mean(out_np):.4f},"
