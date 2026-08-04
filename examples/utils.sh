@@ -118,7 +118,7 @@ function setup_test_env() {
 
   export TEST_DATA_DIR="$REPO_ROOT/litert_cli/test_data"
   # Symlink test data directly into workspace for clean command syntax
-  ln -sf "$TEST_DATA_DIR/"* .
+  ln -sf "$TEST_DATA_DIR/"* "$test_root/"
 }
 
 
