@@ -20,7 +20,7 @@ import numpy as np
 
 def get_calibration_data():
   dataset = [
-      {"args_0": np.random.rand(1, 224, 224, 3).astype(np.float32)}
+      {"args_0": np.random.rand(1, 3, 224, 224).astype(np.float32)}
       for _ in range(5)
   ]
   return {None: dataset}
