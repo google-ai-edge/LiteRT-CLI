@@ -34,7 +34,12 @@ run_case "Run converted Gemma4 model google/gemma-4-E2B-it" \
 run_case "Run Gemma4: Generative inference with custom prompt" \
     litert lm run --from-huggingface-repo=litert-community/gemma-4-E2B-it-litert-lm gemma-4-E2B-it.litertlm --prompt="What is the capital of France?"
 
-# --- 3. Benchmark Gemma4 LLM Model ---
+# --- 3. Run Gemma4 with Tool Calling Preset ---
+PRESET_PATH="${REPO_ROOT}/examples/models/presets/tool_calling_demo.py"
+run_case "Run Gemma4: Tool calling with python preset" \
+    litert lm run --from-huggingface-repo=litert-community/gemma-4-E2B-it-litert-lm gemma-4-E2B-it.litertlm --preset "$PRESET_PATH" --prompt="What is the weather in Tokyo?"
+
+# --- 4. Benchmark Gemma4 LLM Model ---
 run_case "Benchmark Gemma4: Local benchmark of LLM generation" \
     litert lm benchmark gemma-4-E2B-it.litertlm --from-huggingface-repo=litert-community/gemma-4-E2B-it-litert-lm -p 128 -d 128
 

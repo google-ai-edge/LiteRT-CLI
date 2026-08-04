@@ -42,6 +42,7 @@ default.profraw
 # LiteRT-CLI specific
 test_env/
 test_env_2/
+/models/
 qairt_sdk.zip
 litert_npu_runtime_libraries/
 google_tensor_runtime/

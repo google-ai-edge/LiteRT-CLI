@@ -45,6 +45,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 import contextlib
+import json
+import pathlib
 import time
 from typing import Any, TYPE_CHECKING
 
@@ -58,6 +60,65 @@ if TYPE_CHECKING:
   # Import heavy dependencies only for type hinting to improve CLI startup
   # performance. These are not imported at runtime.
   from ai_edge_litert.compiled_model import CompiledModel  # pylint: disable=g-import-not-at-top
+
+
+def _load_label_file(path_str: str) -> dict[int, str] | list[str] | None:
+  """Loads labels from a text or json file."""
+  try:
+    p = pathlib.Path(path_str)
+    if not p.exists():
+      return None
+    if p.suffix.lower() == ".json":
+      with open(p, "r", encoding="utf-8") as f:
+        data = json.load(f)
+      if isinstance(data, dict):
+        return {int(k) if str(k).isdigit() else k: str(v) for k, v in data.items()}
+      elif isinstance(data, list):
+        return [str(x) for x in data]
+    else:
+      with open(p, "r", encoding="utf-8") as f:
+        lines = [line.strip() for line in f if line.strip()]
+      return lines
+  except Exception:
+    return None
+
+
+def _resolve_labels(
+    model_path: str,
+    labels_option: str | None,
+    num_classes: int,
+) -> dict[int, str] | list[str] | None:
+  """Resolves label map following 3-stage priority.
+
+  1. Explicit --labels option.
+  2. Model directory for labels.txt or labels.json.
+  3. Automatic download of ImageNet-1k labels from HuggingFace if num_classes is 1000/1001.
+  """
+  if labels_option:
+    lbls = _load_label_file(labels_option)
+    if lbls:
+      return lbls
+
+  model_dir = pathlib.Path(model_path).parent if model_path else pathlib.Path(".")
+  for candidate_name in ["labels.txt", "labels.json", "imagenet_labels.txt"]:
+    candidate_path = model_dir / candidate_name
+    lbls = _load_label_file(str(candidate_path))
+    if lbls:
+      return lbls
+
+  if num_classes in (1000, 1001):
+    try:
+      from huggingface_hub import hf_hub_download
+      json_path = hf_hub_download(
+          repo_id="huggingface/label-files",
+          filename="imagenet-1k-id2label.json",
+          repo_type="dataset",
+      )
+      return _load_label_file(json_path)
+    except Exception:
+      pass
+
+  return None
 
 
 def _parse_inputs_dict(inputs: Sequence[str]) -> dict[str, str]:
@@ -152,6 +213,8 @@ def _print_outputs(
     print_tensors: bool,
     sample_size: int,
     output_details: Mapping[str, Any],
+    model_path: str = "",
+    labels_option: str | None = None,
 ) -> None:
   """Print inference outputs to stdout.
 
@@ -164,14 +227,18 @@ def _print_outputs(
     print_tensors: Boolean flag to trigger full tensor stream printing.
     sample_size: Constraint on how many elements to print for large arrays.
     output_details: Dictionary mapping output names to their tensor details.
+    model_path: Path to the model file for resolving adjacent label files.
+    labels_option: Optional user-provided path to a label file.
   """
   click.echo("Outputs:")
   for out_name, out_tb in outputs_by_name.items():
     try:
-      shape = out_tb.shape if hasattr(out_tb, "shape") else []
-      num_elements = np.prod(shape) if shape else 1
-
       details = output_details.get(out_name, {})
+      shape = details.get("shape", [])
+      if not shape and hasattr(out_tb, "shape"):
+        shape = out_tb.shape
+      num_elements = int(np.prod(shape)) if shape else 1
+
       tensor_type = details.get("dtype", "?")
       np_dtype = inputs_utils.get_np_dtype(tensor_type)
 
@@ -203,9 +270,20 @@ def _print_outputs(
           n_top = min(5, len(scores))
           top_indices = np.argsort(scores)[-n_top:][::-1]
 
+          labels = _resolve_labels(model_path, labels_option, len(scores))
+
           click.echo(f"  {out_name} (Top {n_top} Predictions):")
           for i, idx in enumerate(top_indices):
-            click.echo(f"    {i+1}: index {idx} - score {scores[idx]:.4f}")
+            label_str = ""
+            if labels is not None:
+              lbl = None
+              if isinstance(labels, dict):
+                lbl = labels.get(idx) if idx in labels else labels.get(str(idx))
+              elif isinstance(labels, list) and idx < len(labels):
+                lbl = labels[idx]
+              if lbl:
+                label_str = f" ({lbl})"
+            click.echo(f"    {i+1}: index {idx}{label_str} - score {scores[idx]:.4f}")
         else:
           click.echo(
               f"  {out_name}: mean={np.mean(out_np):.4f},"
@@ -228,6 +306,7 @@ def run_desktop(
     print_tensors: bool,
     sample_size: int,
     quiet: bool = False,
+    labels: str | None = None,
 ) -> None:
   """Runs the model on the desktop target using CompiledModel.
 
@@ -328,10 +407,15 @@ def run_desktop(
         click.echo(f"  Min: {np.min(run_times):.2f} ms")
         click.echo(f"  Max: {np.max(run_times):.2f} ms")
 
-        output_details = cm.get_output_tensor_details(sig_key)
-        _print_outputs(
-            outputs_by_name, print_tensors, sample_size, output_details
-        )
+      output_details = cm.get_output_tensor_details(sig_key)
+      _print_outputs(
+          outputs_by_name,
+          print_tensors,
+          sample_size,
+          output_details,
+          model_path=model_path,
+          labels_option=labels,
+      )
 
     except Exception as e:  # pylint: disable=broad-exception-caught
       raise click.ClickException(
