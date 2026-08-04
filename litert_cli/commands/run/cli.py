@@ -170,6 +170,12 @@ from litert_cli.core import utils
     default=5,
     help="Number of sample elements to print from tensors. Default is 5.",
 )
+@click.option(
+    "--labels",
+    type=click.Path(exists=True, dir_okay=False),
+    default=None,
+    help="Path to a label file (.txt or .json) for classification output.",
+)
 @click.pass_context
 def run_cmd(
     unused_ctx: click.Context,
@@ -186,6 +192,7 @@ def run_cmd(
     iterations: int,
     print_tensors: bool,
     sample_size: int,
+    labels: str | None = None,
 ) -> None:
   r"""Runs LiteRT models locally or on device.
 
@@ -280,6 +287,7 @@ def run_cmd(
         iterations=iterations,
         print_tensors=print_tensors,
         sample_size=sample_size,
+        labels=labels,
     )
   elif target == "android":
     from litert_cli.commands.run import android  # pylint: disable=g-import-not-at-top
