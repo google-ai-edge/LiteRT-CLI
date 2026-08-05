@@ -6,9 +6,11 @@ including converting, quantizing, compiling, running, benchmarking and
 visualizing LiteRT (TFLite) models on various hardware (CPU / GPU / NPU) across
 platforms (desktop, mobile, or cloud).
 
-🚀 [Installation](#-installation) | ⚡ [Quick start](#-quick-start) | 💡
-[Common commands](#-common-commands) ｜ 📓 [Try Colab](#-try-colab) | 🌟
-[Quick demos](#-quick-demos) | 🤖 [Use in coding agent](#-use-in-coding-agent)
+🚀 [Installation](#-installation) ｜ 📓
+[Try Colab](https://github.com/google-ai-edge/LiteRT-CLI/blob/main/examples/litert_cli.ipynb)
+| ⚡ [LiteRT 101](https://codelabs.developers.google.com/codelabs/litert-cli/101)
+| ⚡ [Quick start](#-quick-start) | 💡 [Commands](#-common-commands) | 🤖
+[Coding agent](#-use-in-coding-agent)
 
 > [!NOTE]
 >
@@ -20,7 +22,7 @@ LiteRT CLI is built on top of [Google AI Edge](https://ai.google.dev/edge)
 stacks, including [LiteRT](https://github.com/google-ai-edge/LiteRT),
 [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM),
 [LiteRT Torch](https://github.com/google-ai-edge/LiteRT-Torch),
-[AI Edge Quantizer](https://github.com/google-ai-edge/ai-edge-quantizer),
+[LiteRT Quantizer](https://github.com/google-ai-edge/ai-edge-quantizer),
 [AI Edge Portal](https://ai.google.dev/edge/ai-edge-portal), and
 [Model Explorer](https://ai.google.dev/edge/model-explorer).
 
@@ -53,7 +55,7 @@ for ultra-fast dependency resolution) or standard
 ```bash
 # 1. Create a virtual environment with Python 3.13.
 # TIP: Sometimes setting env var `UV_INDEX_URL=https://pypi.org/simple` helps
-# resolve dependency resolution errors.
+# resolve dependency resolution errors, especially inside corporate networks.
 uv venv --clear --python=3.13 --seed
 source .venv/bin/activate
 
@@ -93,6 +95,12 @@ Try
 [LiteRT CLI Colab](https://github.com/google-ai-edge/LiteRT-CLI/blob/main/examples/litert_cli.ipynb)
 to explore different features quickly.
 
+### 📓 LiteRT 101
+
+[LiteRT 101](https://codelabs.developers.google.com/codelabs/litert-cli/101) is
+a hands-on tutorial that walks you through the basics of using the LiteRT CLI
+tool.
+
 ### Follow command help
 
 You can always follow `litert --help` or `litert {command} --help` to find how
@@ -114,6 +122,20 @@ litert benchmark --help
 litert benchmark efficientnet/efficientnet_b1.tflite --android --gpu
 ```
 
+### Run LLMs
+
+You can run LLMs like Gemma4-E2B, using commands like `litert lm run`, which is
+an alias to `litert-lm run`, and please follow
+[LiteRT-LM CLI](https://developers.google.com/edge/litert-lm/cli) for detailed
+instructions.
+
+```bash
+litert lm run  \
+  --from-huggingface-repo=litert-community/gemma-4-E2B-it-litert-lm \
+  gemma-4-E2B-it.litertlm \
+  --prompt="What is the capital of France?"
+```
+
 ### 🌟 Quick demos
 
 Check comprehensive usage examples under the
@@ -131,7 +153,6 @@ demos. Note: running all demos will take time and disk space.
 
 # Run all model demos
 ./examples/run_models.sh
-
 # Run a specific model demo
 ./examples/run_models.sh efficientnet
 ```
