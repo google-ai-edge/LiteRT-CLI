@@ -19,7 +19,7 @@ LiteRT CLI is built on top of [Google AI Edge](https://ai.google.dev/edge)
 stacks, including [LiteRT](https://github.com/google-ai-edge/LiteRT),
 [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM),
 [LiteRT Torch](https://github.com/google-ai-edge/LiteRT-Torch),
-[AI Edge Quantizer](https://github.com/google-ai-edge/ai-edge-quantizer),
+[LiteRT Quantizer](https://github.com/google-ai-edge/ai-edge-quantizer),
 [AI Edge Portal](https://ai.google.dev/edge/ai-edge-portal), and
 [Model Explorer](https://ai.google.dev/edge/model-explorer).
 
