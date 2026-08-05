@@ -54,10 +54,10 @@ run_case "Run SmolLM2: Sampler configuration" \
         --backend cpu
 
 # --- 4b. Run SmolLM2: Speculative decoding ---
-run_case "Run SmolLM2: Speculative decoding (Auto)" \
+run_case "Run SmolLM2: Speculative decoding (True)" \
     litert lm run "$MODEL_PATH" \
         --prompt="What is the capital of France?" \
-        --enable-speculative-decoding auto \
+        --enable-speculative-decoding true \
         --backend cpu
 
 # --- 5. Run SmolLM2 Raw Prompt ---
