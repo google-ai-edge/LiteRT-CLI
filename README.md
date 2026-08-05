@@ -204,8 +204,8 @@ Verified in Python 3.13.
     disks, and spend multiple minutes. Please make sure you have enough memory
     and disks, and be patient.
 *   `litert compile` only supports running on Linux now, and it requires newer
-    Clang has version `18.x.x` or above. Try `sudo apt install clang libc++-dev
-    libc++abi-dev`.
+    Clang version `18.x.x` or above. Try `sudo apt install clang libc++-18-dev
+    libc++abi-18-dev`.
 *   When benchmark using `--gcp` flag, you need to 1) Join the EAP program of
     [Google AI Edge Portal](https://ai.google.dev/edge/ai-edge-portal); 2) Login
     to GCP using `gcloud auth login`; 3) Set your GCP project using
