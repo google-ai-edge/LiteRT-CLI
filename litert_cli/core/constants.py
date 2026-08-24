@@ -78,6 +78,7 @@ _QAIRT_VERSION_MAP = {
     "2.1.4": "2.44.0.260225",  # Stable 2.1.4 release
     "2.1.5": "2.44.0.260225",  # Stable 2.1.5 release
     "2.1.6": "2.47.0.260601",  # Stable 2.1.6 release
+    "2.2.0": "2.47.0.260601",  # Stable 2.2.0 release
 }
 QAIRT_SDK_VERSION: str = _QAIRT_VERSION_MAP.get(
     _litert_binaries_version, "2.44.0.260225"
