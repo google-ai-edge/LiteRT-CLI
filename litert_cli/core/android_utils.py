@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 import pathlib
+import shlex
 import subprocess
 
 import click
@@ -38,6 +39,62 @@ def _construct_adb_command(command: Sequence[str], device_id: str | None) -> lis
   if device_id:
     return ["adb", "-s", device_id, *command]
   return ["adb", *command]
+
+
+def push_file_to_device(
+    local_path: str | pathlib.Path,
+    remote_path: str,
+    device_id: str | None = None,
+    label: str | None = None,
+) -> None:
+  """Pushes a local file to the Android device if not already present or size differs.
+
+  Args:
+    local_path: Path to the local file.
+    remote_path: Target path on the Android device.
+    device_id: Optional. The serial number of the target device.
+    label: Optional custom label for progress message (defaults to filename).
+
+  Raises:
+    click.ClickException: If local file is missing or adb push fails.
+  """
+  local_path = pathlib.Path(local_path)
+  if not local_path.exists():
+    raise click.ClickException(f"Local file not found: {local_path}")
+
+  local_size = local_path.stat().st_size
+  display_name = label if label else local_path.name
+
+  # Check if remote file exists and size matches
+  try:
+    check_res = subprocess.run(
+        _construct_adb_command(
+            ["shell", "stat", "-c", "%s", shlex.quote(remote_path)], device_id
+        ),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if check_res.returncode == 0 and check_res.stdout.strip().isdigit():
+      remote_size = int(check_res.stdout.strip())
+      if remote_size == local_size:
+        click.echo(f"  Skipping {display_name} (already on device)")
+        return
+  except Exception:
+    pass
+
+  click.echo(f"Pushing {display_name} to device...")
+  try:
+    subprocess.run(
+        _construct_adb_command(
+            ["push", str(local_path), remote_path], device_id
+        ),
+        check=True,
+    )
+  except subprocess.CalledProcessError as e:
+    raise click.ClickException(
+        f"Failed to push {display_name} to device at {remote_path}: {e}"
+    ) from e
 
 
 def check_adb(device_id: str | None = None) -> None:

@@ -83,51 +83,22 @@ def run_android(
     lib_compiler = android_utils.find_npu_compiler_plugin_lib(soc_vendor, abi)
 
     remote_lib_dispatch = f"{cli_android_root}/{lib_dispatch.name}"
-    if (
-        subprocess.run(
-            ["adb", "shell", f"[ -f {remote_lib_dispatch} ]"], check=False
-        ).returncode
-        == 0
-    ):
-      click.echo(f"  Skipping {lib_dispatch.name} (already on device)")
-    else:
-      click.echo(f"Pushing {lib_dispatch.name} to device...")
-      subprocess.run(
-          ["adb", "push", str(lib_dispatch), remote_lib_dispatch], check=True
-      )
+    android_utils.push_file_to_device(lib_dispatch, remote_lib_dispatch)
 
     remote_lib_compiler = f"{cli_android_root}/{lib_compiler.name}"
-    if (
-        subprocess.run(
-            ["adb", "shell", f"[ -f {remote_lib_compiler} ]"], check=False
-        ).returncode
-        == 0
-    ):
-      click.echo(f"  Skipping {lib_compiler.name} (already on device)")
-    else:
-      click.echo(f"Pushing {lib_compiler.name} to device...")
-      subprocess.run(
-          ["adb", "push", str(lib_compiler), remote_lib_compiler], check=True
-      )
+    android_utils.push_file_to_device(lib_compiler, remote_lib_compiler)
 
-  click.echo(f"Pushing model {model_name} to device...")
   subprocess.run(["adb", "shell", "mkdir", "-p", cli_android_root], check=True)
-  subprocess.run(
-      ["adb", "push", str(model_path), remote_model_path], check=True
+  android_utils.push_file_to_device(
+      model_path, remote_model_path, label=f"model {model_name}"
   )
 
-  click.echo("Pushing benchmark_model to device...")
-  subprocess.run(
-      [
-          "adb",
-          "push",
-          str(benchmark_model_bin),
-          f"{cli_android_root}/benchmark_model",
-      ],
-      check=True,
+  remote_benchmark_model_path = f"{cli_android_root}/benchmark_model"
+  android_utils.push_file_to_device(
+      benchmark_model_bin, remote_benchmark_model_path
   )
   subprocess.run(
-      ["adb", "shell", "chmod", "+x", f"{cli_android_root}/benchmark_model"],
+      ["adb", "shell", "chmod", "+x", remote_benchmark_model_path],
       check=True,
   )
 

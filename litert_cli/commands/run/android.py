@@ -221,50 +221,19 @@ def run_android(
   lib_clgl = android_utils.find_android_lib("libLiteRtClGlAccelerator.so", abi)
 
   # Push model file and runner binary to Android device
-  click.echo(f"Pushing model {model_name} to device...")
-  subprocess.run(["adb", "push", model_path, remote_model_path], check=True)
+  android_utils.push_file_to_device(
+      model_path, remote_model_path, label=f"model {model_name}"
+  )
 
   remote_run_model_path = f"{android_root}/run_model"
-  if (
-      subprocess.run(
-          ["adb", "shell", f"[ -f {shlex.quote(remote_run_model_path)} ]"],
-          check=False,
-      ).returncode
-      == 0
-  ):
-    click.echo("  Skipping run_model (already on device)")
-  else:
-    click.echo("Pushing run_model to device...")
-    subprocess.run(
-        ["adb", "push", run_model_bin, remote_run_model_path], check=True
-    )
+  android_utils.push_file_to_device(run_model_bin, remote_run_model_path)
 
   # Push libraries to default path
   remote_lib_litert = f"{android_root}/{lib_litert.name}"
-  if (
-      subprocess.run(
-          ["adb", "shell", f"[ -f {shlex.quote(remote_lib_litert)} ]"],
-          check=False,
-      ).returncode
-      == 0
-  ):
-    click.echo(f"  Skipping {lib_litert.name} (already on device)")
-  else:
-    click.echo(f"Pushing {lib_litert.name} to device...")
-    subprocess.run(["adb", "push", lib_litert, remote_lib_litert], check=True)
+  android_utils.push_file_to_device(lib_litert, remote_lib_litert)
 
   remote_lib_clgl = f"{android_root}/{lib_clgl.name}"
-  if (
-      subprocess.run(
-          ["adb", "shell", f"[ -f {shlex.quote(remote_lib_clgl)} ]"],
-          check=False,
-      ).returncode
-      == 0
-  ):
-    click.echo(f"  Skipping {lib_clgl.name} (already on device)")
-  else:
-    click.echo(f"Pushing {lib_clgl.name} to device...")
-    subprocess.run(["adb", "push", lib_clgl, remote_lib_clgl], check=True)
+  android_utils.push_file_to_device(lib_clgl, remote_lib_clgl)
 
   remote_input_dir = _prepare_inputs_on_device(
       model_path=pathlib.Path(model_path),
@@ -288,34 +257,10 @@ def run_android(
     lib_compiler = android_utils.find_npu_compiler_plugin_lib(soc_vendor, abi)
 
     remote_lib_dispatch = f"{android_root}/{lib_dispatch.name}"
-    if (
-        subprocess.run(
-            ["adb", "shell", f"[ -f {shlex.quote(remote_lib_dispatch)} ]"],
-            check=False,
-        ).returncode
-        == 0
-    ):
-      click.echo(f"  Skipping {lib_dispatch.name} (already on device)")
-    else:
-      click.echo(f"Pushing {lib_dispatch.name} to device...")
-      subprocess.run(
-          ["adb", "push", lib_dispatch, remote_lib_dispatch], check=True
-      )
+    android_utils.push_file_to_device(lib_dispatch, remote_lib_dispatch)
 
     remote_lib_compiler = f"{android_root}/{lib_compiler.name}"
-    if (
-        subprocess.run(
-            ["adb", "shell", f"[ -f {shlex.quote(remote_lib_compiler)} ]"],
-            check=False,
-        ).returncode
-        == 0
-    ):
-      click.echo(f"  Skipping {lib_compiler.name} (already on device)")
-    else:
-      click.echo(f"Pushing {lib_compiler.name} to device...")
-      subprocess.run(
-          ["adb", "push", lib_compiler, remote_lib_compiler], check=True
-      )
+    android_utils.push_file_to_device(lib_compiler, remote_lib_compiler)
 
   click.echo("Executing on device...\n")
 
@@ -382,13 +327,10 @@ def run_android(
   except Exception as e:
     raise click.ClickException(f"Failed to execute on device: {e}")
   finally:
-    # Cleanup remote paths
-    click.echo("Clearing remote files...")
-    cleanup_cmds = [
-        f"rm -f {shlex.quote(remote_model_path)}"
-        f" {shlex.quote(remote_run_model_path)}"
-    ]
+    # Cleanup remote input paths if created
     if remote_input_dir:
-      cleanup_cmds.append(f"rm -rf {shlex.quote(remote_input_dir)}")
-    cleanup_cmd = " && ".join(cleanup_cmds)
-    subprocess.run(["adb", "shell", cleanup_cmd], check=False)
+      click.echo("Clearing remote input files...")
+      subprocess.run(
+          ["adb", "shell", f"rm -rf {shlex.quote(remote_input_dir)}"],
+          check=False,
+      )

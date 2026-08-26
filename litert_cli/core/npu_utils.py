@@ -22,6 +22,7 @@ import subprocess
 import zipfile
 
 import click
+from litert_cli.core import android_utils
 from litert_cli.core import constants
 import requests
 
@@ -338,16 +339,8 @@ def push_npu_runtime_libraries(
 
   for local_file in libs_to_push:
     remote_file_path = f"{android_root}/{local_file.name}"
-    # Check if the file already exists on the device using adb shell test.
-    check_cmd = adb_cmd + ["shell", "test", "-f", remote_file_path]
-    if subprocess.run(check_cmd, check=False).returncode == 0:
-      click.echo(f"  Skipping {local_file.name} (already on device)")
-      continue
-
-    subprocess.run(
-        adb_cmd + ["push", str(local_file), remote_file_path],
-        check=True,
-        stdout=subprocess.DEVNULL,
+    android_utils.push_file_to_device(
+        local_file, remote_file_path, device_id=device_id
     )
 
   return android_root

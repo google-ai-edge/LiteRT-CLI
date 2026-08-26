@@ -232,5 +232,114 @@ class FindNpuDispatchLibTest(absltest.TestCase):
       android_utils.find_npu_dispatch_lib("unknown_vendor", "arm64-v8a")
 
 
+class PushFileToDeviceTest(absltest.TestCase):
+
+  def setUp(self):
+    super().setUp()
+    self.temp_dir = pathlib.Path(self.create_tempdir().full_path)
+    self.local_file = self.temp_dir / "test_model.tflite"
+    self.local_file.write_bytes(b"dummy_bytes_12345")
+
+  @mock.patch("subprocess.run", autospec=True)
+  @mock.patch("click.echo", autospec=True)
+  def test_push_file_to_device_skips_when_size_matches(
+      self, mock_echo: mock.MagicMock, mock_run: mock.MagicMock
+  ) -> None:
+    mock_run.return_value = mock.MagicMock(
+        returncode=0, stdout=str(len(b"dummy_bytes_12345"))
+    )
+    android_utils.push_file_to_device(
+        self.local_file, "/data/local/tmp/test_model.tflite"
+    )
+    mock_run.assert_called_once_with(
+        [
+            "adb",
+            "shell",
+            "stat",
+            "-c",
+            "%s",
+            "/data/local/tmp/test_model.tflite",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    mock_echo.assert_called_once_with(
+        "  Skipping test_model.tflite (already on device)",
+    )
+
+  @mock.patch("subprocess.run", autospec=True)
+  @mock.patch("click.echo", autospec=True)
+  def test_push_file_to_device_pushes_when_remote_missing(
+      self, mock_echo: mock.MagicMock, mock_run: mock.MagicMock
+  ) -> None:
+    mock_run.side_effect = [
+        mock.MagicMock(returncode=1, stdout=""),
+        mock.MagicMock(returncode=0),
+    ]
+    android_utils.push_file_to_device(
+        self.local_file,
+        "/data/local/tmp/test_model.tflite",
+        device_id="device123",
+        label="model test_model.tflite",
+    )
+    self.assertEqual(mock_run.call_count, 2)
+    mock_run.assert_has_calls([
+        mock.call(
+            [
+                "adb",
+                "-s",
+                "device123",
+                "shell",
+                "stat",
+                "-c",
+                "%s",
+                "/data/local/tmp/test_model.tflite",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        ),
+        mock.call(
+            [
+                "adb",
+                "-s",
+                "device123",
+                "push",
+                str(self.local_file),
+                "/data/local/tmp/test_model.tflite",
+            ],
+            check=True,
+        ),
+    ])
+    mock_echo.assert_called_once_with(
+        "Pushing model test_model.tflite to device..."
+    )
+
+  @mock.patch("subprocess.run", autospec=True)
+  @mock.patch("click.echo", autospec=True)
+  def test_push_file_to_device_pushes_when_size_mismatch(
+      self, mock_echo: mock.MagicMock, mock_run: mock.MagicMock
+  ) -> None:
+    mock_run.side_effect = [
+        mock.MagicMock(returncode=0, stdout="999\n"),
+        mock.MagicMock(returncode=0),
+    ]
+    android_utils.push_file_to_device(
+        self.local_file, "/data/local/tmp/test_model.tflite"
+    )
+    self.assertEqual(mock_run.call_count, 2)
+    mock_echo.assert_called_once_with(
+        "Pushing test_model.tflite to device..."
+    )
+
+  def test_push_file_to_device_missing_local_file_raises(self) -> None:
+    missing_file = self.temp_dir / "missing.tflite"
+    with self.assertRaisesRegex(click.ClickException, "Local file not found"):
+      android_utils.push_file_to_device(
+          missing_file, "/data/local/tmp/missing.tflite"
+      )
+
+
 if __name__ == "__main__":
   absltest.main()
