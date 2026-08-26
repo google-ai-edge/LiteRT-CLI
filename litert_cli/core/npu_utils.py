@@ -77,9 +77,16 @@ def _ensure_mediatek_libs(runtime_dir: pathlib.Path) -> pathlib.Path:
 
 def _ensure_qualcomm_libs(runtime_dir: pathlib.Path) -> pathlib.Path:
   """Ensures Qualcomm runtime libraries are available."""
-  marker_file = runtime_dir / ".qairt_sdk_extracted.complete"
+  marker_file = (
+      runtime_dir
+      / f".qairt_sdk_{constants.QAIRT_SDK_VERSION}_extracted.complete"
+  )
 
-  if runtime_dir.exists() and marker_file.exists():
+  if (
+      runtime_dir.exists()
+      and marker_file.exists()
+      and (runtime_dir / f"qairt/{constants.QAIRT_SDK_VERSION}").exists()
+  ):
     click.echo(f"Found existing runtime libraries at {runtime_dir}")
     return runtime_dir
 
@@ -230,6 +237,8 @@ def _get_qualcomm_libs(
       src_dir / "libQnnHtp.so",
       src_dir / f"libQnnHtpV{best_version}Stub.so",
       src_dir / "libQnnHtpPrepare.so",
+      src_dir / "libQnnIr.so",
+      src_dir / "libQnnSaver.so",
   ]
 
   skel_file = skel_dir / f"libQnnHtpV{best_version}Skel.so"
