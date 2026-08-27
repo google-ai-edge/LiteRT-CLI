@@ -65,6 +65,73 @@ def run_android(
 
   cli_android_root = constants.LITERT_CLI_ANDROID_ROOT
 
+  # Check if model is compiled for NPU when NPU accelerator is requested
+  is_npu_compiled = False
+  if accelerator == "npu":
+    target_model = npu.get_soc_target_model(None)
+    soc_vendor = "mediatek" if "mt" in target_model else "qualcomm"
+
+    # Check if the input model already contains NPU dispatch bytecode
+    try:
+      with open(model_path, "rb") as f:
+        model_bytes = f.read()
+      is_npu_compiled = (
+          b"DISPATCH" in model_bytes
+          or b"LiteRtBuildStamp" in model_bytes
+          or target_model.upper().encode() in model_bytes
+      )
+    except Exception:
+      is_npu_compiled = False
+
+    if not is_npu_compiled:
+      candidate_paths = [
+          pathlib.Path(model_path).parent
+          / f"{pathlib.Path(model_path).stem}_{soc_vendor.capitalize()}_{target_model.upper()}.tflite",
+          pathlib.Path(model_path).parent
+          / f"{pathlib.Path(model_path).stem}_{target_model}.tflite",
+          pathlib.Path(model_path).parent
+          / "_compiled_models"
+          / f"{pathlib.Path(model_path).stem}_{target_model}.tflite",
+      ]
+      found_compiled = None
+      for candidate in candidate_paths:
+        if candidate.exists() and candidate.is_file():
+          found_compiled = candidate
+          break
+
+      if found_compiled:
+        click.echo(
+            f"Using existing NPU compiled model for {target_model}:"
+            f" {found_compiled}"
+        )
+        model_path = found_compiled
+        is_npu_compiled = True
+      else:
+        # Attempt AOT compilation for target SoC
+        try:
+          from ai_edge_litert.aot import aot_compile as aot_lib  # pylint: disable=g-import-not-at-top
+          click.echo(
+              f"Compiling model {model_path} for target NPU SoC: {target_model}..."
+          )
+          aot_target = npu.get_aot_target(target_model)
+          compiled_res = aot_lib.aot_compile(
+              str(model_path), target=[aot_target], keep_going=False
+          )
+          compiled_dir = pathlib.Path(model_path).parent
+          compiled_res.export(
+              str(compiled_dir), model_name=pathlib.Path(model_path).stem
+          )
+          for candidate in candidate_paths:
+            if candidate.exists() and candidate.is_file():
+              model_path = candidate
+              is_npu_compiled = True
+              break
+        except Exception as e:
+          click.echo(
+              f"Note: AOT compilation skipped ({e}), falling back to on-device"
+              " execution."
+          )
+
   model_name = model_path.name
   remote_model_path = f"{cli_android_root}/{model_name}"
 
@@ -77,16 +144,14 @@ def run_android(
     remote_dispatch_dir = npu.push_npu_runtime_libraries(None, cli_android_root)
 
     # Download and push SOC-specific LiteRT dispatch and compiler plugin libraries
-    target_model = npu.get_soc_target_model(None)
-    soc_vendor = "mediatek" if "mt" in target_model else "qualcomm"
     lib_dispatch = android_utils.find_npu_dispatch_lib(soc_vendor, abi)
-    lib_compiler = android_utils.find_npu_compiler_plugin_lib(soc_vendor, abi)
-
     remote_lib_dispatch = f"{cli_android_root}/{lib_dispatch.name}"
     android_utils.push_file_to_device(lib_dispatch, remote_lib_dispatch)
 
-    remote_lib_compiler = f"{cli_android_root}/{lib_compiler.name}"
-    android_utils.push_file_to_device(lib_compiler, remote_lib_compiler)
+    if not is_npu_compiled:
+      lib_compiler = android_utils.find_npu_compiler_plugin_lib(soc_vendor, abi)
+      remote_lib_compiler = f"{cli_android_root}/{lib_compiler.name}"
+      android_utils.push_file_to_device(lib_compiler, remote_lib_compiler)
 
   subprocess.run(["adb", "shell", "mkdir", "-p", cli_android_root], check=True)
   android_utils.push_file_to_device(
@@ -113,9 +178,10 @@ def run_android(
     elif accelerator == "npu":
       bench_args.append("--use_npu=true")
       bench_args.append(f"--dispatch_library_path={shlex.quote(cli_android_root)}")
-      bench_args.append(
-          f"--compiler_plugin_library_path={shlex.quote(cli_android_root)}"
-      )
+      if not is_npu_compiled:
+        bench_args.append(
+            f"--compiler_plugin_library_path={shlex.quote(cli_android_root)}"
+        )
 
       if soc_vendor == "mediatek":
         recommend_version = constants.MEDIATEK_SOC_VERSION_MAP.get(

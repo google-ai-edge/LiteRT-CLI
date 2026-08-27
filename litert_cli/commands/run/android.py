@@ -206,13 +206,81 @@ def run_android(
         f"Failed to create directory {android_root} on device: {e!r}"
     ) from e
 
-  # Create remote execution tracking paths
-  model_name = pathlib.Path(model_path).name
-  remote_model_path = f"{android_root}/{model_name}"
-
   # Determine device ABI
   abi = android_utils.get_android_abi()
   click.echo(f"Detected Android device ABI: {abi}")
+
+  # Check if model is compiled for NPU when NPU accelerator is requested
+  is_npu_compiled = False
+  if "npu" in accel_list:
+    target_model = npu.get_soc_target_model(None)
+    soc_vendor = "mediatek" if "mt" in target_model else "qualcomm"
+
+    # Check if the input model already contains NPU dispatch bytecode
+    try:
+      with open(model_path, "rb") as f:
+        model_bytes = f.read()
+      is_npu_compiled = (
+          b"DISPATCH" in model_bytes
+          or b"LiteRtBuildStamp" in model_bytes
+          or target_model.upper().encode() in model_bytes
+      )
+    except Exception:
+      is_npu_compiled = False
+
+    if not is_npu_compiled:
+      # Check if a matching compiled model exists in the same folder or _compiled_models
+      candidate_paths = [
+          pathlib.Path(model_path).parent
+          / f"{pathlib.Path(model_path).stem}_{soc_vendor.capitalize()}_{target_model.upper()}.tflite",
+          pathlib.Path(model_path).parent
+          / f"{pathlib.Path(model_path).stem}_{target_model}.tflite",
+          pathlib.Path(model_path).parent
+          / "_compiled_models"
+          / f"{pathlib.Path(model_path).stem}_{target_model}.tflite",
+      ]
+      found_compiled = None
+      for candidate in candidate_paths:
+        if candidate.exists() and candidate.is_file():
+          found_compiled = str(candidate)
+          break
+
+      if found_compiled:
+        click.echo(
+            f"Using existing NPU compiled model for {target_model}:"
+            f" {found_compiled}"
+        )
+        model_path = found_compiled
+        is_npu_compiled = True
+      else:
+        # Attempt AOT compilation for target SoC
+        try:
+          from ai_edge_litert.aot import aot_compile as aot_lib  # pylint: disable=g-import-not-at-top
+          click.echo(
+              f"Compiling model {model_path} for target NPU SoC: {target_model}..."
+          )
+          aot_target = npu.get_aot_target(target_model)
+          compiled_res = aot_lib.aot_compile(
+              str(model_path), target=[aot_target], keep_going=False
+          )
+          compiled_dir = pathlib.Path(model_path).parent
+          compiled_res.export(
+              str(compiled_dir), model_name=pathlib.Path(model_path).stem
+          )
+          for candidate in candidate_paths:
+            if candidate.exists() and candidate.is_file():
+              model_path = str(candidate)
+              is_npu_compiled = True
+              break
+        except Exception as e:
+          click.echo(
+              f"Note: AOT compilation skipped ({e}), falling back to on-device"
+              " execution."
+          )
+
+  # Create remote execution tracking paths
+  model_name = pathlib.Path(model_path).name
+  remote_model_path = f"{android_root}/{model_name}"
 
   run_model_bin = android_utils.find_android_binary("run_model", abi)
 
@@ -251,16 +319,14 @@ def run_android(
 
   if "npu" in accel_list:
     # Download and push SOC-specific LiteRT dispatch and compiler plugin libraries
-    target_model = npu.get_soc_target_model(None)
-    soc_vendor = "mediatek" if "mt" in target_model else "qualcomm"
     lib_dispatch = android_utils.find_npu_dispatch_lib(soc_vendor, abi)
-    lib_compiler = android_utils.find_npu_compiler_plugin_lib(soc_vendor, abi)
-
     remote_lib_dispatch = f"{android_root}/{lib_dispatch.name}"
     android_utils.push_file_to_device(lib_dispatch, remote_lib_dispatch)
 
-    remote_lib_compiler = f"{android_root}/{lib_compiler.name}"
-    android_utils.push_file_to_device(lib_compiler, remote_lib_compiler)
+    if not is_npu_compiled:
+      lib_compiler = android_utils.find_npu_compiler_plugin_lib(soc_vendor, abi)
+      remote_lib_compiler = f"{android_root}/{lib_compiler.name}"
+      android_utils.push_file_to_device(lib_compiler, remote_lib_compiler)
 
   click.echo("Executing on device...\n")
 
@@ -276,7 +342,8 @@ def run_android(
     run_cmd_args.append(f"--accelerator={accelerator}")
   if remote_dispatch_dir:
     run_cmd_args.append(f"--dispatch_library_dir={remote_dispatch_dir}")
-    run_cmd_args.append(f"--compiler_plugin_library_dir={remote_dispatch_dir}")
+    if not is_npu_compiled:
+      run_cmd_args.append(f"--compiler_plugin_library_dir={remote_dispatch_dir}")
   if iterations > 1:
     run_cmd_args.append(f"--iterations={iterations}")
   if signature_index != 0:
