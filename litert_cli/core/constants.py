@@ -53,15 +53,15 @@ LITERT_CLI_ANDROID_ROOT: str = os.environ.get(
 
 import importlib.metadata
 
-_litert_binaries_version = "latest"
+_litert_binaries_version = "nightly"
 try:
-  # If nightly CLI is installed, always use 'latest'
+  # If nightly CLI is installed, always use 'nightly'
   importlib.metadata.version("litert-cli-nightly")
 except importlib.metadata.PackageNotFoundError:
   try:
     _litert_binaries_version = importlib.metadata.version("ai-edge-litert")
   except importlib.metadata.PackageNotFoundError:
-    _litert_binaries_version = "latest"
+    _litert_binaries_version = "nightly"
 
 LITERT_BINARIES_BASE_URL: str = (
     f"https://storage.googleapis.com/litert/binaries/{_litert_binaries_version}"
@@ -74,7 +74,7 @@ LITERT_BINARIES_BASE_URL_ANDROID: str = (
 # Keep updating the version in sync with LiteRT releases, referencing
 # https://github.com/google-ai-edge/LiteRT/blob/main/third_party/qairt/workspace.bzl#L25
 _QAIRT_VERSION_MAP = {
-    "latest": "2.47.0.260601",  # Nightly / main branch
+    "nightly": "2.47.0.260601",  # Nightly / main branch
     "2.1.4": "2.44.0.260225",  # Stable 2.1.4 release
     "2.1.5": "2.44.0.260225",  # Stable 2.1.5 release
     "2.1.6": "2.47.0.260601",  # Stable 2.1.6 release
