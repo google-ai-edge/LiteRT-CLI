@@ -231,6 +231,12 @@ Verified in Python 3.13.
     [Google AI Edge Portal](https://ai.google.dev/edge/ai-edge-portal); 2) Login
     to GCP using `gcloud auth login`; 3) Set your GCP project using
     `--gcp=<Your-GCP-Project>`.
+*   When benchmark using `--ddp` flag, you need to 1) Enable the Device Run API
+    of [Developer Device Platform](https://docs.cloud.google.com/developer-device-platform/overview)
+    in a GCP project with billing enabled (the platform is in Preview, and
+    sessions are billed to your project); 2) Login using `gcloud auth
+    application-default login`; 3) Set your GCP project using
+    `--gcp-project=<Your-GCP-Project>`.
 *   When `litert visualize` fails to launch Model Explorer, try to run `litert
     visualize --stop-all` first.
 *   Exporting environment variable `LITERT_VERBOSE=1` can enable verbose
@@ -376,6 +382,13 @@ litert benchmark my_model_ref --desktop --cpu
 #   one.
 litert benchmark model.tflite --gcp --device "pixel 7" --gcp-project "your-gcp-project-id" --gcp-bucket "your-gcp-bucket"
 litert benchmark model.tflite --gcp --devices "pixel 7, sm-s931u1" --gpu
+
+# Benchmark on Developer Device Platform (DDP) devices in Google Cloud. Prerequisites:
+# - Enable the Device Run API in your GCP project: gcloud services enable devicerun.googleapis.com
+# - Set up authentication by running: gcloud auth application-default login
+# - Find device ids by running: gcloud beta device-run devices list --project "your-gcp-project-id"
+litert benchmark model.tflite --ddp --device caiman-35 --gcp-project "your-gcp-project-id"
+litert benchmark model.tflite --ddp --devices "caiman-35, pa3q-35" --gpu --gcp-project "your-gcp-project-id"
 ```
 
 ### 7. Run and benchmark a generative LLM model using LiteRT-LM CLI
