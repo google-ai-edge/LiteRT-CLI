@@ -290,6 +290,7 @@ litert benchmark model.tflite --gcp --device "pixel 7" --gcp-project "your-gcp-p
 # Note: You must enable the Device Run API in your GCP project, authenticate using
 # 'gcloud auth application-default login', and configure --gcp-project.
 # Find device ids with 'gcloud beta device-run devices list --project <PROJECT_ID>'.
+# The devices run benchmark_model of LiteRT 2.2.0; set DDP_LITERT_VERSION to pick another release.
 litert benchmark model.tflite --ddp --device caiman-35 --gcp-project "your-gcp-project-id"
 litert benchmark model.tflite --ddp --devices "caiman-35, pa3q-35" --gpu --gcp-project "your-gcp-project-id"
 ```

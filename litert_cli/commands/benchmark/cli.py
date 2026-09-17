@@ -159,6 +159,15 @@ Examples:
     help="GCS bucket name for uploading model (For --gcp and --ddp targets).",
 )
 @click.option(
+    "--timeout",
+    type=click.IntRange(min=1),
+    help=(
+        "Seconds to wait for the benchmark session to finish (For --ddp"
+        " target). Default is --max-secs times the number of devices, plus"
+        " 600."
+    ),
+)
+@click.option(
     "--num-runs",
     type=int,
     default=50,
@@ -213,6 +222,7 @@ def benchmark_cmd(
     soc_model: str,
     gcp_project: str | None = None,
     gcp_bucket: str | None = None,
+    timeout: int | None = None,
     num_runs: int = 50,
     warmup_runs: int = 1,
     min_secs: float = 1.0,
@@ -232,6 +242,7 @@ def benchmark_cmd(
     soc_model: Target SoC model for NPU AOT mode.
     gcp_project: GCP project ID for benchmarking.
     gcp_bucket: GCS bucket name for uploading model.
+    timeout: Seconds to wait for a DDP benchmark session to finish.
     num_runs: Target number of benchmark iterations.
     warmup_runs: Number of warmup iterations before benchmarking.
     min_secs: Minimum seconds to run.
@@ -328,6 +339,7 @@ def benchmark_cmd(
         warmup_min_secs=warmup_min_secs,
         input_layer_value_range=input_layer_value_range,
         signature_key=signature_key,
+        timeout=timeout,
     )
   else:
     click.secho(f"Target '{target}' is not yet supported.", fg="red")

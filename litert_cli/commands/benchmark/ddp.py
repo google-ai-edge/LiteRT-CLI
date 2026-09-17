@@ -17,9 +17,11 @@
 
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import pathlib
+import re
 import subprocess
 import time
 from typing import Any
@@ -36,16 +38,22 @@ _GCP_BUCKET = os.environ.get("LITERT_GCP_BUCKET")
 _DEFAULT_DDP_LOCATION = "global"
 _DEFAULT_BUCKET_LOCATION = "US"
 _DEFAULT_DEVICE_RUN_ENDPOINT = "https://devicerun.googleapis.com/v1alpha"
+# The LiteRT release whose prebuilt benchmark_model runs on the devices.
 # NOTE: Keep in sync with LiteRT stable releases.
 _DEFAULT_DDP_LITERT_VERSION = "2.2.0"
-_DDP_BENCHMARK_BINARY = (
-    "gs://litert/binaries/"
-    f"{_DEFAULT_DDP_LITERT_VERSION}/android_arm64/benchmark_model"
-)
+_ENV_DDP_LITERT_VERSION = "DDP_LITERT_VERSION"
 _GCS_INPUTS_PREFIX = "litert-cli/inputs"
 _GCS_SESSIONS_PREFIX = "litert-cli/sessions"
-_RESULT_FILES = ("results.pb", "runtime_info.pb")
+_RESULT_FILE = "results.pb"
+_RUNTIME_INFO_FILE = "runtime_info.pb"
+_RESULT_FILES = (_RESULT_FILE, _RUNTIME_INFO_FILE)
 _POLL_INTERVAL_SECS = 15
+# Socket timeout of one Device Run API request.
+_HTTP_TIMEOUT_SECS = 60
+# Added to max_secs x number of devices to get the default --timeout.
+_POLL_TIMEOUT_SLACK_SECS = 600
+# Consecutive poll errors after which the CLI stops waiting.
+_MAX_POLL_FAILURES = 5
 _LOGCAT_TAIL_LINES = 20
 # Session and job display names must match ^[A-Za-z0-9][A-Za-z0-9-_ ]*$ and
 # be at most 63 bytes.
@@ -77,6 +85,12 @@ def _get_console_url(bucket: str, prefix: str, session_id: str) -> str:
   )
 
 
+def _benchmark_binary() -> str:
+  """Returns the GCS path of the prebuilt benchmark_model to run."""
+  version = os.environ.get(_ENV_DDP_LITERT_VERSION, _DEFAULT_DDP_LITERT_VERSION)
+  return f"gs://litert/binaries/{version}/android_arm64/benchmark_model"
+
+
 def _display_name(*parts: str) -> str:
   """Joins parts into a display name accepted by the Device Run API."""
   name = "-".join(parts)
@@ -99,40 +113,121 @@ def _normalize_devices(
   return device_list
 
 
+def _gcloud(*args: str) -> subprocess.CompletedProcess[str]:
+  """Runs a gcloud command with stdout discarded and stderr captured."""
+  return subprocess.run(
+      ["gcloud", *args],
+      check=False,
+      stdout=subprocess.DEVNULL,
+      stderr=subprocess.PIPE,
+      text=True,
+  )
+
+
+def _stderr_tail(stderr: str | None, max_lines: int = 3) -> str:
+  """Returns the last non-empty lines of a captured stderr."""
+  lines = [line.strip() for line in (stderr or "").splitlines()]
+  lines = [line for line in lines if line]
+  return "\n".join(lines[-max_lines:])
+
+
+def _bucket_is_missing(stderr: str) -> bool:
+  """Whether a failed `gcloud storage ls` says the bucket does not exist.
+
+  gcloud prints "ERROR: (gcloud.storage.ls) gs://<name> not found: 404." for
+  a missing bucket; a permission, project or network problem is worded
+  differently and gets no create attempt.
+  """
+  if "not found" in stderr.lower():
+    return True
+  return re.search(r"\b404\b", stderr) is not None
+
+
+def _access_token() -> str:
+  """Returns an access token from Application Default Credentials."""
+  try:
+    return subprocess.check_output(
+        ["gcloud", "auth", "application-default", "print-access-token"],
+        stderr=subprocess.PIPE,
+        text=True,
+    ).strip()
+  except subprocess.CalledProcessError as e:
+    raise click.ClickException(
+        "Failed to get a gcloud access token. Run 'gcloud auth"
+        f" application-default login' first.\n{_stderr_tail(e.stderr)}"
+    ) from e
+
+
+def _ensure_bucket(target_bucket: str, gcp_project: str) -> None:
+  """Creates the GCS bucket when it does not exist."""
+  click.echo(
+      f"Ensuring GCS bucket 'gs://{target_bucket}' exists for project"
+      f" '{gcp_project}'..."
+  )
+  check_res = _gcloud("storage", "ls", f"gs://{target_bucket}")
+  if check_res.returncode == 0:
+    return
+  stderr = check_res.stderr or ""
+  if not _bucket_is_missing(stderr):
+    raise click.ClickException(
+        f"Could not list GCS bucket 'gs://{target_bucket}':\n"
+        f"{_stderr_tail(stderr)}"
+    )
+  click.secho(
+      f"Creating GCS bucket 'gs://{target_bucket}' in location"
+      f" '{_DEFAULT_BUCKET_LOCATION}'...",
+      fg="cyan",
+  )
+  create_res = _gcloud(
+      "storage",
+      "buckets",
+      "create",
+      f"gs://{target_bucket}",
+      f"--project={gcp_project}",
+      f"--location={_DEFAULT_BUCKET_LOCATION}",
+  )
+  if create_res.returncode != 0:
+    raise click.ClickException(
+        f"Failed to create GCS bucket 'gs://{target_bucket}':\n"
+        f"{_stderr_tail(create_res.stderr)}"
+    )
+
+
 def _build_benchmark_args(
     *,
     model_name: str,
     accelerator: str,
-    num_runs: int = 50,
-    warmup_runs: int = 1,
-    min_secs: float = 1.0,
-    max_secs: float = 150.0,
-    warmup_min_secs: float = 0.5,
-    input_layer_value_range: str | None = None,
-    signature_key: str | None = None,
+    num_runs: int,
+    warmup_runs: int,
+    min_secs: float,
+    max_secs: float,
+    warmup_min_secs: float,
+    input_layer_value_range: str | None,
+    signature_key: str | None,
 ) -> list[str]:
-  """Builds benchmark_model arguments, mirroring the Android target."""
+  """Builds benchmark_model arguments.
+
+  The numeric flags are always emitted, so their defaults live only in the
+  click options of cli.py.
+  """
   root = constants.LITERT_CLI_ANDROID_ROOT
   bench_args = [f"--graph={root}/{model_name}"]
   if accelerator == "gpu":
     bench_args.append("--use_gpu=true")
-  if num_runs != 50:
-    bench_args.append(f"--num_runs={num_runs}")
-  if warmup_runs != 1:
-    bench_args.append(f"--warmup_runs={warmup_runs}")
-  if min_secs != 1.0:
-    bench_args.append(f"--min_secs={min_secs}")
-  if max_secs != 150.0:
-    bench_args.append(f"--max_secs={max_secs}")
-  if warmup_min_secs != 0.5:
-    bench_args.append(f"--warmup_min_secs={warmup_min_secs}")
+  bench_args += [
+      f"--num_runs={num_runs}",
+      f"--warmup_runs={warmup_runs}",
+      f"--min_secs={min_secs}",
+      f"--max_secs={max_secs}",
+      f"--warmup_min_secs={warmup_min_secs}",
+  ]
   if input_layer_value_range:
     bench_args.append(f"--input_layer_value_range={input_layer_value_range}")
   if signature_key:
     bench_args.append(f"--signature_to_run_for={signature_key}")
-  bench_args.append(f"--result_file_path={root}/{_RESULT_FILES[0]}")
+  bench_args.append(f"--result_file_path={root}/{_RESULT_FILE}")
   bench_args.append(
-      f"--model_runtime_info_output_file={root}/{_RESULT_FILES[1]}"
+      f"--model_runtime_info_output_file={root}/{_RUNTIME_INFO_FILE}"
   )
   return bench_args
 
@@ -145,6 +240,7 @@ def _build_session_request(
     accelerator: str,
     device_list: list[str],
     output_dir: str,
+    benchmark_binary: str,
     bench_args: list[str],
 ) -> dict[str, Any]:
   """Builds the Device Run session request: one job per device."""
@@ -156,7 +252,7 @@ def _build_session_request(
         "action": {
             "androidNativeBinary": {
                 "androidNativeBinary": {
-                    "gcsInputFile": {"path": _DDP_BENCHMARK_BINARY}
+                    "gcsInputFile": {"path": benchmark_binary}
                 },
                 "args": bench_args,
             }
@@ -201,6 +297,78 @@ def _build_session_request(
   }
 
 
+def _wait_for_operation(
+    op_url: str,
+    headers: dict[str, str],
+    timeout_secs: float,
+    console_url: str,
+) -> dict[str, Any]:
+  """Polls the operation until it is done and returns its final state.
+
+  The first poll runs right away. A 401 refreshes the access token in
+  `headers`; other HTTP errors, connection and socket errors (OSError) and
+  truncated or non-JSON responses are retried.
+
+  Args:
+    op_url: URL of the long-running operation.
+    headers: Request headers; the Authorization entry is replaced on a 401.
+    timeout_secs: Seconds to wait before giving up.
+    console_url: Cloud Console URL of the session outputs, for messages.
+
+  Returns:
+    The operation as returned by the API once `done` is true.
+
+  Raises:
+    click.ClickException: after _MAX_POLL_FAILURES consecutive errors, when
+      the token cannot be refreshed, or once timeout_secs elapse.
+  """
+  still_running = (
+      "The session may still be running; view it on the Cloud Console:"
+      f" {console_url}"
+  )
+  deadline = time.monotonic() + timeout_secs
+  failures = 0
+  while True:
+    click.echo(".", nl=False)
+    req_op = urllib.request.Request(op_url, headers=headers)
+    try:
+      with urllib.request.urlopen(req_op, timeout=_HTTP_TIMEOUT_SECS) as res_op:
+        op_data = json.loads(res_op.read().decode())
+    except (OSError, http.client.HTTPException, json.JSONDecodeError) as e:
+      # urllib wraps only the request in URLError (an OSError); a drop while
+      # reading the response raises ConnectionResetError, RemoteDisconnected,
+      # IncompleteRead or an SSL error, and a gateway page is not JSON.
+      failures += 1
+      click.secho(f"\nError polling operation: {e}", fg="yellow")
+      if isinstance(e, urllib.error.HTTPError):
+        e.close()
+      if failures >= _MAX_POLL_FAILURES:
+        raise click.ClickException(
+            f"Polling failed {failures} times in a row. {still_running}"
+        ) from e
+      if getattr(e, "code", None) == 401:
+        click.echo("Refreshing the access token...")
+        try:
+          headers["Authorization"] = f"Bearer {_access_token()}"
+        except click.ClickException as token_error:
+          raise click.ClickException(
+              f"{token_error.message}\n{still_running}"
+          ) from token_error
+    else:
+      failures = 0
+      if op_data.get("done"):
+        click.echo("")  # Print a newline after the dots
+        return op_data
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+      click.echo("")
+      raise click.ClickException(
+          f"The session did not finish within {timeout_secs:.0f} s."
+          f" {still_running}"
+      )
+    time.sleep(min(_POLL_INTERVAL_SECS, remaining))
+
+
 def _print_logcat_results(logcat_path: pathlib.Path, passed: bool) -> None:
   """Prints the benchmark lines of a logcat, or its tail when the job failed."""
   lines = logcat_path.read_text(errors="replace").splitlines()
@@ -217,18 +385,23 @@ def _print_logcat_results(logcat_path: pathlib.Path, passed: bool) -> None:
 
 def _fetch_session_outputs(
     session_report: dict[str, Any], session_id: str
-) -> None:
-  """Downloads each job's output files and prints the benchmark results."""
-  local_root = (
-      pathlib.Path(constants.LITERT_CLI_CACHE_DIR) / "ddp" / session_id
-  )
+) -> list[str]:
+  """Downloads each job's output files and prints the benchmark results.
+
+  Returns one line per job that did not pass or whose output files could not
+  be downloaded; an empty list when every job passed and downloaded.
+  """
+  local_root = pathlib.Path(constants.LITERT_CLI_CACHE_DIR) / "ddp" / session_id
+  problems: list[str] = []
   for job in session_report.get("jobReports", []):
     job_name = job.get("displayName", job.get("id", "job"))
     job_result = job.get("result", {}).get("resultType", "UNKNOWN")
+    passed = job_result == "PASSED"
     click.secho(
-        f"\nJob '{job_name}': {job_result}",
-        fg="green" if job_result == "PASSED" else "red",
+        f"\nJob '{job_name}': {job_result}", fg="green" if passed else "red"
     )
+    if not passed:
+      problems.append(f"Job '{job_name}': {job_result}")
     gcs_paths = [
         f["gcsOutputFile"]["path"]
         for execution in job.get("executionReports", [])
@@ -237,23 +410,24 @@ def _fetch_session_outputs(
     ]
     if not gcs_paths:
       click.echo("No output files were reported for this job.")
+      problems.append(f"Job '{job_name}': no output files reported")
       continue
     local_dir = local_root / job_name
     local_dir.mkdir(parents=True, exist_ok=True)
-    try:
-      subprocess.run(
-          ["gcloud", "storage", "cp", *gcs_paths, f"{local_dir}/"],
-          check=True,
-          stdout=subprocess.DEVNULL,
-          stderr=subprocess.DEVNULL,
+    download = _gcloud("storage", "cp", *gcs_paths, f"{local_dir}/")
+    if download.returncode != 0:
+      click.secho(
+          f"Failed to download the output files of job '{job_name}':\n"
+          f"{_stderr_tail(download.stderr)}",
+          fg="red",
       )
-    except subprocess.CalledProcessError as e:
-      click.secho(f"Error: Failed to download output files: {e}", fg="red")
+      problems.append(f"Job '{job_name}': output files not downloaded")
       continue
     click.echo(f"Output files saved to: {local_dir}")
     logcat_path = local_dir / "logcat.txt"
     if logcat_path.exists():
-      _print_logcat_results(logcat_path, passed=(job_result == "PASSED"))
+      _print_logcat_results(logcat_path, passed=passed)
+  return problems
 
 
 def run_ddp(
@@ -262,19 +436,23 @@ def run_ddp(
     devices: list[str],
     gcp_project: str | None = None,
     gcp_bucket: str | None = None,
-    num_runs: int = 50,
-    warmup_runs: int = 1,
-    min_secs: float = 1.0,
-    max_secs: float = 150.0,
-    warmup_min_secs: float = 0.5,
-    input_layer_value_range: str | None = None,
-    signature_key: str | None = None,
+    *,
+    num_runs: int,
+    warmup_runs: int,
+    min_secs: float,
+    max_secs: float,
+    warmup_min_secs: float,
+    input_layer_value_range: str | None,
+    signature_key: str | None,
+    timeout: int | None,
 ) -> None:
   """Runs the model on DDP devices via the Device Run API.
 
   Uploads model to GCS if it's not already there.
   Submits a Device Run session that runs benchmark_model on each device.
   Polls the session operation, then downloads and prints the results.
+  Raises click.ClickException (exit code 1) when any step fails or when a
+  job does not pass.
 
   Args:
     model_path_str: Path to the LiteRT model file (local or gs://).
@@ -289,6 +467,8 @@ def run_ddp(
     warmup_min_secs: Minimum warmup duration in seconds.
     input_layer_value_range: Value range for input layers.
     signature_key: The signature key to benchmark.
+    timeout: Seconds to wait for the session; None means max_secs times the
+      number of devices plus _POLL_TIMEOUT_SLACK_SECS.
   """
   if accelerator == "npu":
     raise click.ClickException("NPU on --ddp is not supported yet.")
@@ -315,8 +495,7 @@ def run_ddp(
   if not model_path.startswith("gs://"):
     local_model = pathlib.Path(model_path)
     if not local_model.exists():
-      click.secho(f"Error: Local model file not found: {model_path}", fg="red")
-      return
+      raise click.ClickException(f"Local model file not found: {model_path}")
   model_name = model_path.rsplit("/", 1)[-1]
 
   target_bucket = gcp_bucket or _GCP_BUCKET
@@ -331,48 +510,13 @@ def run_ddp(
   else:
     click.echo(f"Using specified GCS bucket 'gs://{target_bucket}'.")
 
-  # Check if bucket exists, create if not
-  click.echo(
-      f"Ensuring GCS bucket 'gs://{target_bucket}' exists for project"
-      f" '{gcp_project}'..."
-  )
-  try:
-    check_res = subprocess.run(
-        ["gcloud", "storage", "ls", f"gs://{target_bucket}"],
-        check=False,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    if check_res.returncode != 0:
-      click.secho(
-          f"Creating GCS bucket 'gs://{target_bucket}' in location"
-          f" '{_DEFAULT_BUCKET_LOCATION}'...",
-          fg="cyan",
-      )
-      subprocess.run(
-          [
-              "gcloud",
-              "storage",
-              "buckets",
-              "create",
-              f"gs://{target_bucket}",
-              f"--project={gcp_project}",
-              f"--location={_DEFAULT_BUCKET_LOCATION}",
-          ],
-          check=True,
-          stdout=subprocess.DEVNULL,
-          stderr=subprocess.DEVNULL,
-      )
-  except subprocess.CalledProcessError as e:
-    click.secho(
-        f"Error: Failed to ensure GCS bucket 'gs://{target_bucket}': {e}",
-        fg="red",
-    )
-    return
+  _ensure_bucket(target_bucket, gcp_project)
 
-  # Upload model to GCS if it's not already there.
+  # The session name namespaces the uploaded model, so concurrent runs and
+  # same-named models from different directories never share an object.
+  session_name = f"litert-cli-benchmark-{uuid.uuid4().hex[:8]}"
   if local_model is not None:
-    model_gcs_dir = f"gs://{target_bucket}/{_GCS_INPUTS_PREFIX}"
+    model_gcs_dir = f"gs://{target_bucket}/{_GCS_INPUTS_PREFIX}/{session_name}"
     click.secho(
         f"Uploading local model '{model_path}' to {model_gcs_dir}/...",
         fg="cyan",
@@ -382,31 +526,19 @@ def run_ddp(
           ["gcloud", "storage", "cp", str(local_model), f"{model_gcs_dir}/"],
           check=True,
       )
-      model_path = f"{model_gcs_dir}/{model_name}"
     except subprocess.CalledProcessError as e:
-      click.secho(
-          f"Error: Failed to upload '{model_path}' to Google Cloud Storage:"
-          f" {e}",
-          fg="red",
-      )
-      return
+      raise click.ClickException(
+          f"Failed to upload '{model_path}' to {model_gcs_dir}/ (gcloud"
+          f" storage cp exited with {e.returncode})."
+      ) from e
+    model_path = f"{model_gcs_dir}/{model_name}"
 
-  session_name = f"litert-cli-benchmark-{uuid.uuid4().hex[:8]}"
   output_dir = f"gs://{target_bucket}/{_GCS_SESSIONS_PREFIX}"
+  if timeout is None:
+    timeout = int(max_secs * len(device_list)) + _POLL_TIMEOUT_SLACK_SECS
 
   click.echo("Fetching GCP access token...")
-  try:
-    token = subprocess.check_output(
-        ["gcloud", "auth", "application-default", "print-access-token"],
-        text=True,
-    ).strip()
-  except subprocess.CalledProcessError as e:
-    click.secho(
-        "Error: Failed to get gcloud access token. Please run 'gcloud auth"
-        f" application-default login' first. Details: {e}",
-        fg="red",
-    )
-    return
+  token = _access_token()
 
   endpoint = os.environ.get(
       "DEVICE_RUN_ENDPOINT", _DEFAULT_DEVICE_RUN_ENDPOINT
@@ -418,6 +550,7 @@ def run_ddp(
       "X-Goog-User-Project": gcp_project,
   }
 
+  benchmark_binary = _benchmark_binary()
   bench_args = _build_benchmark_args(
       model_name=model_name,
       accelerator=accelerator,
@@ -436,6 +569,7 @@ def run_ddp(
       accelerator=accelerator,
       device_list=device_list,
       output_dir=output_dir,
+      benchmark_binary=benchmark_binary,
       bench_args=bench_args,
   )
 
@@ -446,82 +580,84 @@ def run_ddp(
   click.echo(
       f"Submitting '{accelerator}' benchmark session '{session_name}' to DDP"
       f" (Project: {gcp_project}, Devices: {', '.join(device_list)},"
-      f" Binary: {_DDP_BENCHMARK_BINARY})..."
+      f" Binary: {benchmark_binary})..."
+  )
+  try:
+    with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT_SECS) as response:
+      resp_data = json.loads(response.read().decode())
+  except urllib.error.HTTPError as e:
+    try:
+      err_body = e.read().decode(errors="replace")
+    except (OSError, http.client.HTTPException):
+      err_body = ""
+    message = f"Failed to submit benchmark: {e.code} {e.reason}\n{err_body}"
+    if e.code in (400, 404) or "device" in err_body.lower():
+      message += f"\n{_DEVICE_LIST_HINT}"
+    raise click.ClickException(message) from e
+  except (OSError, http.client.HTTPException, json.JSONDecodeError) as e:
+    raise click.ClickException(f"Failed to submit benchmark: {e}") from e
+  click.secho("Benchmark session submitted successfully!", fg="green")
+
+  op_name = resp_data.get("name", "")
+  if "/operations/" not in op_name:
+    click.echo(json.dumps(resp_data, indent=2))
+    raise click.ClickException(
+        "The Device Run API returned no operation to wait for (response"
+        " above)."
+    )
+  op_url = _get_operation_url(endpoint, op_name)
+  session_id = (
+      resp_data.get("metadata", {}).get("target", "").rsplit("/", 1)[-1]
+  )
+  if session_id:
+    console_url = _get_console_url(
+        target_bucket, _GCS_SESSIONS_PREFIX, session_id
+    )
+  else:
+    # Without the session id, point at the sessions folder and keep the
+    # local output directory under the CLI's own session name.
+    session_id = session_name
+    console_url = _get_console_url(target_bucket, _GCS_SESSIONS_PREFIX, "")
+    click.secho(
+        "The operation metadata did not name the session; using the display"
+        f" name '{session_name}' for the local output directory.",
+        fg="yellow",
+    )
+  click.echo(
+      f"Waiting for session '{session_id}' to complete (Operation: {op_name},"
+      f" timeout: {timeout} s). This may take a few minutes..."
+  )
+  click.secho(
+      f"View the outputs on the Cloud Console: {console_url}", fg="cyan"
   )
 
   try:
-    with urllib.request.urlopen(req) as response:
-      resp_data = json.loads(response.read().decode())
-      click.secho("Benchmark session submitted successfully!", fg="green")
+    op_data = _wait_for_operation(op_url, headers, timeout, console_url)
+  except KeyboardInterrupt:
+    click.echo("")
+    click.secho(
+        "\nPolling interrupted. The benchmark session is still running.",
+        fg="yellow",
+    )
+    click.echo(
+        "You can check its status later by viewing it in the console:"
+        f" {console_url}"
+    )
+    raise click.Abort() from None
 
-      op_name = resp_data.get("name", "")
-      if op_name and "operations" in op_name:
-        op_url = _get_operation_url(endpoint, op_name)
-        session_id = (
-            resp_data.get("metadata", {})
-            .get("target", "")
-            .rsplit("/", 1)[-1]
-        )
-        console_url = _get_console_url(
-            target_bucket, _GCS_SESSIONS_PREFIX, session_id
-        )
-        click.echo(
-            f"Waiting for session '{session_id}' to complete (Operation:"
-            f" {op_name}). This may take a few minutes..."
-        )
-        click.secho(
-            f"View the outputs on the Cloud Console: {console_url}", fg="cyan"
-        )
-
-        try:
-          while True:
-            time.sleep(_POLL_INTERVAL_SECS)
-            click.echo(".", nl=False)
-            req_op = urllib.request.Request(op_url, headers=headers)
-            try:
-              with urllib.request.urlopen(req_op) as res_op:
-                op_data = json.loads(res_op.read().decode())
-            except urllib.error.HTTPError as e:
-              with e:
-                click.secho(f"\nError polling operation: {e}", fg="yellow")
-              continue
-
-            if op_data.get("done"):
-              click.echo("")  # Print a newline after the dots
-              if "error" in op_data:
-                click.secho(
-                    "Benchmark failed:"
-                    f" {json.dumps(op_data['error'], indent=2)}",
-                    fg="red",
-                )
-              else:
-                session_report = op_data.get("response", {}).get(
-                    "sessionReport", {}
-                )
-                result = session_report.get("result", {}).get(
-                    "resultType", "UNKNOWN"
-                )
-                click.secho(
-                    f"Session '{session_id}' finished: {result}",
-                    fg="green" if result == "PASSED" else "red",
-                )
-                _fetch_session_outputs(session_report, session_id)
-              break
-        except KeyboardInterrupt:
-          click.echo("")
-          click.secho(
-              "\nPolling interrupted. The benchmark session is still running.",
-              fg="yellow",
-          )
-          click.echo(
-              "You can check its status later by viewing it in the console:"
-              f" {console_url}"
-          )
-      else:
-        click.echo(json.dumps(resp_data, indent=2))
-  except urllib.error.HTTPError as e:
-    err_body = e.read().decode()
-    click.secho(f"Failed to submit benchmark: {e.code} {e.reason}", fg="red")
-    click.secho(f"Details: {err_body}", fg="red")
-    if e.code in (400, 404) or "device" in err_body.lower():
-      click.echo(_DEVICE_LIST_HINT)
+  if "error" in op_data:
+    raise click.ClickException(
+        f"Benchmark failed: {json.dumps(op_data['error'], indent=2)}"
+    )
+  session_report = op_data.get("response", {}).get("sessionReport", {})
+  result = session_report.get("result", {}).get("resultType", "UNKNOWN")
+  click.secho(
+      f"Session '{session_id}' finished: {result}",
+      fg="green" if result == "PASSED" else "red",
+  )
+  problems = _fetch_session_outputs(session_report, session_id)
+  if result != "PASSED" and not problems:
+    problems.append(f"Session '{session_id}' finished: {result}")
+  if problems:
+    problems.append(f"Session outputs on the Cloud Console: {console_url}")
+    raise click.ClickException("\n".join(problems))
