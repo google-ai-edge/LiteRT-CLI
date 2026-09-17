@@ -236,7 +236,9 @@ Verified in Python 3.13.
     in a GCP project with billing enabled (the platform is in Preview, and
     sessions are billed to your project); 2) Login using `gcloud auth
     application-default login`; 3) Set your GCP project using
-    `--gcp-project=<Your-GCP-Project>`.
+    `--gcp-project=<Your-GCP-Project>`. The devices run the prebuilt
+    `benchmark_model` of LiteRT 2.2.0; set the environment variable
+    `DDP_LITERT_VERSION` (for example `nightly`) to pick another release.
 *   When `litert visualize` fails to launch Model Explorer, try to run `litert
     visualize --stop-all` first.
 *   Exporting environment variable `LITERT_VERBOSE=1` can enable verbose
