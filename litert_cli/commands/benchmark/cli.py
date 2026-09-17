@@ -18,6 +18,7 @@
 This module defines the `benchmark` command using Click. It supports:
 1. Benchmarking on a local Android device via adb (Default).
 2. Benchmarking on Google Cloud Platform (GCP) via AI Edge Portal Cloud API.
+3. Benchmarking on Developer Device Platform (DDP) devices via Device Run API.
 """
 
 from __future__ import annotations
@@ -59,6 +60,14 @@ Examples:
     $ litert benchmark model.tflite --gcp --device "pixel 7"
     $ litert benchmark model.tflite --gcp --device "pixel 7" --gcp-project "your-gcp-project-id"
     $ litert benchmark model.tflite --gcp --devices "pixel 7, sm-s931u1" --gpu
+\b
+  # Benchmark on Developer Device Platform (DDP) devices in Google Cloud. Prerequisites:
+  # - Enable the Device Run API in your GCP project: gcloud services enable devicerun.googleapis.com
+  # - Set up authentication by running: gcloud auth application-default login
+  # - Find device ids by running: gcloud beta device-run devices list --project "your-gcp-project-id"
+  #
+    $ litert benchmark model.tflite --ddp --device caiman-35 --gcp-project "your-gcp-project-id"
+    $ litert benchmark model.tflite --ddp --devices "caiman-35, pa3q-35" --gpu --gcp-project "your-gcp-project-id"
 """,
 )
 @click.argument("model", type=str)
@@ -74,6 +83,14 @@ Examples:
     "target",
     flag_value="gcp",
     help="Benchmark on Google AI Edge Portal in Google Cloud.",
+)
+@click.option(
+    "--ddp",
+    "target",
+    flag_value="ddp",
+    help=(
+        "Benchmark on Developer Device Platform (DDP) devices in Google Cloud."
+    ),
 )
 @click.option(
     "--desktop",
@@ -129,18 +146,28 @@ Examples:
     help=(
         "Target device model name(s) (e.g., 'pixel 7'). Can be specified"
         " --device multiple times or use --devices 'pixel 7, sm-s931u1'."
-        " Default is 'pixel 7'"
+        " Default is 'pixel 7'. For DDP, use the device id such as"
+        " 'caiman-35'."
     ),
 )
 @click.option(
     "--gcp-project",
     type=str,
-    help="GCP project ID for benchmarking (Only for GCP target).",
+    help="GCP project ID for benchmarking (For --gcp and --ddp targets).",
 )
 @click.option(
     "--gcp-bucket",
     type=str,
-    help="GCS bucket name for uploading model (Only for GCP target).",
+    help="GCS bucket name for uploading model (For --gcp and --ddp targets).",
+)
+@click.option(
+    "--timeout",
+    type=click.IntRange(min=1),
+    help=(
+        "Seconds to wait for the benchmark session to finish (For --ddp"
+        " target). Default is --max-secs times the number of devices, plus"
+        " 600."
+    ),
 )
 @click.option(
     "--num-runs",
@@ -197,6 +224,7 @@ def benchmark_cmd(
     soc_model: str,
     gcp_project: str | None = None,
     gcp_bucket: str | None = None,
+    timeout: int | None = None,
     num_runs: int = 50,
     warmup_runs: int = 1,
     min_secs: float = 1.0,
@@ -209,13 +237,14 @@ def benchmark_cmd(
 
   Args:
     model: Path to the LiteRT model file or Model Reference.
-    target: Target platform for benchmark (android, gcp, desktop).
+    target: Target platform for benchmark (android, gcp, ddp, desktop).
     accelerator: Accelerator to use (cpu, gpu, npu).
     devices: Target device model(s) (e.g., 'pixel 7').
     compilation_mode: Compilation mode for NPU (jit, aot).
     soc_model: Target SoC model for NPU AOT mode.
     gcp_project: GCP project ID for benchmarking.
     gcp_bucket: GCS bucket name for uploading model.
+    timeout: Seconds to wait for a DDP benchmark session to finish.
     num_runs: Target number of benchmark iterations.
     warmup_runs: Number of warmup iterations before benchmarking.
     min_secs: Minimum seconds to run.
@@ -289,6 +318,30 @@ def benchmark_cmd(
         gcp_bucket,
         compilation_mode,
         soc_model,
+    )
+  elif target == "ddp":
+    # pylint: disable=g-import-not-at-top
+    from litert_cli.commands.benchmark import ddp
+
+    # The default '--device' is a Portal device model, not a DDP device id.
+    device_source = click.get_current_context().get_parameter_source("devices")
+    if device_source == click.core.ParameterSource.DEFAULT:
+      devices = ()
+
+    ddp.run_ddp(
+        resolved_model_path,
+        accelerator,
+        devices,
+        gcp_project,
+        gcp_bucket,
+        num_runs=num_runs,
+        warmup_runs=warmup_runs,
+        min_secs=min_secs,
+        max_secs=max_secs,
+        warmup_min_secs=warmup_min_secs,
+        input_layer_value_range=input_layer_value_range,
+        signature_key=signature_key,
+        timeout=timeout,
     )
   else:
     click.secho(f"Target '{target}' is not yet supported.", fg="red")
