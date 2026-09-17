@@ -221,14 +221,20 @@ def visualize_cmd(
       )
   except FileNotFoundError:
     click.secho(
-        '\nError: "model-explorer" command not found.', fg='red', bold=True
+        '\nError: "model-explorer" command not found.',
+        fg='red',
+        bold=True,
+        err=True,
     )
     click.secho(
         'Please make sure Model Explorer is installed and available in your'
         ' PATH.',
         fg='yellow',
+        err=True,
     )
     click.secho(
-        'You can install it via: pip install model-explorer',
+        'You can install it via: pip install ai-edge-model-explorer',
         fg='cyan',
+        err=True,
     )
+    sys.exit(1)

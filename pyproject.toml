@@ -89,6 +89,17 @@ asr = [
     "sounddevice",
     "torch",
 ]
+# These are also direct dependencies; they are declared as extras so that the
+# targets built by litert_cli/core/deps.py always resolve to a real extra.
+download = [
+    "huggingface_hub",
+]
+run = [
+    "ai-edge-litert-nightly",
+]
+image = [
+    "Pillow",
+]
 all = [
     "litert-cli[compile,quantize,convert,visualize,lm,asr]"
 ]

@@ -17,11 +17,30 @@
 
 from __future__ import annotations
 
+import pathlib
+import shutil
 import subprocess
 import sys
 
 import click
 from litert_cli.core import deps
+
+
+def _resolve_litert_lm() -> str | None:
+  """Locates the `litert-lm` executable.
+
+  Console scripts are installed next to the running interpreter, which is not
+  necessarily on PATH: that is the case for a virtualenv that has not been
+  activated, for `uv run`, and for pipx-style installs. Look there first and
+  only then fall back to PATH.
+
+  Returns:
+    An absolute path or a PATH-resolvable name, or None if not found.
+  """
+  candidate = pathlib.Path(sys.executable).parent / "litert-lm"
+  if candidate.exists():
+    return str(candidate)
+  return shutil.which("litert-lm")
 
 
 @click.command(
@@ -33,7 +52,7 @@ from litert_cli.core import deps
     ),
     help="""LiteRT-LM CLI commands.
 
-This command is a transparent proxy to the native `litert-lm-cli` package.
+This command is a transparent proxy to the native `litert-lm` CLI.
 Any wildcard arguments used here are forwarded directly to the actual engine.
 
 Examples:
@@ -57,18 +76,21 @@ Examples:
 def lm_cmd(ctx: click.Context) -> None:
   """LiteRT-LM related commands.
 
-  This command is a transparent proxy to the native `litert-lm-cli` package.
+  This command is a transparent proxy to the native `litert-lm` CLI.
   Any wildcard arguments used here are forwarded directly to the actual engine.
 
   Args:
     ctx: click Context object containing forwarded arguments.
   """
-  try:
-    result = subprocess.run(["litert-lm"] + ctx.args, check=False)
-    sys.exit(result.returncode)
-  except FileNotFoundError:
-    click.secho("Error: 'litert-lm' executable not found in PATH.", fg="red")
+  exe = _resolve_litert_lm()
+  if exe is None:
     click.secho(
-        "Please install 'litert-lm-cli' to use this command.", fg="yellow"
+        "Error: 'litert-lm' executable not found.", fg="red", err=True
+    )
+    click.secho(
+        "Install it with: pip install litert-lm-nightly", fg="yellow", err=True
     )
     sys.exit(1)
+
+  result = subprocess.run([exe] + ctx.args, check=False)
+  sys.exit(result.returncode)
