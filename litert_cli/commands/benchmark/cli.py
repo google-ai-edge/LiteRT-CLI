@@ -215,6 +215,11 @@ Examples:
         " signature is used."
     ),
 )
+@click.option(
+    "--web",
+    is_flag=True,
+    help="Benchmark in the local browser using LiteRT.js.",
+)
 def benchmark_cmd(
     model: str,
     target: str,
@@ -232,6 +237,7 @@ def benchmark_cmd(
     warmup_min_secs: float = 0.5,
     input_layer_value_range: str | None = None,
     signature_key: str | None = None,
+    web: bool = False,
 ) -> None:
   """Benchmarks LiteRT models on different platforms.
 
@@ -265,6 +271,13 @@ def benchmark_cmd(
     click.echo(f"Resolved model '{model}' to '{resolved_model_path}'")
 
   model_path = pathlib.Path(resolved_model_path)
+
+  if web:
+    # pylint: disable=g-import-not-at-top
+    from litert_cli.commands.benchmark import web as web_benchmark
+
+    web_benchmark.run_web_benchmark(str(model_path))
+    return
 
   if target == "android":
     # pylint: disable=g-import-not-at-top
