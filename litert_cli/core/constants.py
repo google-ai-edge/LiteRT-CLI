@@ -21,7 +21,7 @@ import os
 import types
 
 # Flag to indicate if the CLI is running in internal environment
-IS_INTERNAL_ENV: bool = True
+IS_INTERNAL_ENV: bool = False
 
 # Environment variable names
 ENV_LITERT_CLI_ROOT: str = "LITERT_CLI_ROOT"
