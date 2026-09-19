@@ -293,6 +293,12 @@ litert benchmark model.tflite --gcp --device "pixel 7" --gcp-project "your-gcp-p
 # The devices run benchmark_model of LiteRT 2.2.0; set DDP_LITERT_VERSION to pick another release.
 litert benchmark model.tflite --ddp --device caiman-35 --gcp-project "your-gcp-project-id"
 litert benchmark model.tflite --ddp --devices "caiman-35, pa3q-35" --gpu --gcp-project "your-gcp-project-id"
+
+# A .litertlm bundle on DDP devices runs LiteRT-LM's prebuilt benchmark binary (gs://litert/binaries/latest/android_arm64/litert_lm/;
+# DDP_LITERT_LM_VERSION picks another version there, DDP_LITERT_LM_DIR a gs:// directory laid out the same way): prefill and decode tokens/s at --prefill-tokens / --decode-tokens
+# (default 1024 / 256), --num-iterations times (default 5) in one process; the printed medians leave out the first
+# --warmup-runs iterations (default 1). The metrics proto and provenance land under ~/.cache/litert-cli/ddp/<session>/<job>/.
+litert benchmark model.litertlm --ddp --device caiman-35 --gpu --gcp-project "your-gcp-project-id"
 ```
 
 ### 7. Large Language Models (LM)

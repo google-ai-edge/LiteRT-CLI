@@ -68,6 +68,10 @@ Examples:
   #
     $ litert benchmark model.tflite --ddp --device caiman-35 --gcp-project "your-gcp-project-id"
     $ litert benchmark model.tflite --ddp --devices "caiman-35, pa3q-35" --gpu --gcp-project "your-gcp-project-id"
+\b
+  # A .litertlm bundle on DDP devices runs LiteRT-LM's benchmark binary: prefill and decode
+  # tokens/s at --prefill-tokens / --decode-tokens, --num-iterations times in one process.
+    $ litert benchmark model.litertlm --ddp --device caiman-35 --gpu --gcp-project "your-gcp-project-id"
 """,
 )
 @click.argument("model", type=str)
@@ -179,7 +183,11 @@ Examples:
     "--warmup-runs",
     type=int,
     default=1,
-    help="Number of warmup iterations before benchmarking. Default is 1.",
+    help=(
+        "Number of warmup iterations before benchmarking. Default is 1. For a"
+        " .litertlm bundle on --ddp: the leading iterations left out of the"
+        " printed medians."
+    ),
 )
 @click.option(
     "--min-secs",
@@ -215,6 +223,42 @@ Examples:
         " signature is used."
     ),
 )
+@click.option(
+    "--prefill-tokens",
+    type=click.IntRange(min=1),
+    default=1024,
+    help=(
+        "Prefill tokens of a .litertlm bundle's benchmark (For --ddp target)."
+        " Default is 1024."
+    ),
+)
+@click.option(
+    "--decode-tokens",
+    type=click.IntRange(min=1),
+    default=256,
+    help=(
+        "Decode tokens of a .litertlm bundle's benchmark (For --ddp target)."
+        " Default is 256."
+    ),
+)
+@click.option(
+    "--max-num-tokens",
+    type=click.IntRange(min=1),
+    default=1280,
+    help=(
+        "Context length of a .litertlm bundle's benchmark (For --ddp target)."
+        " Default is 1280."
+    ),
+)
+@click.option(
+    "--num-iterations",
+    type=click.IntRange(min=1),
+    default=5,
+    help=(
+        "Prefill and decode cycles of a .litertlm bundle's benchmark, in one"
+        " process (For --ddp target). Default is 5."
+    ),
+)
 def benchmark_cmd(
     model: str,
     target: str,
@@ -232,6 +276,10 @@ def benchmark_cmd(
     warmup_min_secs: float = 0.5,
     input_layer_value_range: str | None = None,
     signature_key: str | None = None,
+    prefill_tokens: int = 1024,
+    decode_tokens: int = 256,
+    max_num_tokens: int = 1280,
+    num_iterations: int = 5,
 ) -> None:
   """Benchmarks LiteRT models on different platforms.
 
@@ -252,6 +300,11 @@ def benchmark_cmd(
     warmup_min_secs: Minimum warmup duration in seconds.
     input_layer_value_range: Value range for input layers.
     signature_key: The signature key to benchmark.
+    prefill_tokens: Prefill tokens of a .litertlm bundle's benchmark.
+    decode_tokens: Decode tokens of a .litertlm bundle's benchmark.
+    max_num_tokens: Context length of a .litertlm bundle's benchmark.
+    num_iterations: Prefill and decode cycles of a .litertlm bundle's
+      benchmark.
   """
   from litert_cli.core import models as core_models
 
@@ -265,6 +318,12 @@ def benchmark_cmd(
     click.echo(f"Resolved model '{model}' to '{resolved_model_path}'")
 
   model_path = pathlib.Path(resolved_model_path)
+
+  if model_path.suffix.lower() == ".litertlm" and target != "ddp":
+    raise click.ClickException(
+        "A .litertlm bundle is supported on the --ddp target only"
+        " (`litert lm benchmark` runs one on this machine)."
+    )
 
   if target == "android":
     # pylint: disable=g-import-not-at-top
@@ -342,6 +401,10 @@ def benchmark_cmd(
         input_layer_value_range=input_layer_value_range,
         signature_key=signature_key,
         timeout=timeout,
+        prefill_tokens=prefill_tokens,
+        decode_tokens=decode_tokens,
+        max_num_tokens=max_num_tokens,
+        num_iterations=num_iterations,
     )
   else:
     click.secho(f"Target '{target}' is not yet supported.", fg="red")
