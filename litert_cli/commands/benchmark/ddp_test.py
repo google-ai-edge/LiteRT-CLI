@@ -63,6 +63,54 @@ _RUNNING_RESPONSE = {
 _LOGCAT = (
     "noise line\nI benchmark_litert_model: Inference timings in us: Init: 1\n"
 )
+_LM_BINARY_DIR = "gs://litert/binaries/latest/android_arm64/litert_lm"
+# `gcloud storage ls <dir>/` as printed for the published directory.
+_LM_LISTING = (
+    f"{_LM_BINARY_DIR}/\n\n{_LM_BINARY_DIR}/:\n{_LM_BINARY_DIR}/\n"
+    f"{_LM_BINARY_DIR}/embedding_litert_lm_main\n"
+    f"{_LM_BINARY_DIR}/libLiteRtDispatch_Qualcomm.so\n"
+    f"{_LM_BINARY_DIR}/libLiteRtOpenClAccelerator.so\n"
+    f"{_LM_BINARY_DIR}/libLiteRtTopKOpenClSampler.so\n"
+    f"{_LM_BINARY_DIR}/litert_lm_advanced_main\n"
+    f"{_LM_BINARY_DIR}/litert_lm_main\n"
+    f"{_LM_BINARY_DIR}/qairt_version.txt\n"
+)
+_LM_LIBS = [
+    "libLiteRtDispatch_Qualcomm.so",
+    "libLiteRtOpenClAccelerator.so",
+    "libLiteRtTopKOpenClSampler.so",
+]
+
+
+def _lm_block(ttft: str, prefill: str, decode: str) -> str:
+  """One BenchmarkInfo block as LiteRT-LM's binary logs it (logcat form)."""
+  prefix = "09-19 11:22:12.427  8446  8446 I native  : "
+  return (
+      f"{prefix}I0000 00:00:1789784532.427623    8446 litert_lm_lib.cc:424]"
+      " BenchmarkInfo:\n"
+      f"{prefix}    - Init Total: 2811.82 ms\n"
+      f"{prefix}  Time to first token: {ttft} s\n"
+      f"{prefix}      Prefill Speed: {prefill} tokens/sec.\n"
+      f"{prefix}      Decode Speed: {decode} tokens/sec.\n"
+  )
+
+
+_LM_LOGCAT = (
+    "09-19 11:22:08.986  8446  8446 I litert  : [gpu_registry.cc:135]"
+    " Dynamically loaded GPU accelerator(libLiteRtOpenClAccelerator.so)"
+    " registered.\n"
+    "noise line\n"
+    + _lm_block("0.16", "491.23", "32.09")
+    + _lm_block("0.14", "516.38", "65.98")
+    + _lm_block("0.12", "500.00", "60.00")
+    + "09-19 11:22:13.000  8446  8446 I native  : I0000 00:00:1789784533.0"
+    "    8446 litert_lm_lib.cc:537] Aggregated BenchmarkInfo (median of 3"
+    " iterations):\n"
+    "09-19 11:22:13.000  8446  8446 I native  :       Prefill Speed: 999.00"
+    " tokens/sec.\n"
+    "09-19 11:22:13.000  8446  8446 I native  :       Decode Speed: 999.00"
+    " tokens/sec.\n"
+)
 
 
 def _job_report(name: str, result: str = "PASSED") -> dict:
@@ -121,16 +169,24 @@ class _FakeCloud:
       ls_stderr=None,
       create_stderr=None,
       upload_fails=False,
+      upload_fails_for=(),
       cp_fails_for=(),
       tokens=("token-1",),
+      lm_listing=_LM_LISTING,
+      lm_ls_stderr=None,
+      logcat=_LOGCAT,
   ):
     self.poll_results = list(poll_results)
     self.create_response = create_response or _CREATE_RESPONSE
     self.ls_stderr = ls_stderr
     self.create_stderr = create_stderr
     self.upload_fails = upload_fails
+    self.upload_fails_for = upload_fails_for
     self.cp_fails_for = cp_fails_for
     self.tokens = list(tokens)
+    self.lm_listing = lm_listing
+    self.lm_ls_stderr = lm_ls_stderr
+    self.logcat = logcat
     self.commands = []
     self.requests = []
     self.events = []
@@ -138,21 +194,38 @@ class _FakeCloud:
 
   def run(self, cmd, **kwargs):
     self.commands.append(cmd)
+    if cmd[:3] == ["gcloud", "storage", "ls"] and cmd[3].startswith(
+        "gs://litert/"
+    ):
+      # The listing of the published LiteRT-LM binaries.
+      if self.lm_ls_stderr:
+        return subprocess.CompletedProcess(cmd, 1, "", self.lm_ls_stderr)
+      return subprocess.CompletedProcess(cmd, 0, self.lm_listing, "")
     if cmd[:3] == ["gcloud", "storage", "ls"] and self.ls_stderr:
       return subprocess.CompletedProcess(cmd, 1, "", self.ls_stderr)
     if cmd[:4] == _CREATE_BUCKET and self.create_stderr:
       return subprocess.CompletedProcess(cmd, 1, "", self.create_stderr)
     is_cp = cmd[:3] == ["gcloud", "storage", "cp"]
-    if is_cp and not cmd[3].startswith("gs://") and self.upload_fails:
+    is_upload = is_cp and not cmd[3].startswith("gs://")
+    if is_upload and (
+        self.upload_fails or os.path.basename(cmd[3]) in self.upload_fails_for
+    ):
       assert kwargs.get("check"), "the upload relies on check=True"
       raise subprocess.CalledProcessError(1, cmd)
+    if is_upload:
+      # The file is read here, as gcloud would; a run script is checked by
+      # the LM tests.
+      self.uploads = getattr(self, "uploads", {})
+      self.uploads[os.path.basename(cmd[3])] = pathlib.Path(
+          cmd[3]
+      ).read_text()
     if is_cp and cmd[3].startswith("gs://"):
       local_dir = pathlib.Path(cmd[-1])
       if any(name in local_dir.parts for name in self.cp_fails_for):
         return subprocess.CompletedProcess(
             cmd, 1, "", "ERROR: (gcloud.storage.cp) permission denied\n"
         )
-      (local_dir / "logcat.txt").write_text(_LOGCAT)
+      (local_dir / "logcat.txt").write_text(self.logcat)
     return subprocess.CompletedProcess(cmd, 0, "", "")
 
   def check_output(self, cmd, **kwargs):
@@ -763,6 +836,317 @@ class RunDdpTest(absltest.TestCase):
     self.assertEqual(result.exit_code, 1)
     self.assertIn("returned no operation", result.output)
     self.assertEqual(fake.events, ["post"])
+
+
+def _lm_job_report(name: str, result: str = "PASSED") -> dict:
+  prefix = f"gs://p-devicerun/litert-cli/sessions/s-1/{name}/e-1"
+  return {
+      "displayName": name,
+      "result": {"resultType": result},
+      "executionReports": [{
+          "outputFiles": [
+              {"gcsOutputFile": {"path": f"{prefix}/{f}"}}
+              for f in (
+                  "artifacts/data/local/tmp/litert-cli/metrics.pb",
+                  "artifacts/data/local/tmp/litert-cli/provenance.txt",
+                  "logcat.txt",
+              )
+          ]
+      }],
+  }
+
+
+class LmHelpersTest(absltest.TestCase):
+  """The .litertlm bundle path: binaries, arguments, request and summary."""
+
+  def test_is_lm_bundle(self):
+    self.assertTrue(ddp.is_lm_bundle("m.litertlm"))
+    self.assertTrue(ddp.is_lm_bundle("gs://b/dir/Model.LiteRTLM"))
+    self.assertFalse(ddp.is_lm_bundle("m.tflite"))
+    self.assertFalse(ddp.is_lm_bundle("litertlm"))
+
+  def test_lm_binary_dir_follows_the_environment_variable(self):
+    with mock.patch.dict(os.environ):
+      os.environ.pop("DDP_LITERT_LM_VERSION", None)
+      os.environ.pop("DDP_LITERT_LM_DIR", None)
+      self.assertEqual(ddp._lm_binary_dir(), _LM_BINARY_DIR)
+      os.environ["DDP_LITERT_LM_VERSION"] = "0.18.0"
+      self.assertEqual(
+          ddp._lm_binary_dir(),
+          "gs://litert/binaries/0.18.0/android_arm64/litert_lm",
+      )
+      os.environ["DDP_LITERT_LM_DIR"] = "gs://my-bucket/litert_lm/"
+      self.assertEqual(ddp._lm_binary_dir(), "gs://my-bucket/litert_lm")
+
+  def test_lm_pushes_are_the_binary_and_every_library_listed(self):
+    fake = _FakeCloud()
+    with mock.patch.object(ddp.subprocess, "run", side_effect=fake.run):
+      pushes = ddp._lm_pushes(_LM_BINARY_DIR)
+    self.assertEqual(
+        pushes,
+        [(f"{_LM_BINARY_DIR}/litert_lm_advanced_main", "litert_lm_advanced_main")]
+        + [(f"{_LM_BINARY_DIR}/{lib}", lib) for lib in _LM_LIBS],
+    )
+    self.assertEqual(
+        fake.commands, [["gcloud", "storage", "ls", f"{_LM_BINARY_DIR}/"]]
+    )
+
+  def test_lm_pushes_exit_1_when_the_listing_fails_or_lacks_the_binary(self):
+    fake = _FakeCloud(lm_ls_stderr="ERROR: (gcloud.storage.ls) not found\n")
+    with mock.patch.object(ddp.subprocess, "run", side_effect=fake.run):
+      with self.assertRaisesRegex(click.ClickException, "Could not list"):
+        ddp._lm_pushes(_LM_BINARY_DIR)
+    fake = _FakeCloud(lm_listing=f"{_LM_BINARY_DIR}/litert_lm_main\n")
+    with mock.patch.object(ddp.subprocess, "run", side_effect=fake.run):
+      with self.assertRaisesRegex(
+          click.ClickException, "litert_lm_advanced_main is not under"
+      ):
+        ddp._lm_pushes(_LM_BINARY_DIR)
+
+  def test_build_lm_benchmark_args(self):
+    args = ddp._build_lm_benchmark_args(
+        model_name="m.litertlm",
+        accelerator="gpu",
+        prefill_tokens=1024,
+        decode_tokens=256,
+        max_num_tokens=1280,
+        num_iterations=5,
+    )
+    self.assertEqual(
+        args,
+        [
+            "--backend=gpu",
+            f"--model_path={_ROOT}/m.litertlm",
+            "--benchmark=true",
+            "--benchmark_prefill_tokens=1024",
+            "--benchmark_decode_tokens=256",
+            "--max_num_tokens=1280",
+            "--num_iterations=5",
+            f"--metric_proto_file_path={_ROOT}/metrics.pb",
+        ],
+    )
+
+  def test_lm_run_script_runs_the_binary_from_the_cli_directory(self):
+    script = ddp._lm_run_script()
+    self.assertTrue(script.startswith("#!/system/bin/sh\n"))
+    self.assertIn(f'ROOT="{_ROOT}"', script)
+    self.assertIn(
+        'LD_LIBRARY_PATH="$ROOT" exec ./litert_lm_advanced_main "$@"', script
+    )
+    self.assertIn("rm -f ./*.xnnpack_cache* ./*_mldrift_*cache*.bin", script)
+    self.assertIn("> provenance.txt", script)
+    self.assertIn("chmod 755 litert_lm_advanced_main || exit 1", script)
+
+  def test_build_session_request_for_a_bundle(self):
+    pushes = [(f"{_LM_BINARY_DIR}/litert_lm_advanced_main", "litert_lm_advanced_main")]
+    pushes += [(f"{_LM_BINARY_DIR}/{lib}", lib) for lib in _LM_LIBS]
+    body = ddp._build_session_request(
+        session_name=_SESSION_NAME,
+        model_gcs_path=f"gs://b/litert-cli/inputs/{_SESSION_NAME}/m.litertlm",
+        model_name="m.litertlm",
+        accelerator="gpu",
+        device_list=["caiman-35"],
+        output_dir="gs://b/litert-cli/sessions",
+        benchmark_binary=(
+            f"gs://b/litert-cli/inputs/{_SESSION_NAME}/litert_lm_run.sh"
+        ),
+        bench_args=["--backend=gpu"],
+        extra_pushes=pushes,
+        result_files=ddp._LM_RESULT_FILES,
+        execution_timeout_secs=1800,
+        runtime="litert-lm",
+    )
+    job = body["sessionConfig"]["jobConfigs"][0]
+    self.assertEqual(job["displayName"], "gpu-caiman-35")
+    binary = job["action"]["androidNativeBinary"]
+    self.assertEqual(
+        binary["androidNativeBinary"]["gcsInputFile"]["path"],
+        f"gs://b/litert-cli/inputs/{_SESSION_NAME}/litert_lm_run.sh",
+    )
+    self.assertEqual(binary["executionTimeout"], "1800s")
+    push, pull, _ = job["allocationConfig"]["deviceConfigs"][0]["actions"]
+    file_configs = push["androidPushFiles"]["fileConfigs"]
+    self.assertEqual(
+        [f["destinationPath"] for f in file_configs],
+        [f"{_ROOT}/m.litertlm", f"{_ROOT}/litert_lm_advanced_main"]
+        + [f"{_ROOT}/{lib}" for lib in _LM_LIBS],
+    )
+    self.assertEqual(
+        file_configs[1]["sourceFile"]["gcsInputFile"]["path"],
+        f"{_LM_BINARY_DIR}/litert_lm_advanced_main",
+    )
+    self.assertEqual(
+        pull["androidPullFiles"]["paths"],
+        [f"{_ROOT}/metrics.pb", f"{_ROOT}/provenance.txt"],
+    )
+    self.assertEqual(job["labels"]["runtime"], "litert-lm")
+
+  def test_lm_summary_leaves_out_the_warmup_iterations(self):
+    lines = _LM_LOGCAT.splitlines()
+    self.assertLen(ddp._lm_iterations(lines), 3)
+    self.assertEqual(
+        ddp._lm_summary(lines, 1),
+        [
+            "LiteRT-LM benchmark: 3 iteration(s), 1 warm-up; median of the"
+            " other 2:",
+            "  prefill 508.2 tokens/s, decode 63.0 tokens/s, time to first"
+            " token 0.13 s; init 2812 ms (once per run)",
+        ],
+    )
+    self.assertIn("prefill 500.0 tokens/s, decode 60.0", ddp._lm_summary(lines, 0)[1])
+    self.assertEqual(ddp._lm_summary(lines, 3), [])
+    self.assertEqual(ddp._lm_summary(_LOGCAT.splitlines(), 1), [])
+
+  def test_lm_log_filter_keeps_the_benchmark_lines(self):
+    from litert_cli.core.log_filters import LmBenchmarkLogFilter
+
+    log_filter = LmBenchmarkLogFilter(default_quiet=True)
+    shown = [l for l in _LM_LOGCAT.splitlines() if log_filter.should_show(l)]
+    self.assertIn(
+        "09-19 11:22:12.427  8446  8446 I native  :       Decode Speed: 32.09"
+        " tokens/sec.",
+        shown,
+    )
+    self.assertTrue(any("gpu_registry.cc" in l for l in shown))
+    self.assertFalse(any("noise line" in l for l in shown))
+    self.assertTrue(
+        LmBenchmarkLogFilter(default_quiet=False).should_show("noise line")
+    )
+
+
+class LmRunDdpTest(absltest.TestCase):
+  """`litert benchmark m.litertlm --ddp` through click, cloud mocked."""
+
+  def setUp(self):
+    super().setUp()
+    self.tmp_dir = tempfile.mkdtemp()
+    self.addCleanup(shutil.rmtree, self.tmp_dir, ignore_errors=True)
+    self.bundle = pathlib.Path(self.tmp_dir) / "m.litertlm"
+    self.bundle.write_bytes(b"\0")
+
+  def _invoke(self, fake: _FakeCloud, *extra_args: str, model=None):
+    args = [
+        str(model or self.bundle),
+        "--ddp",
+        "--device",
+        "caiman-35",
+        "--gcp-project",
+        "p",
+        *extra_args,
+    ]
+    with _patched(fake, self.tmp_dir):
+      return testing.CliRunner().invoke(benchmark_cli.benchmark_cmd, args)
+
+  def test_bundle_session_uploads_the_bundle_and_the_run_script(self):
+    fake = _FakeCloud(
+        [_done_response("PASSED", (_lm_job_report("gpu-caiman-35"),))],
+        logcat=_LM_LOGCAT,
+    )
+    result = self._invoke(fake, "--gpu")
+    self.assertEqual(result.exit_code, 0, result.output)
+    inputs_dir = f"gs://p-devicerun/litert-cli/inputs/{_SESSION_NAME}"
+    uploads = [
+        c[3:]
+        for c in fake.commands
+        if c[:3] == ["gcloud", "storage", "cp"] and not c[3].startswith("gs://")
+    ]
+    self.assertEqual(uploads[0], [str(self.bundle), f"{inputs_dir}/"])
+    self.assertEqual(os.path.basename(uploads[1][0]), "litert_lm_run.sh")
+    self.assertEqual(fake.uploads["litert_lm_run.sh"], ddp._lm_run_script())
+    body = json.loads(fake.requests[0].data.decode())
+    job = body["sessionConfig"]["jobConfigs"][0]
+    binary = job["action"]["androidNativeBinary"]
+    self.assertEqual(
+        binary["androidNativeBinary"]["gcsInputFile"]["path"],
+        f"{inputs_dir}/litert_lm_run.sh",
+    )
+    self.assertEqual(binary["args"][:3], [
+        "--backend=gpu",
+        f"--model_path={_ROOT}/m.litertlm",
+        "--benchmark=true",
+    ])
+    self.assertIn("--num_iterations=5", binary["args"])
+    push = job["allocationConfig"]["deviceConfigs"][0]["actions"][0]
+    self.assertLen(push["androidPushFiles"]["fileConfigs"], 2 + len(_LM_LIBS))
+    self.assertIn(
+        f"Binary: {_LM_BINARY_DIR}/litert_lm_advanced_main", result.output
+    )
+    # A bundle's session waits for the device's execution timeout.
+    self.assertIn("timeout: 2400 s", result.output)
+    self.assertIn("Job 'gpu-caiman-35': PASSED", result.output)
+    self.assertIn("Decode Speed: 32.09 tokens/sec.", result.output)
+    self.assertIn("1 warm-up; median of the other 2", result.output)
+    self.assertIn("prefill 508.2 tokens/s, decode 63.0 tokens/s", result.output)
+    self.assertNotIn("noise line", result.output)
+    self.assertNotIn("999.00", result.output.split("LiteRT-LM benchmark")[1])
+
+  def test_bundle_options_reach_the_binary(self):
+    fake = _FakeCloud([_done_response("PASSED", (_lm_job_report("cpu-caiman-35"),))])
+    result = self._invoke(
+        fake,
+        "--prefill-tokens", "128", "--decode-tokens", "32",
+        "--max-num-tokens", "512", "--num-iterations", "3", "--warmup-runs", "0",
+    )
+    self.assertEqual(result.exit_code, 0, result.output)
+    body = json.loads(fake.requests[0].data.decode())
+    args = body["sessionConfig"]["jobConfigs"][0]["action"]["androidNativeBinary"]["args"]
+    self.assertIn("--backend=cpu", args)
+    self.assertIn("--benchmark_prefill_tokens=128", args)
+    self.assertIn("--benchmark_decode_tokens=32", args)
+    self.assertIn("--max_num_tokens=512", args)
+    self.assertIn("--num_iterations=3", args)
+
+  def test_bundle_rejects_warmup_runs_not_smaller_than_the_iterations(self):
+    fake = _FakeCloud()
+    result = self._invoke(fake, "--num-iterations", "2", "--warmup-runs", "2")
+    self.assertEqual(result.exit_code, 1)
+    self.assertIn("--warmup-runs (2) must be smaller", result.output)
+    self.assertEmpty(fake.commands)
+
+  def test_bundle_rejects_benchmark_model_only_options(self):
+    fake = _FakeCloud()
+    result = self._invoke(fake, "--signature-key", "serving_default")
+    self.assertEqual(result.exit_code, 1)
+    self.assertIn("benchmark_model options", result.output)
+    self.assertEmpty(fake.commands)
+
+  def test_bundle_is_rejected_on_the_other_targets(self):
+    for target in ("--android", "--desktop", "--gcp"):
+      with mock.patch.object(constants, "DEFAULT_QUIET", False):
+        result = testing.CliRunner().invoke(
+            benchmark_cli.benchmark_cmd, [str(self.bundle), target]
+        )
+      self.assertEqual(result.exit_code, 1, target)
+      self.assertIn("--ddp target only", result.output)
+
+  def test_bundle_run_script_upload_failure_exits_1(self):
+    fake = _FakeCloud([_done_response()], upload_fails_for=("litert_lm_run.sh",))
+    result = self._invoke(fake)
+    self.assertEqual(result.exit_code, 1)
+    self.assertIn("Error: Failed to upload", result.output)
+    self.assertIn("litert_lm_run.sh", result.output)
+    self.assertEmpty(fake.requests)
+
+  def test_bundle_listing_failure_exits_1_before_the_submit(self):
+    fake = _FakeCloud(
+        [_done_response()],
+        lm_ls_stderr="ERROR: (gcloud.storage.ls) gs://litert not found\n",
+    )
+    result = self._invoke(fake)
+    self.assertEqual(result.exit_code, 1)
+    self.assertIn("Could not list the LiteRT-LM binaries", result.output)
+    self.assertEmpty(fake.requests)
+
+  def test_failed_bundle_job_exits_1_with_the_logcat_tail(self):
+    fake = _FakeCloud(
+        [_done_response("FAILED", (_lm_job_report("cpu-caiman-35", "FAILED"),))],
+        logcat="F linker  : CANNOT LINK EXECUTABLE\n",
+    )
+    result = self._invoke(fake)
+    self.assertEqual(result.exit_code, 1)
+    self.assertIn("Last 20 lines of logcat.txt", result.output)
+    self.assertIn("CANNOT LINK EXECUTABLE", result.output)
+    self.assertIn("Error: Job 'cpu-caiman-35': FAILED", result.output)
 
 
 if __name__ == "__main__":

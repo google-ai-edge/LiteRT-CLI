@@ -33,6 +33,37 @@ class BenchmarkLogFilter:
     return not self.default_quiet or is_core_info
 
 
+class LmBenchmarkLogFilter:
+  """Filters the logcat of LiteRT-LM's benchmark binary (a .litertlm bundle)."""
+
+  # The binary's engine setup lines, the accelerator and sampler
+  # registrations, and the BenchmarkInfo blocks it logs once per iteration.
+  _MARKERS = (
+      "litert_lm_lib.cc",
+      "gpu_registry.cc",
+      "gpu_environment.cc",
+      "sampler_factory.cc",
+      "BenchmarkInfo",
+      "Init Total",
+      "Init Executor",
+      "Time to first token",
+      "Prefill Turn",
+      "Prefill Speed",
+      "Decode Turn",
+      "Decode Speed",
+      "Peak system ram",
+      "Peak private footprint",
+  )
+
+  def __init__(self, default_quiet: bool):
+    self.default_quiet = default_quiet
+
+  def should_show(self, line: str) -> bool:
+    """Determines if a line should be shown in the output."""
+    is_core_info = any(marker in line for marker in self._MARKERS)
+    return not self.default_quiet or is_core_info
+
+
 class RunLogFilter:
   """Filters output of litert run command."""
 
