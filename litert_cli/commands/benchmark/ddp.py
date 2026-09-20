@@ -22,7 +22,9 @@ import json
 import os
 import pathlib
 import re
+import statistics
 import subprocess
+import tempfile
 import time
 from typing import Any
 import urllib.error
@@ -32,6 +34,7 @@ import uuid
 import click
 from litert_cli.core import constants
 from litert_cli.core.log_filters import BenchmarkLogFilter
+from litert_cli.core.log_filters import LmBenchmarkLogFilter
 
 _DEFAULT_GCP_PROJECT = os.environ.get("LITERT_GCP_PROJECT")
 _GCP_BUCKET = os.environ.get("LITERT_GCP_BUCKET")
@@ -47,6 +50,59 @@ _GCS_SESSIONS_PREFIX = "litert-cli/sessions"
 _RESULT_FILE = "results.pb"
 _RUNTIME_INFO_FILE = "runtime_info.pb"
 _RESULT_FILES = (_RESULT_FILE, _RUNTIME_INFO_FILE)
+# A .litertlm bundle runs LiteRT-LM's prebuilt benchmark binary instead of
+# benchmark_model. The binaries are published under
+# gs://litert/binaries/<version>/android_arm64/litert_lm/; `latest` is the only
+# version there so far.
+_LM_BUNDLE_SUFFIX = ".litertlm"
+_DEFAULT_DDP_LITERT_LM_VERSION = "latest"
+_ENV_DDP_LITERT_LM_VERSION = "DDP_LITERT_LM_VERSION"
+# A whole gs:// directory laid out like the published one, to try a
+# directory before it is published.
+_ENV_DDP_LITERT_LM_DIR = "DDP_LITERT_LM_DIR"
+_LM_BINARY = "litert_lm_advanced_main"
+_LM_METRICS_FILE = "metrics.pb"
+_LM_PROVENANCE_FILE = "provenance.txt"
+_LM_RESULT_FILES = (_LM_METRICS_FILE, _LM_PROVENANCE_FILE)
+# Init plus --num-iterations prefill and decode cycles; the device stops the
+# job after this long.
+_LM_EXECUTION_TIMEOUT_SECS = 1800
+_LM_RUN_SCRIPT_NAME = "litert_lm_run.sh"
+# Runs on the device as the job's binary. Runs LiteRT-LM's benchmark binary
+# from the CLI's directory with that directory on LD_LIBRARY_PATH (the
+# accelerator libraries pushed beside the binary load from there), removes the
+# caches an earlier session left beside the bundle so Init is a cold start, and
+# writes provenance.txt. Every argument goes to the binary unchanged, and the
+# binary's exit code is the job's.
+_LM_RUN_SCRIPT = """#!/system/bin/sh
+ROOT="{root}"
+cd "$ROOT" || exit 1
+chmod 755 {binary} || exit 1
+rm -f ./*.xnnpack_cache* ./*_mldrift_*cache*.bin ./*.mtp_drafter*
+MODEL=""
+for arg in "$@"; do
+  case "$arg" in --model_path=*) MODEL="${{arg#*=}}" ;; esac
+done
+{{
+  echo "date: $(date)"
+  echo "product: $(getprop ro.product.model) ($(getprop ro.product.device))"
+  echo "build: $(getprop ro.build.fingerprint)"
+  echo "args: $*"
+  echo "sha256:"
+  sha256sum {binary} "$MODEL" ./*.so 2>/dev/null
+}} > {provenance}
+LD_LIBRARY_PATH="$ROOT" exec ./{binary} "$@"
+"""
+# One BenchmarkInfo block per iteration in the logcat; the values the summary
+# reads from each block (the first prefill and decode turn).
+_LM_BLOCK_START = "BenchmarkInfo:"
+_LM_AGGREGATED_BLOCK = "Aggregated BenchmarkInfo"
+_LM_METRIC_PATTERNS = {
+    "init_ms": re.compile(r"Init Total: ([\d.]+) ms"),
+    "ttft_s": re.compile(r"Time to first token: ([\d.]+) s"),
+    "prefill_tok_s": re.compile(r"Prefill Speed: ([\d.]+) tokens/sec"),
+    "decode_tok_s": re.compile(r"Decode Speed: ([\d.]+) tokens/sec"),
+}
 _POLL_INTERVAL_SECS = 15
 # Socket timeout of one Device Run API request.
 _HTTP_TIMEOUT_SECS = 60
@@ -89,6 +145,35 @@ def _benchmark_binary() -> str:
   """Returns the GCS path of the prebuilt benchmark_model to run."""
   version = os.environ.get(_ENV_DDP_LITERT_VERSION, _DEFAULT_DDP_LITERT_VERSION)
   return f"gs://litert/binaries/{version}/android_arm64/benchmark_model"
+
+
+def is_lm_bundle(model_path: str) -> bool:
+  """Whether the model is a LiteRT-LM .litertlm bundle."""
+  return model_path.lower().endswith(_LM_BUNDLE_SUFFIX)
+
+
+def _lm_binary_dir() -> str:
+  """Returns the GCS directory of the prebuilt LiteRT-LM binaries.
+
+  DDP_LITERT_LM_DIR names the whole directory; otherwise
+  DDP_LITERT_LM_VERSION names the version under gs://litert/binaries/.
+  """
+  directory = os.environ.get(_ENV_DDP_LITERT_LM_DIR)
+  if directory:
+    return directory.rstrip("/")
+  version = os.environ.get(
+      _ENV_DDP_LITERT_LM_VERSION, _DEFAULT_DDP_LITERT_LM_VERSION
+  )
+  return f"gs://litert/binaries/{version}/android_arm64/litert_lm"
+
+
+def _lm_run_script() -> str:
+  """The device-side script that runs LiteRT-LM's benchmark binary."""
+  return _LM_RUN_SCRIPT.format(
+      root=constants.LITERT_CLI_ANDROID_ROOT,
+      binary=_LM_BINARY,
+      provenance=_LM_PROVENANCE_FILE,
+  )
 
 
 def _display_name(*parts: str) -> str:
@@ -232,6 +317,67 @@ def _build_benchmark_args(
   return bench_args
 
 
+def _build_lm_benchmark_args(
+    *,
+    model_name: str,
+    accelerator: str,
+    prefill_tokens: int,
+    decode_tokens: int,
+    max_num_tokens: int,
+    num_iterations: int,
+) -> list[str]:
+  """Builds the LiteRT-LM benchmark binary's arguments for a bundle.
+
+  The token counts and the iteration count are always emitted, so their
+  defaults live only in the click options of cli.py.
+  """
+  root = constants.LITERT_CLI_ANDROID_ROOT
+  return [
+      f"--backend={accelerator}",
+      f"--model_path={root}/{model_name}",
+      "--benchmark=true",
+      f"--benchmark_prefill_tokens={prefill_tokens}",
+      f"--benchmark_decode_tokens={decode_tokens}",
+      f"--max_num_tokens={max_num_tokens}",
+      f"--num_iterations={num_iterations}",
+      f"--metric_proto_file_path={root}/{_LM_METRICS_FILE}",
+  ]
+
+
+def _lm_pushes(binary_dir: str) -> list[tuple[str, str]]:
+  """The prebuilt files a bundle's job pushes beside the bundle.
+
+  Lists the LiteRT-LM binaries directory and returns (GCS path, file name)
+  pairs: the benchmark binary first, then every shared library there. The
+  binary loads its libraries (the OpenCL accelerator and sampler, the NPU
+  dispatch libraries, and the library it links at start) from its own
+  directory on the device, so the directory is pushed as published.
+  """
+  listing = subprocess.run(
+      ["gcloud", "storage", "ls", f"{binary_dir}/"],
+      check=False,
+      capture_output=True,
+      text=True,
+  )
+  if listing.returncode != 0:
+    raise click.ClickException(
+        f"Could not list the LiteRT-LM binaries at {binary_dir}/:\n"
+        f"{_stderr_tail(listing.stderr)}"
+    )
+  names = [
+      line.strip().rsplit("/", 1)[-1]
+      for line in listing.stdout.splitlines()
+      if line.strip() and not line.strip().endswith("/")
+  ]
+  if _LM_BINARY not in names:
+    raise click.ClickException(
+        f"{_LM_BINARY} is not under {binary_dir}/ ({_ENV_DDP_LITERT_LM_VERSION}"
+        f" picks the version, {_ENV_DDP_LITERT_LM_DIR} the directory)."
+    )
+  libraries = sorted(name for name in names if name.endswith(".so"))
+  return [(f"{binary_dir}/{name}", name) for name in [_LM_BINARY] + libraries]
+
+
 def _build_session_request(
     *,
     session_name: str,
@@ -242,49 +388,75 @@ def _build_session_request(
     output_dir: str,
     benchmark_binary: str,
     bench_args: list[str],
+    extra_pushes: list[tuple[str, str]] | None = None,
+    result_files: tuple[str, ...] = _RESULT_FILES,
+    execution_timeout_secs: int | None = None,
+    runtime: str | None = None,
 ) -> dict[str, Any]:
-  """Builds the Device Run session request: one job per device."""
+  """Builds the Device Run session request: one job per device.
+
+  Args:
+    session_name: The session's display name.
+    model_gcs_path: GCS path of the model, pushed to the CLI's directory.
+    model_name: The model's file name on the device.
+    accelerator: cpu or gpu.
+    device_list: DDP device ids, one job each.
+    output_dir: GCS directory the session's outputs go to.
+    benchmark_binary: GCS path of the job's binary.
+    bench_args: Arguments of the job's binary.
+    extra_pushes: (GCS path, file name) pairs pushed beside the model.
+    result_files: File names pulled from the CLI's directory after the run.
+    execution_timeout_secs: Seconds after which the device stops the job; None
+      leaves the platform's default.
+    runtime: A runtime label for the job, when not benchmark_model.
+  """
   root = constants.LITERT_CLI_ANDROID_ROOT
+  pushes = [(model_gcs_path, model_name)] + list(extra_pushes or [])
+  native_binary: dict[str, Any] = {
+      "androidNativeBinary": {"gcsInputFile": {"path": benchmark_binary}},
+      "args": bench_args,
+  }
+  if execution_timeout_secs is not None:
+    native_binary["executionTimeout"] = f"{execution_timeout_secs}s"
+  labels = {
+      "tool": "litert-cli",
+      "accelerator": accelerator,
+      "model": model_name,
+  }
+  if runtime:
+    labels["runtime"] = runtime
   job_configs = []
   for device_id in device_list:
     job_configs.append({
         "displayName": _display_name(accelerator, device_id),
-        "action": {
-            "androidNativeBinary": {
-                "androidNativeBinary": {
-                    "gcsInputFile": {"path": benchmark_binary}
-                },
-                "args": bench_args,
-            }
-        },
+        "action": {"androidNativeBinary": native_binary},
         "allocationConfig": {
             "deviceConfigs": [{
                 "requirement": {"deviceId": device_id},
                 "actions": [
                     {
                         "androidPushFiles": {
-                            "fileConfigs": [{
-                                "sourceFile": {
-                                    "gcsInputFile": {"path": model_gcs_path}
-                                },
-                                "destinationPath": f"{root}/{model_name}",
-                            }]
+                            "fileConfigs": [
+                                {
+                                    "sourceFile": {
+                                        "gcsInputFile": {"path": gcs_path}
+                                    },
+                                    "destinationPath": f"{root}/{name}",
+                                }
+                                for gcs_path, name in pushes
+                            ]
                         }
                     },
                     {
                         "androidPullFiles": {
-                            "paths": [f"{root}/{f}" for f in _RESULT_FILES]
+                            "paths": [f"{root}/{f}" for f in result_files]
                         }
                     },
                     {"androidLogcat": {}},
                 ],
             }]
         },
-        "labels": {
-            "tool": "litert-cli",
-            "accelerator": accelerator,
-            "model": model_name,
-        },
+        "labels": labels,
     })
   return {
       "sessionConfig": {
@@ -367,22 +539,116 @@ def _wait_for_operation(
     time.sleep(min(_POLL_INTERVAL_SECS, remaining))
 
 
-def _print_logcat_results(logcat_path: pathlib.Path, passed: bool) -> None:
-  """Prints the benchmark lines of a logcat, or its tail when the job failed."""
+def _lm_iterations(lines: list[str]) -> list[dict[str, float]]:
+  """One dict per BenchmarkInfo block of a LiteRT-LM logcat.
+
+  The binary logs one block per iteration and, after them, an aggregated
+  block over every iteration, which is skipped. A block without a prefill
+  and a decode speed is dropped.
+  """
+  iterations: list[dict[str, float]] = []
+  current: dict[str, float] | None = None
+  for line in lines:
+    if _LM_AGGREGATED_BLOCK in line:
+      current = None
+      continue
+    if line.rstrip().endswith(_LM_BLOCK_START):
+      current = {}
+      iterations.append(current)
+      continue
+    if current is None:
+      continue
+    for key, pattern in _LM_METRIC_PATTERNS.items():
+      match = pattern.search(line)
+      if match and key not in current:
+        current[key] = float(match.group(1))
+  return [i for i in iterations if "prefill_tok_s" in i and "decode_tok_s" in i]
+
+
+def _lm_summary(lines: list[str], warmup_iterations: int) -> list[str]:
+  """The medians over the iterations after the warm-up ones, as text lines.
+
+  Empty when the logcat holds no measured iteration beyond the warm-up.
+  """
+  iterations = _lm_iterations(lines)
+  measured = iterations[warmup_iterations:]
+  if not measured:
+    return []
+
+  def median(key: str) -> float | None:
+    values = [i[key] for i in measured if key in i]
+    return statistics.median(values) if values else None
+
+  prefill, decode, ttft = (
+      median("prefill_tok_s"),
+      median("decode_tok_s"),
+      median("ttft_s"),
+  )
+  init = iterations[0].get("init_ms")
+  summary = [
+      (
+          f"LiteRT-LM benchmark: {len(iterations)} iteration(s),"
+          f" {warmup_iterations} warm-up; median of the other {len(measured)}:"
+      ),
+      f"  prefill {prefill:.1f} tokens/s, decode {decode:.1f} tokens/s"
+      + (f", time to first token {ttft:.2f} s" if ttft is not None else "")
+      + (f"; init {init:.0f} ms (once per run)" if init is not None else ""),
+  ]
+  return summary
+
+
+def _print_logcat_results(
+    logcat_path: pathlib.Path,
+    passed: bool,
+    *,
+    lm: bool = False,
+    warmup_iterations: int = 0,
+) -> None:
+  """Prints the benchmark lines of a logcat, or its tail when the job failed.
+
+  For a LiteRT-LM run (`lm`), the benchmark lines are the binary's
+  BenchmarkInfo blocks, followed by the medians over the iterations after the
+  first `warmup_iterations`.
+  """
   lines = logcat_path.read_text(errors="replace").splitlines()
   if passed:
-    log_filter = BenchmarkLogFilter(constants.DEFAULT_QUIET)
+    log_filter = (
+        LmBenchmarkLogFilter(constants.DEFAULT_QUIET)
+        if lm
+        else BenchmarkLogFilter(constants.DEFAULT_QUIET)
+    )
     for line in lines:
       if log_filter.should_show(line):
         click.echo(line)
+    if lm:
+      for line in _lm_summary(lines, warmup_iterations):
+        click.secho(line, fg="green")
   else:
     click.echo(f"Last {_LOGCAT_TAIL_LINES} lines of {logcat_path.name}:")
     for line in lines[-_LOGCAT_TAIL_LINES:]:
       click.echo(line)
 
 
+def _upload(local_path: str, gcs_dir: str, what: str) -> None:
+  """Uploads a local file into a GCS directory with gcloud."""
+  click.secho(f"Uploading {what} '{local_path}' to {gcs_dir}/...", fg="cyan")
+  try:
+    subprocess.run(
+        ["gcloud", "storage", "cp", local_path, f"{gcs_dir}/"], check=True
+    )
+  except subprocess.CalledProcessError as e:
+    raise click.ClickException(
+        f"Failed to upload '{local_path}' to {gcs_dir}/ (gcloud storage cp"
+        f" exited with {e.returncode})."
+    ) from e
+
+
 def _fetch_session_outputs(
-    session_report: dict[str, Any], session_id: str
+    session_report: dict[str, Any],
+    session_id: str,
+    *,
+    lm: bool = False,
+    warmup_iterations: int = 0,
 ) -> list[str]:
   """Downloads each job's output files and prints the benchmark results.
 
@@ -424,7 +690,12 @@ def _fetch_session_outputs(
     click.echo(f"Output files saved to: {local_dir}")
     logcat_path = local_dir / "logcat.txt"
     if logcat_path.exists():
-      _print_logcat_results(logcat_path, passed=passed)
+      _print_logcat_results(
+          logcat_path,
+          passed=passed,
+          lm=lm,
+          warmup_iterations=warmup_iterations,
+      )
   return problems
 
 
@@ -443,33 +714,58 @@ def run_ddp(
     input_layer_value_range: str | None,
     signature_key: str | None,
     timeout: int | None,
+    prefill_tokens: int = 1024,
+    decode_tokens: int = 256,
+    max_num_tokens: int = 1280,
+    num_iterations: int = 5,
 ) -> None:
   """Runs the model on DDP devices via the Device Run API.
 
   Uploads model to GCS if it's not already there.
-  Submits a Device Run session that runs benchmark_model on each device.
+  Submits a Device Run session that runs benchmark_model on each device, or
+  LiteRT-LM's benchmark binary for a .litertlm bundle.
   Polls the session operation, then downloads and prints the results.
   Raises click.ClickException (exit code 1) when any step fails or when a
   job does not pass.
 
   Args:
-    model_path_str: Path to the LiteRT model file (local or gs://).
+    model_path_str: Path to the LiteRT model file or .litertlm bundle (local or
+      gs://).
     accelerator: Hardware accelerator to use (cpu, gpu).
     devices: Target DDP device id(s) (e.g., 'caiman-35').
     gcp_project: GCP project ID for benchmarking.
     gcp_bucket: GCS bucket name for the model and the session outputs.
     num_runs: Target number of benchmark iterations.
-    warmup_runs: Number of warmup iterations before benchmarking.
+    warmup_runs: Number of warmup iterations before benchmarking. For a bundle,
+      the leading iterations left out of the printed medians.
     min_secs: Minimum seconds to run.
     max_secs: Maximum seconds to run.
     warmup_min_secs: Minimum warmup duration in seconds.
     input_layer_value_range: Value range for input layers.
     signature_key: The signature key to benchmark.
-    timeout: Seconds to wait for the session; None means max_secs times the
-      number of devices plus _POLL_TIMEOUT_SLACK_SECS.
+    timeout: Seconds to wait for the session; None means max_secs (the execution
+      timeout for a bundle) times the number of devices plus
+      _POLL_TIMEOUT_SLACK_SECS.
+    prefill_tokens: Prefill tokens of a bundle's benchmark.
+    decode_tokens: Decode tokens of a bundle's benchmark.
+    max_num_tokens: Context length of a bundle's benchmark.
+    num_iterations: Prefill and decode cycles of a bundle's benchmark, in one
+      process.
   """
   if accelerator == "npu":
     raise click.ClickException("NPU on --ddp is not supported yet.")
+
+  lm = is_lm_bundle(model_path_str)
+  if lm and (input_layer_value_range or signature_key):
+    raise click.ClickException(
+        "--input-layer-value-range and --signature-key are benchmark_model"
+        " options; a .litertlm bundle runs LiteRT-LM's benchmark binary."
+    )
+  if lm and warmup_runs >= num_iterations:
+    raise click.ClickException(
+        f"--warmup-runs ({warmup_runs}) must be smaller than --num-iterations"
+        f" ({num_iterations}) for a .litertlm bundle."
+    )
 
   device_list = _normalize_devices(devices)
   if not device_list:
@@ -513,27 +809,15 @@ def run_ddp(
   # The session name namespaces the uploaded model, so concurrent runs and
   # same-named models from different directories never share an object.
   session_name = f"litert-cli-benchmark-{uuid.uuid4().hex[:8]}"
+  inputs_gcs_dir = f"gs://{target_bucket}/{_GCS_INPUTS_PREFIX}/{session_name}"
   if local_model is not None:
-    model_gcs_dir = f"gs://{target_bucket}/{_GCS_INPUTS_PREFIX}/{session_name}"
-    click.secho(
-        f"Uploading local model '{model_path}' to {model_gcs_dir}/...",
-        fg="cyan",
-    )
-    try:
-      subprocess.run(
-          ["gcloud", "storage", "cp", str(local_model), f"{model_gcs_dir}/"],
-          check=True,
-      )
-    except subprocess.CalledProcessError as e:
-      raise click.ClickException(
-          f"Failed to upload '{model_path}' to {model_gcs_dir}/ (gcloud"
-          f" storage cp exited with {e.returncode})."
-      ) from e
-    model_path = f"{model_gcs_dir}/{model_name}"
+    _upload(str(local_model), inputs_gcs_dir, "local model")
+    model_path = f"{inputs_gcs_dir}/{model_name}"
 
   output_dir = f"gs://{target_bucket}/{_GCS_SESSIONS_PREFIX}"
   if timeout is None:
-    timeout = int(max_secs * len(device_list)) + _POLL_TIMEOUT_SLACK_SECS
+    job_secs = _LM_EXECUTION_TIMEOUT_SECS if lm else max_secs
+    timeout = int(job_secs * len(device_list)) + _POLL_TIMEOUT_SLACK_SECS
 
   click.echo("Fetching GCP access token...")
   token = _access_token()
@@ -548,28 +832,61 @@ def run_ddp(
       "X-Goog-User-Project": gcp_project,
   }
 
-  benchmark_binary = _benchmark_binary()
-  bench_args = _build_benchmark_args(
-      model_name=model_name,
-      accelerator=accelerator,
-      num_runs=num_runs,
-      warmup_runs=warmup_runs,
-      min_secs=min_secs,
-      max_secs=max_secs,
-      warmup_min_secs=warmup_min_secs,
-      input_layer_value_range=input_layer_value_range,
-      signature_key=signature_key,
-  )
-  body = _build_session_request(
-      session_name=session_name,
-      model_gcs_path=model_path,
-      model_name=model_name,
-      accelerator=accelerator,
-      device_list=device_list,
-      output_dir=output_dir,
-      benchmark_binary=benchmark_binary,
-      bench_args=bench_args,
-  )
+  if lm:
+    # The job's binary is the run script; it starts LiteRT-LM's benchmark
+    # binary, pushed beside the bundle with the libraries of its directory.
+    lm_pushes = _lm_pushes(_lm_binary_dir())
+    benchmark_binary = lm_pushes[0][0]
+    with tempfile.TemporaryDirectory() as tmp_dir:
+      script_path = os.path.join(tmp_dir, _LM_RUN_SCRIPT_NAME)
+      with open(script_path, "w") as f:
+        f.write(_lm_run_script())
+      _upload(script_path, inputs_gcs_dir, "run script")
+    bench_args = _build_lm_benchmark_args(
+        model_name=model_name,
+        accelerator=accelerator,
+        prefill_tokens=prefill_tokens,
+        decode_tokens=decode_tokens,
+        max_num_tokens=max_num_tokens,
+        num_iterations=num_iterations,
+    )
+    body = _build_session_request(
+        session_name=session_name,
+        model_gcs_path=model_path,
+        model_name=model_name,
+        accelerator=accelerator,
+        device_list=device_list,
+        output_dir=output_dir,
+        benchmark_binary=f"{inputs_gcs_dir}/{_LM_RUN_SCRIPT_NAME}",
+        bench_args=bench_args,
+        extra_pushes=lm_pushes,
+        result_files=_LM_RESULT_FILES,
+        execution_timeout_secs=_LM_EXECUTION_TIMEOUT_SECS,
+        runtime="litert-lm",
+    )
+  else:
+    benchmark_binary = _benchmark_binary()
+    bench_args = _build_benchmark_args(
+        model_name=model_name,
+        accelerator=accelerator,
+        num_runs=num_runs,
+        warmup_runs=warmup_runs,
+        min_secs=min_secs,
+        max_secs=max_secs,
+        warmup_min_secs=warmup_min_secs,
+        input_layer_value_range=input_layer_value_range,
+        signature_key=signature_key,
+    )
+    body = _build_session_request(
+        session_name=session_name,
+        model_gcs_path=model_path,
+        model_name=model_name,
+        accelerator=accelerator,
+        device_list=device_list,
+        output_dir=output_dir,
+        benchmark_binary=benchmark_binary,
+        bench_args=bench_args,
+    )
 
   # Submit the session via http requests to the Device Run API.
   req = urllib.request.Request(
@@ -652,7 +969,9 @@ def run_ddp(
       f"Session '{session_id}' finished: {result}",
       fg="green" if result == "PASSED" else "red",
   )
-  problems = _fetch_session_outputs(session_report, session_id)
+  problems = _fetch_session_outputs(
+      session_report, session_id, lm=lm, warmup_iterations=warmup_runs
+  )
   if result != "PASSED" and not problems:
     problems.append(f"Session '{session_id}' finished: {result}")
   if problems:

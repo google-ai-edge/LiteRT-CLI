@@ -239,7 +239,12 @@ Verified in Python 3.13.
     application-default login`; 3) Set your GCP project using
     `--gcp-project=<Your-GCP-Project>`. The devices run the prebuilt
     `benchmark_model` of LiteRT 2.2.0; set the environment variable
-    `DDP_LITERT_VERSION` (for example `nightly`) to pick another release.
+    `DDP_LITERT_VERSION` (for example `nightly`) to pick another release. A
+    `.litertlm` bundle runs LiteRT-LM's prebuilt benchmark binary from
+    `gs://litert/binaries/latest/android_arm64/litert_lm/`, with the shared
+    libraries of that directory pushed beside it; `DDP_LITERT_LM_VERSION` picks
+    another version there, and `DDP_LITERT_LM_DIR` a whole `gs://` directory
+    laid out the same way.
 *   When `litert visualize` fails to launch Model Explorer, try to run `litert
     visualize --stop-all` first.
 *   Exporting environment variable `LITERT_VERBOSE=1` can enable verbose
@@ -392,6 +397,11 @@ litert benchmark model.tflite --gcp --devices "pixel 7, sm-s931u1" --gpu
 # - Find device ids by running: gcloud beta device-run devices list --project "your-gcp-project-id"
 litert benchmark model.tflite --ddp --device caiman-35 --gcp-project "your-gcp-project-id"
 litert benchmark model.tflite --ddp --devices "caiman-35, pa3q-35" --gpu --gcp-project "your-gcp-project-id"
+
+# A .litertlm bundle on DDP devices runs LiteRT-LM's benchmark binary: prefill and decode tokens/s
+# at --prefill-tokens / --decode-tokens (default 1024 / 256), --num-iterations times (default 5) in
+# one process; the printed medians leave out the first --warmup-runs iterations (default 1).
+litert benchmark model.litertlm --ddp --device caiman-35 --gpu --gcp-project "your-gcp-project-id"
 ```
 
 ### 7. Run and benchmark a generative LLM model using LiteRT-LM CLI
