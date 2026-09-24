@@ -456,9 +456,11 @@ litert import ./my_model_dir --model-ref my_model --hf-id my_org_name/my_model
 ```bash
 # List all managed models
 litert list
+litert list --json
 
 # Show detailed contents of a specific model using model reference.
 litert list my_model
+litert list my_model --json
 ```
 
 ### 11. Delete a managed model
