@@ -33,6 +33,10 @@ from litert_cli.core import npu_utils
 from ai_edge_litert.aot import aot_compile as aot_lib
 from ai_edge_litert.aot.ai_pack import export_lib as ai_pack_export
 
+# Multimodal architectures converted text-only: export_hf exports their text
+# decoder (e.g. Qwen3.5 is published as one image-text-to-text checkpoint).
+_TEXT_DECODER_VLM_ARCHITECTURES = ("Qwen3_5ForConditionalGeneration",)
+
 def convert_huggingface(
     model: str,
     output: str,
@@ -93,12 +97,18 @@ def convert_huggingface(
           "Gemma4ForConditionalGeneration" in arch for arch in architectures
       )
       is_gemma_vlm = is_gemma3 or is_gemma3n or is_gemma4
+      # Multimodal checkpoints whose text decoder export_hf exports as a
+      # text-generation model (the vision tower is dropped).
+      is_text_decoder_of_vlm = any(
+          arch in _TEXT_DECODER_VLM_ARCHITECTURES for arch in architectures
+      )
 
-      if not (is_causal_lm or is_gemma_vlm):
+      if not (is_causal_lm or is_gemma_vlm or is_text_decoder_of_vlm):
         raise ValueError(
             "Currently only AutoModelForCausalLM is supported (or Gemma VLM"
-            f" architectures: Gemma3, Gemma3n, Gemma4). Model '{model}' has"
-            f" architectures {architectures}."
+            " architectures: Gemma3, Gemma3n, Gemma4, or the text decoder of"
+            f" {', '.join(_TEXT_DECODER_VLM_ARCHITECTURES)}). Model '{model}'"
+            f" has architectures {architectures}."
         )
     except Exception as e:
       if isinstance(e, ValueError):
