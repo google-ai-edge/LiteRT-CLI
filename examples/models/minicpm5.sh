@@ -32,20 +32,6 @@ MODEL_DIR="models/minicpm5"
 MODEL_PATH="${MODEL_DIR}/model.litertlm"
 PRESET_PATH="${REPO_ROOT}/examples/models/presets/tool_calling_demo.py"
 
-# Runs `litert lm run` and checks that the output contains a pattern.
-# Usage: run_and_expect <pattern> <litert lm run args...>
-function run_and_expect() {
-    local pattern="$1"
-    shift
-    local out
-    out="$(litert lm run "$@" 2>&1)" || { echo "$out"; return 1; }
-    echo "$out"
-    if ! grep -qiE "$pattern" <<< "$out"; then
-        echo "Expected output to match /$pattern/"
-        return 1
-    fi
-}
-
 # --- 1. Convert HuggingFace Model with INT8 Dynamic Quantization ---
 run_case "Convert: HuggingFace ${HF_MODEL} INT8" \
     litert convert "$HF_MODEL" --quantize dynamic_wi8_afp32 --output "$MODEL_DIR"

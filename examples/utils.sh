@@ -150,6 +150,21 @@ function run_case() {
     return $status
 }
 
+# Runs `litert lm run` and checks that its output matches a pattern
+# (case-insensitive extended regex). Use with run_case.
+# Usage: run_and_expect <pattern> <litert lm run args...>
+function run_and_expect() {
+    local pattern="$1"
+    shift
+    local out
+    out="$(litert lm run "$@" 2>&1)" || { echo "$out"; return 1; }
+    echo "$out"
+    if ! grep -qiE "$pattern" <<< "$out"; then
+        echo "Expected output to match /$pattern/"
+        return 1
+    fi
+}
+
 # Prints the final summary report for the demo
 function print_summary_report() {
     local model_name="$1"
