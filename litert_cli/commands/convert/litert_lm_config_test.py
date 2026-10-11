@@ -105,40 +105,61 @@ class FetchTest(absltest.TestCase):
     )
     os.environ.pop("LITERT_LM_MODELS_REF", None)
 
-  def test_fetches_pinned_ref_and_caches(self):
-    with mock.patch.object(
+  def _urlopen(self, text=_PBTEXT):
+    # A fresh response per call, since each call reads the body once.
+    return mock.patch.object(
         litert_lm_config.urllib.request,
         "urlopen",
-        return_value=io.BytesIO(_PBTEXT.encode()),
-    ) as urlopen:
-      text = litert_lm_config.fetch_canonical_metadata("qwen3")
-      # Second call is served from the cache.
-      self.assertEqual(litert_lm_config.fetch_canonical_metadata("qwen3"), text)
-    self.assertEqual(text, _PBTEXT)
-    urlopen.assert_called_once()
-    url = urlopen.call_args.args[0]
-    self.assertIn(litert_lm_config.DEFAULT_LITERT_LM_MODELS_REF, url)
-    self.assertTrue(url.endswith("/models/qwen3/LlmMetadataProto.pbtext"))
-    cached = (
+        side_effect=lambda *a, **k: io.BytesIO(text.encode()),
+    )
+
+  def _cached(self, ref, family="qwen3"):
+    return (
         pathlib.Path(self.cache)
         / "litert-cli"
         / "litert_lm_models"
-        / litert_lm_config.DEFAULT_LITERT_LM_MODELS_REF
-        / "qwen3.pbtext"
+        / ref
+        / f"{family}.pbtext"
     )
-    self.assertEqual(cached.read_text(), _PBTEXT)
+
+  def test_default_ref_is_main_and_refetched(self):
+    with self._urlopen() as urlopen:
+      text = litert_lm_config.fetch_canonical_metadata("qwen3")
+      litert_lm_config.fetch_canonical_metadata("qwen3")
+    self.assertEqual(text, _PBTEXT)
+    # `main` moves, so every call fetches.
+    self.assertEqual(urlopen.call_count, 2)
+    url = urlopen.call_args.args[0]
+    self.assertIn("/main/models/qwen3/LlmMetadataProto.pbtext", url)
+    self.assertEqual(self._cached("main").read_text(), _PBTEXT)
+
+  def test_moving_ref_offline_uses_cache(self):
+    with self._urlopen("old config"):
+      litert_lm_config.fetch_canonical_metadata("qwen3")
+    with mock.patch.object(
+        litert_lm_config.urllib.request,
+        "urlopen",
+        side_effect=urllib.error.URLError("offline"),
+    ):
+      self.assertEqual(
+          litert_lm_config.fetch_canonical_metadata("qwen3"), "old config"
+      )
+
+  def test_commit_ref_served_from_cache(self):
+    with self._urlopen() as urlopen:
+      litert_lm_config.fetch_canonical_metadata("qwen3", ref="4a363c07")
+      litert_lm_config.fetch_canonical_metadata("qwen3", ref="4a363c07")
+    urlopen.assert_called_once()
+    self.assertIn("/4a363c07/models/qwen3/", urlopen.call_args.args[0])
+    self.assertEqual(self._cached("4a363c07").read_text(), _PBTEXT)
 
   def test_env_ref_override(self):
-    with mock.patch.dict(os.environ, {"LITERT_LM_MODELS_REF": "main"}):
-      with mock.patch.object(
-          litert_lm_config.urllib.request,
-          "urlopen",
-          return_value=io.BytesIO(_PBTEXT.encode()),
-      ) as urlopen:
+    with mock.patch.dict(os.environ, {"LITERT_LM_MODELS_REF": "4a363c07"}):
+      with self._urlopen() as urlopen:
         litert_lm_config.fetch_canonical_metadata("lfm2")
-    self.assertIn("/main/models/lfm2/", urlopen.call_args.args[0])
+    self.assertIn("/4a363c07/models/lfm2/", urlopen.call_args.args[0])
 
-  def test_network_error_raises_runtime_error(self):
+  def test_network_error_without_cache_raises_runtime_error(self):
     with mock.patch.object(
         litert_lm_config.urllib.request,
         "urlopen",

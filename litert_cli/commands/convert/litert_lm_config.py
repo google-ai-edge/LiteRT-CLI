@@ -22,7 +22,7 @@ exported `.litertlm` falls back to a generic prefix/suffix prompt template, so
 the runtime cannot toggle thinking or parse tool calls for the family.
 
 This module maps a Hugging Face config to its family, fetches the canonical
-metadata (pinned to a LiteRT-LM commit and cached locally), and rewrites
+metadata (latest `main` by default, cached locally), and rewrites
 `max_num_tokens` to the KV cache length used for the conversion.
 """
 
@@ -34,10 +34,14 @@ import re
 import urllib.error
 import urllib.request
 
-# LiteRT-LM commit the canonical configs are read from. Override with the
-# LITERT_LM_MODELS_REF environment variable (e.g. "main") to try newer configs.
-DEFAULT_LITERT_LM_MODELS_REF = "4a363c07"
+# LiteRT-LM git ref the canonical configs are read from. Defaults to the latest
+# configs on `main`, which match the litert-lm nightly the CLI installs. Set
+# the LITERT_LM_MODELS_REF environment variable to a commit for reproducible
+# conversions.
+DEFAULT_LITERT_LM_MODELS_REF = "main"
 _ENV_MODELS_REF = "LITERT_LM_MODELS_REF"
+# A full or abbreviated commit SHA never changes, so its cache never goes stale.
+_COMMIT_SHA = re.compile(r"^[0-9a-f]{7,40}$")
 _RAW_URL = (
     "https://raw.githubusercontent.com/google-ai-edge/LiteRT-LM/"
     "{ref}/models/{family}/LlmMetadataProto.pbtext"
@@ -88,23 +92,28 @@ def _cache_dir() -> pathlib.Path:
 def fetch_canonical_metadata(family: str, ref: str | None = None) -> str:
   """Returns the canonical LlmMetadataProto.pbtext text for `family`.
 
+  A commit ref is served from the local cache once fetched. Moving refs such
+  as `main` are fetched on every call; the cached copy is used only when the
+  fetch fails (e.g. offline).
+
   Args:
     family: LiteRT-LM model family directory name (e.g. "qwen3").
-    ref: LiteRT-LM git ref; defaults to LITERT_LM_MODELS_REF or the pinned
-      commit.
+    ref: LiteRT-LM git ref; defaults to LITERT_LM_MODELS_REF or `main`.
 
   Raises:
     RuntimeError: If the config cannot be fetched and is not cached.
   """
   ref = ref or os.environ.get(_ENV_MODELS_REF) or DEFAULT_LITERT_LM_MODELS_REF
   cached = _cache_dir() / ref / f"{family}.pbtext"
-  if cached.exists():
+  if cached.exists() and _COMMIT_SHA.match(ref):
     return cached.read_text()
   url = _RAW_URL.format(ref=ref, family=family)
   try:
     with urllib.request.urlopen(url, timeout=_HTTP_TIMEOUT_SECS) as resp:
       text = resp.read().decode("utf-8")
   except (urllib.error.URLError, OSError) as e:
+    if cached.exists():
+      return cached.read_text()
     raise RuntimeError(
         f"Could not fetch the canonical LiteRT-LM config for '{family}' from"
         f" {url}: {e}"
