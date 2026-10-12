@@ -288,7 +288,15 @@ litert convert Qwen/Qwen1.5-0.5B-Chat --quantize-recipe weight_only_wi4_afp32 --
 
 # Generic Script Injection with INT8 Dynamic Quantization
 litert convert my_model.py --quantize-recipe dynamic_wi8_afp32 --output /tmp/mymodel
+
+# Use a custom LlmMetadata (chat template, stop tokens) for the .litertlm bundle
+litert convert Qwen/Qwen3-1.7B --llm-metadata my_metadata.pbtext --output /tmp/qwen3
 ```
+
+For models with a canonical config in
+[LiteRT-LM `models/<family>`](https://github.com/google-ai-edge/LiteRT-LM/tree/main/models),
+such as Qwen2.5, Qwen3, Qwen3.5, LFM2 and MiniCPM5, `litert convert` tries to
+reuse that config.
 
 ### 3. Quantize a LiteRT model
 
