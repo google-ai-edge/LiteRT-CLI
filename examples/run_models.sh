@@ -32,13 +32,13 @@ export LITERT_CLI_SHARED_VENV="true"
 
 echo "Running LiteRT CLI model demo(s) with shared virtual environment..."
 
-if [ "$TARGET_MODELS" == "--all" ] || [ -z "$1" ]; then
+if [[ "$TARGET_MODELS" == "--all" || -z "$1" ]]; then
   echo "Executing all model test scripts under models/ directory..."
   for model_script in "$SCRIPT_DIR/models/"*.sh; do
     
-    # Skip the compile step
-    if [[ "$model_script" == *"compile"* ]]; then
-      echo -e "\n[Note: $(basename "$model_script") is excluded from execution.]\n"
+    # Skip the compile step specifically for convnext_tiny
+    if [[ "$model_script" == *"convnext_tiny"* && "$model_script" == *"compile"* ]]; then
+      echo -e "\n[Note: $(basename "$model_script") compile step is excluded from execution.]\n"
       continue
     fi
 
@@ -47,21 +47,19 @@ if [ "$TARGET_MODELS" == "--all" ] || [ -z "$1" ]; then
     echo -e "==================================================================\n"
     bash "$model_script"
   done
-  echo -e "\nAll LiteRT CLI model demos completed successfully!"
 else
-  # Split comma-separated string into array
   IFS=',' read -ra MODEL_ARRAY <<< "$TARGET_MODELS"
 
   for model in "${MODEL_ARRAY[@]}"; do
     
-    # Skip the compile step
-    if [ "$model" == "compile" ]; then
-      echo -e "\n[Note: compile step is excluded.]"
+    # Skip the compile step specifically for convnext_tiny
+    if [[ "$model" == *"convnext_tiny"* && "$model" == *"compile"* ]]; then
+      echo -e "\n[Note: compile step for $model is excluded.]"
       continue
     fi
 
     target_script="$SCRIPT_DIR/models/${model}.sh"
-    if [ ! -f "$target_script" ]; then
+    if [[ ! -f "$target_script" ]]; then
       echo -e "\nError: Model test script not found: $target_script"
       echo "Available model scripts under models/:"
       ls -1 "$SCRIPT_DIR/models/"*.sh | sed -e "s#.*/##" -e "s#.sh##" | sed -e "s/^/  - /"
@@ -73,5 +71,6 @@ else
     echo -e "==================================================================\n"
     bash "$target_script"
   done
-  echo -e "\nLiteRT CLI model demo(s) for '$TARGET_MODELS' completed successfully!"
 fi
+
+echo -e "\nLiteRT CLI model demo(s) for '$TARGET_MODELS' completed successfully!"
