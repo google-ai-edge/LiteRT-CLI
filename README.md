@@ -134,6 +134,9 @@ litert lm run  \
   --from-huggingface-repo=litert-community/gemma-4-E2B-it-litert-lm \
   gemma-4-E2B-it.litertlm \
   --prompt="What is the capital of France?"
+
+# A Hugging Face repo without a .litertlm file is converted once, then cached
+litert lm run Qwen/Qwen3-0.6B --prompt="What is the capital of France?"
 ```
 
 ### 🌟 Quick demos
@@ -446,7 +449,27 @@ litert lm run ./my_model.litertlm --prompt "Hello, how are you?"
 
 # Benchmark a generative LLM model
 litert lm benchmark ./my_model.litertlm
+
+# Run or benchmark a Hugging Face repo by its id
+litert lm run Qwen/Qwen3-0.6B --prompt "What is the capital of France?"
+litert lm benchmark Qwen/Qwen3-0.6B
+
+# Convert with a longer KV cache (a second bundle), or rebuild the cached one
+litert lm run Qwen/Qwen3-0.6B --cache-length 8192
+litert lm run Qwen/Qwen3-0.6B --reconvert
 ```
+
+When the first argument after `run` or `benchmark` is a Hugging Face repo id
+(`org/name`) that is not a local path:
+
+*   A repo with a `.litertlm` file runs with `--from-huggingface-repo org/name`.
+*   A repo with a transformers checkpoint is converted once with `litert
+    convert` (the `convert` extra is installed on first use) into
+    `~/.cache/litert-cli/models/<org>__<name>/`, and later runs reuse the
+    bundle. `litert lm` reads the conversion options and does not pass them to
+    `litert-lm`: `--quantize` (default `dynamic_wi8_afp32`, `none` for fp32),
+    `--prefill-lengths` (default `256`), `--cache-length` (default `4096`) and
+    `--reconvert` (convert again even if a bundle is cached).
 
 ### 8. Visualize a model's architecture
 
