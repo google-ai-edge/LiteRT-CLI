@@ -218,9 +218,9 @@ Verified in Python 3.13.
     it with required functions `get_model` and `get_args`. Check the script
     format in
     [resnet18.py](https://github.com/google-ai-edge/LiteRT-CLI/blob/main/litert_cli/test_data/resnet18.py).
-*   LLM conversion only supports HuggingFace models with type
-    AutoModelForCausalLM and
-*   Gemma family now.
+*   LLM conversion supports Hugging Face `AutoModelForCausalLM` models, the
+    Gemma 3, Gemma 3n and Gemma 4 vision-language models, and the text decoder
+    of Qwen3.5 (`Qwen3_5ForConditionalGeneration`).
 *   For large models like LLMs, `litert convert` will take large memories and
     disks, and spend multiple minutes. Please make sure you have enough memory
     and disks, and be patient.
