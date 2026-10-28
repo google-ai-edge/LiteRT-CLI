@@ -99,10 +99,26 @@ class LazyCLI(click.Group):
 def cli(ctx: click.Context, enable_model_plugins: bool) -> None:
   """Runs the LiteRT CLI."""
   ctx.ensure_object(dict)
+  _warn_if_deprecated_python()
   if enable_model_plugins:
     from litert_cli.core import constants
 
     constants.ENABLE_MODEL_PLUGINS = True
+
+
+def _warn_if_deprecated_python() -> None:
+  """Prints a deprecation banner when running on an end-of-life Python."""
+  # Python 3.10 reached upstream end-of-life on 2026-10-01 (PEP 619). Support
+  # for it is deprecated and will be removed in the next release.
+  if sys.version_info < (3, 11):
+    click.secho(
+        'WARNING: litert-cli support for Python 3.10 is deprecated and will be'
+        ' removed in the next release, following Python 3.10\'s upstream'
+        ' end-of-life (https://peps.python.org/pep-0619/). Please upgrade to'
+        ' Python 3.11 or newer.',
+        fg='yellow',
+        err=True,
+    )
 
 
 def main_bridge(unused_argv):

@@ -47,6 +47,9 @@ jobs:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
         os: ${{ fromJson(needs.prepare-matrix.outputs.os) }}
     runs-on: ${{ matrix.os }}
+    # Python 3.10 is deprecated (upstream EOL 2026-10-01) and will be dropped in
+    # the next release; its test results are informational and non-blocking.
+    continue-on-error: ${{ matrix.python-version == '3.10' }}
     steps:
       - uses: actions/checkout@v3
         with:
