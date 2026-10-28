@@ -13,7 +13,7 @@
 # limitations under the License.
 # ==============================================================================
 
-"""Quantize a LiteRT model using AI Edge Quantizer."""
+"""Quantize a LiteRT model using LiteRT Quantizer."""
 
 from __future__ import annotations
 
@@ -70,7 +70,7 @@ from litert_cli.core import deps
     help=(
         "Built-in quantization recipe to apply (e.g., dynamic_wi8_afp32,"
         " weight_only_wi8_afp32, static_wi8_ai8). See"
-        " 'ai_edge_quantizer.recipe' for full list."
+        " 'litert_quantizer.recipe' for full list."
     ),
 )
 @click.option(
@@ -111,8 +111,8 @@ def quantize_cmd(
     click.UsageError: If calibration data is missing when required.
     click.ClickException: If calibration script loading fails or is invalid.
   """
-  from ai_edge_quantizer import quantizer as aeq  # pylint: disable=g-import-not-at-top
-  from ai_edge_quantizer import qtyping  # pylint: disable=g-import-not-at-top
+  from litert_quantizer import quantizer as aeq  # pylint: disable=g-import-not-at-top
+  from litert_quantizer import qtyping  # pylint: disable=g-import-not-at-top
 
   from litert_cli.core import models as core_models
 
@@ -143,7 +143,7 @@ def quantize_cmd(
       recipe_content = json.load(f)
     quantizer.load_quantization_recipe(recipe_content)
   else:
-    from ai_edge_quantizer import recipe as aeq_recipe
+    from litert_quantizer import recipe as aeq_recipe
 
     if hasattr(aeq_recipe, quant_recipe):
       click.echo(f"Loading built-in recipe '{quant_recipe}'...")

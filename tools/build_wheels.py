@@ -26,7 +26,7 @@ STABLE_DEPENDENCIES = {
     "ai-edge-litert-sdk-qualcomm": "==2.2.0",
     "ai-edge-litert-sdk-mediatek": "==2.2.0",
     "litert-torch": "==0.9.4",
-    "ai-edge-quantizer": "==0.9.0",
+    "litert-quantizer": "==0.11.0",
     "litert-lm": "==0.17.1",
 }
 

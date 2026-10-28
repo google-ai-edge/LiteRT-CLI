@@ -67,7 +67,7 @@ compile = [
     "ai-edge-litert-sdk-mediatek-nightly",
 ]
 convert = [
-    "ai-edge-quantizer-nightly",
+    "litert-quantizer-nightly",
     "litert-torch-nightly",
     "torch",
     "transformers",
@@ -75,7 +75,7 @@ convert = [
     "sentencepiece",
 ]
 quantize = [
-    "ai-edge-quantizer-nightly",
+    "litert-quantizer-nightly",
 ]
 visualize = [
     "ai-edge-model-explorer"

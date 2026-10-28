@@ -125,7 +125,7 @@ from litert_cli.core import deps
     help=(
         "Quantization recipe to apply (e.g., dynamic_wi8_afp32,"
         " weight_only_wi4_afp32). Alias: --quantize-recipe. For full list of"
-        " generative recipes, see 'ai_edge_quantizer.recipe'."
+        " generative recipes, see 'litert_quantizer.recipe'."
     ),
 )
 @click.option(
@@ -198,7 +198,7 @@ def convert_cmd(
     input_func: Function to retrieve sample inputs in 'script' mode.
     target: NPU targets to compile for.
     export_aipack: Output directory to export the AI Pack for PODAI.
-    quantize: Quantization recipe to apply (see ai_edge_quantizer.recipe for
+    quantize: Quantization recipe to apply (see litert_quantizer.recipe for
       full list).
     model_args: Arguments to pass to custom model/input functions.
     prefill_lengths: List of prefill lengths for HuggingFace models.
