@@ -21,6 +21,7 @@ import subprocess
 import sys
 
 import click
+from litert_cli.commands import lm_hf
 from litert_cli.core import deps
 
 
@@ -47,6 +48,10 @@ Examples:
     $ litert lm run model.litertlm
     $ litert lm run gemma3-1b
 
+  Run a Hugging Face model (converted once if the repo has no .litertlm):
+
+    $ litert lm run Qwen/Qwen3-0.6B --prompt "What is the capital of France?"
+
   Benchmark a generative LLM model:
 
     $ litert lm benchmark gemma3-1b
@@ -63,8 +68,11 @@ def lm_cmd(ctx: click.Context) -> None:
   Args:
     ctx: click Context object containing forwarded arguments.
   """
+  args = ctx.args
+  if lm_hf.should_resolve(args):
+    args = lm_hf.resolve_args(args)
   try:
-    result = subprocess.run(["litert-lm"] + ctx.args, check=False)
+    result = subprocess.run(["litert-lm"] + args, check=False)
     sys.exit(result.returncode)
   except FileNotFoundError:
     click.secho("Error: 'litert-lm' executable not found in PATH.", fg="red")
