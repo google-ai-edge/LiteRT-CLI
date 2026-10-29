@@ -34,31 +34,49 @@ from litert_cli.core import deps
     help=textwrap.dedent("""\
         Convert a PyTorch model into a LiteRT model.
 
-        MODEL_OR_SCRIPT: Hugging Face model ID or path to a PyTorch script.
+        MODEL_OR_SCRIPT: Hugging Face model ID, local checkpoint directory, or
+        path to a PyTorch script.
 
-        Note: Only AutoModelForCausalLM models are supported, when using HF mode.
+        For Hugging Face models, litert-torch detects the architecture and
+        applies the export settings recommended for it (task, quantization,
+        prefill/cache lengths, GPU composites, externalized weights, LiteRT-LM
+        chat template), so one command produces a ready-to-run model. Every
+        value can be overridden with a flag; the "Export plan" printed at the
+        start shows each value and where it came from. Any architecture with a
+        litert-torch ModelExtension is supported, including out-of-tree ones
+        loaded with --extension-modules.
 
         Examples:
 
-          Automated HF Conversion:
+        \b
+          LLM with the recommended settings (GPU composites, 128+1024 prefill):
+            $ litert convert Qwen/Qwen3-0.6B
 
-            $ litert convert Qwen/Qwen1.5-0.5B-Chat --output /tmp/qwen
+        \b
+          Show the plan without exporting:
+            $ litert convert LiquidAI/LFM2.5-1.2B-Instruct --dry-run
 
-          HF Conversion with Weight-Only INT4 Quantization:
+        \b
+          Speech-to-text / text-to-speech / text-to-image:
+            $ litert convert openai/whisper-tiny
+            $ litert convert hexgrad/Kokoro-82M
+            $ litert convert black-forest-labs/FLUX.2-klein-4B
 
-            $ litert convert Qwen/Qwen1.5-0.5B-Chat --quantize-recipe weight_only_wi4_afp32 --output /tmp/qwen_w4
+        \b
+          Override recommended values:
+            $ litert convert Qwen/Qwen3-1.7B --quantize dynamic_wi8_afp32 \\
+                --prefill-lengths 128,512 --cache-length 4096 \\
+                --no-gpu-optimizations
 
-          HF Conversion with Custom Prefill & Cache Lengths:
+        \b
+          Pass any other litert-torch export_hf flag:
+            $ litert convert Qwen/Qwen3-0.6B \\
+                --export-arg use_sdpa_composite=False
 
-            $ litert convert Qwen/Qwen1.5-0.5B-Chat --prefill-lengths "128,512" --cache-length 2048 --output /tmp/qwen_custom
-
-          Generic Script Injection with Quantization:
-
-            $ litert convert my_model.py --quantize-recipe dynamic_wi8_afp32 --output /tmp/mymodel
-
-          Generic Script with Model Args and AOT Target Compilation:
-
-            $ litert convert my_model.py --model-args "batch_size=4" --target sm8450 --output /tmp/mymodel_npu
+        \b
+          Generic script with model args and AOT target compilation:
+            $ litert convert my_model.py --model-args "batch_size=4" \\
+                --target sm8450
     """),
 )
 @deps.require_extra("convert")
@@ -124,8 +142,10 @@ from litert_cli.core import deps
     default=None,
     help=(
         "Quantization recipe to apply (e.g., dynamic_wi8_afp32,"
-        " weight_only_wi4_afp32). Alias: --quantize-recipe. For full list of"
-        " generative recipes, see 'litert_quantizer.recipe'."
+        " dynamic_wi4b32_afp32, weight_only_wi4_afp32; 'none' for float)."
+        " Alias: --quantize-recipe. Default for HuggingFace models:"
+        " litert-torch's recommendation for the model. For the full list, see"
+        " 'litert_quantizer.recipe'."
     ),
 )
 @click.option(
@@ -140,25 +160,27 @@ from litert_cli.core import deps
 @click.option(
     "--prefill-lengths",
     type=str,
-    default="256",
+    default=None,
     help=(
-        "Comma-separated list of prefill lengths for HuggingFace models."
-        " Default: '256'."
+        "Comma-separated list of prefill lengths for HuggingFace LLMs."
+        " Default: litert-torch's recommendation ('128,1024')."
     ),
 )
 @click.option(
     "--cache-length",
     type=int,
-    default=4096,
-    help="KV cache length for HuggingFace models. Default: 4096.",
+    default=None,
+    help=(
+        "KV cache length for HuggingFace LLMs. Default: litert-torch's"
+        " recommendation (32768)."
+    ),
 )
 @click.option(
     "--bundle-litert-lm/--no-bundle-litert-lm",
-    is_flag=True,
-    default=True,
+    default=None,
     help=(
-        "Bundle exported artifacts into a .litert_lm package (HuggingFace mode"
-        " only). Default: True."
+        "Bundle exported artifacts into a .litertlm package (HuggingFace mode"
+        " only). Default: litert-torch's choice for the model."
     ),
 )
 @click.option(
@@ -169,11 +191,66 @@ from litert_cli.core import deps
     help=(
         "LlmMetadata (chat template, stop tokens, thinking/tool-call config)"
         " for the .litertlm bundle in HuggingFace mode. 'auto' uses the"
-        " canonical config from LiteRT-LM's models/<family> for supported"
-        " families (Qwen2.5, Qwen3, Qwen3.5, LFM2, MiniCPM5); 'none' keeps the"
+        " canonical config from LiteRT-LM's models/<family> when litert-torch"
+        " names one for the model; 'none' keeps the"
         " metadata generated by export_hf; otherwise a path to an"
         " LlmMetadataProto pbtext."
     ),
+)
+@click.option(
+    "--task",
+    type=str,
+    default="auto",
+    show_default=True,
+    help=(
+        "HuggingFace export task: auto, text_generation (llm),"
+        " image_text_to_text (vlm), automatic_speech_recognition (asr),"
+        " text_to_speech (tts), text_to_image (t2i) or any_to_any (omni)."
+    ),
+)
+@click.option(
+    "--gpu-optimizations/--no-gpu-optimizations",
+    default=None,
+    help=(
+        "Emit GPU composites, fused QKV/gate-up projections, a boolean mask"
+        " and a GPU-friendly cache length (litert-torch"
+        " apply_gpu_composites). The model still runs on CPU. Default: on"
+        " for LLMs and VLMs."
+    ),
+)
+@click.option(
+    "--externalize-weights/--no-externalize-weights",
+    default=None,
+    help=(
+        "Move the TFLite weights into one shared tflite_weights section of"
+        " the .litertlm. Default: on for LLMs and VLMs."
+    ),
+)
+@click.option(
+    "--extension-modules",
+    type=str,
+    default=None,
+    help=(
+        "Comma-separated Python modules (or .py files, with a litert-torch"
+        " that supports them) registering out-of-tree ModelExtension classes."
+    ),
+)
+@click.option(
+    "--export-arg",
+    "export_args",
+    type=str,
+    multiple=True,
+    metavar="KEY=VALUE",
+    help=(
+        "Extra litert-torch export_hf argument, repeatable (e.g."
+        " --export-arg use_sdpa_composite=False --export-arg input_sec=10)."
+    ),
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Print the resolved export plan for a HuggingFace model and exit.",
 )
 def convert_cmd(
     model_or_script: str,
@@ -184,10 +261,16 @@ def convert_cmd(
     export_aipack: pathlib.Path | None,
     quantize: str | None,
     model_args: str | None,
-    prefill_lengths: str,
-    cache_length: int,
-    bundle_litert_lm: bool,
+    prefill_lengths: str | None,
+    cache_length: int | None,
+    bundle_litert_lm: bool | None,
     llm_metadata: str,
+    task: str,
+    gpu_optimizations: bool | None,
+    externalize_weights: bool | None,
+    extension_modules: str | None,
+    export_args: tuple[str, ...],
+    dry_run: bool,
 ) -> None:
   r"""Converts a PyTorch model into a LiteRT model.
 
@@ -203,8 +286,15 @@ def convert_cmd(
     model_args: Arguments to pass to custom model/input functions.
     prefill_lengths: List of prefill lengths for HuggingFace models.
     cache_length: KV cache length for HuggingFace models.
-    bundle_litert_lm: Whether to bundle artifacts into a .litert_lm package.
+    bundle_litert_lm: Whether to bundle a .litertlm package (None: litert-torch
+      default for the model).
     llm_metadata: 'auto', 'none' or a path to an LlmMetadataProto pbtext.
+    task: HuggingFace export task, or 'auto' to detect it.
+    gpu_optimizations: Whether to emit GPU composites (None: recommended).
+    externalize_weights: Whether to externalize weights (None: recommended).
+    extension_modules: Comma-separated module names or .py paths for extensions.
+    export_args: Extra KEY=VALUE export_hf arguments.
+    dry_run: Only print the export plan.
   """
 
   from litert_cli.core import constants, utils
@@ -238,7 +328,9 @@ def convert_cmd(
         model_args=model_args,
         prefill_lengths=prefill_lengths,
         cache_length=cache_length,
-        bundle_litert_lm=bundle_litert_lm,
+        bundle_litert_lm=(
+            True if bundle_litert_lm is None else bundle_litert_lm
+        ),
     )
     if plugin_result is not None:
       return
@@ -269,4 +361,10 @@ def convert_cmd(
         cache_length,
         bundle_litert_lm,
         llm_metadata,
+        task=task,
+        gpu_optimizations=gpu_optimizations,
+        externalize_weights=externalize_weights,
+        extension_modules=extension_modules,
+        export_args=export_args,
+        dry_run=dry_run,
     )

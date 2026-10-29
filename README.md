@@ -282,24 +282,54 @@ litert download litert-community/MobileNet-v3-large --model-ref my_model_ref
 
 ### 2. Convert a PyTorch model into a LiteRT model
 
+One command converts a Hugging Face checkpoint into a LiteRT / LiteRT-LM model.
+[LiteRT Torch](https://github.com/google-ai-edge/LiteRT-Torch) detects the
+architecture and applies the export settings recommended for it (task,
+quantization, prefill/cache lengths, GPU composites, externalized weights);
+`litert convert` adds the canonical
+[LiteRT-LM `models/<family>`](https://github.com/google-ai-edge/LiteRT-LM/tree/main/models)
+chat template and metadata when LiteRT Torch names one. The `Export plan`
+printed at the start shows every value and where it came from (`user`,
+`model`, `preset` or `litert-lm`).
+
 ```bash
-# Automated HF Conversion
-litert convert Qwen/Qwen1.5-0.5B-Chat --output /tmp/qwen
+# LLMs / VLMs -> <output>/model.litertlm (GPU composites, externalized weights,
+# 128- and 1024-token prefill signatures, 32K KV cache)
+litert convert Qwen/Qwen3-0.6B
+litert convert LiquidAI/LFM2.5-1.2B-Instruct
+litert convert google/gemma-4-E2B-it
 
-# Automated HF Conversion with INT4 Weight-Only Quantization
-litert convert Qwen/Qwen1.5-0.5B-Chat --quantize-recipe weight_only_wi4_afp32 --output /tmp/qwen_w4
+# Speech-to-text, text-to-speech, text-to-image, any-to-any
+litert convert openai/whisper-tiny
+litert convert hexgrad/Kokoro-82M
+litert convert prism-ml/bonsai-image-ternary-4B-unpacked
 
-# Generic Script Injection with INT8 Dynamic Quantization
-litert convert my_model.py --quantize-recipe dynamic_wi8_afp32 --output /tmp/mymodel
+# Print the plan without exporting
+litert convert Qwen/Qwen3-1.7B --dry-run
+
+# Override any recommended value
+litert convert Qwen/Qwen3-1.7B --quantize dynamic_wi4b32_afp32 \
+  --prefill-lengths 128,512 --cache-length 4096 --no-gpu-optimizations
+
+# Pass any other litert-torch export_hf flag
+litert convert Qwen/Qwen3-0.6B --export-arg use_sdpa_composite=False
+
+# Force a task, or load an out-of-tree litert-torch ModelExtension
+litert convert ./my_whisper_finetune --task asr
+litert convert ./my_model --extension-modules my_pkg.my_extension
 
 # Use a custom LlmMetadata (chat template, stop tokens) for the .litertlm bundle
 litert convert Qwen/Qwen3-1.7B --llm-metadata my_metadata.pbtext --output /tmp/qwen3
+
+# Generic Script Injection with INT8 Dynamic Quantization
+litert convert my_model.py --quantize-recipe dynamic_wi8_afp32 --output /tmp/mymodel
 ```
 
-For models with a canonical config in
-[LiteRT-LM `models/<family>`](https://github.com/google-ai-edge/LiteRT-LM/tree/main/models),
-such as Qwen2.5, Qwen3, Qwen3.5, LFM2 and MiniCPM5, `litert convert` tries to
-reuse that config.
+Any architecture with a LiteRT Torch `ModelExtension` is supported; its
+recommended settings live in that extension, not in the CLI. LLMs, VLMs,
+speech-to-text, text-to-image and any-to-any models are packaged into a
+`.litertlm` by LiteRT Torch; text-to-speech models are exported as `.tflite`
+files until LiteRT Torch packages their voice and phonemizer assets.
 
 ### 3. Quantize a LiteRT model
 

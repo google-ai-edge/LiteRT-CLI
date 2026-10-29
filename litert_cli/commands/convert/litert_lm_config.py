@@ -42,9 +42,10 @@ DEFAULT_LITERT_LM_MODELS_REF = "main"
 _ENV_MODELS_REF = "LITERT_LM_MODELS_REF"
 # A full or abbreviated commit SHA never changes, so its cache never goes stale.
 _COMMIT_SHA = re.compile(r"^[0-9a-f]{7,40}$")
-_RAW_URL = (
+_METADATA_FILE = "LlmMetadataProto.pbtext"
+_RAW_FILE_URL = (
     "https://raw.githubusercontent.com/google-ai-edge/LiteRT-LM/"
-    "{ref}/models/{family}/LlmMetadataProto.pbtext"
+    "{ref}/models/{family}/{filename}"
 )
 _HTTP_TIMEOUT_SECS = 30
 
@@ -101,11 +102,35 @@ def fetch_canonical_metadata(family: str, ref: str | None = None) -> str:
   Raises:
     RuntimeError: If the config cannot be fetched and is not cached.
   """
+  return fetch_canonical_file(family, _METADATA_FILE, ref)
+
+
+def fetch_canonical_file(
+    family: str, filename: str, ref: str | None = None
+) -> str:
+  """Returns a file from LiteRT-LM `models/<family>/` (e.g. a chat template).
+
+  Uses the same caching rules as `fetch_canonical_metadata`.
+
+  Args:
+    family: LiteRT-LM model family directory name (e.g. "gemma4").
+    filename: File name inside the family directory.
+    ref: LiteRT-LM git ref; defaults to LITERT_LM_MODELS_REF or `main`.
+
+  Returns:
+    The UTF-8 text content of the requested file.
+
+  Raises:
+    RuntimeError: If the file cannot be fetched and is not cached.
+  """
   ref = ref or os.environ.get(_ENV_MODELS_REF) or DEFAULT_LITERT_LM_MODELS_REF
-  cached = _cache_dir() / ref / f"{family}.pbtext"
+  if filename == _METADATA_FILE:
+    cached = _cache_dir() / ref / f"{family}.pbtext"
+  else:
+    cached = _cache_dir() / ref / family / filename
   if cached.exists() and _COMMIT_SHA.match(ref):
     return cached.read_text()
-  url = _RAW_URL.format(ref=ref, family=family)
+  url = _RAW_FILE_URL.format(ref=ref, family=family, filename=filename)
   try:
     with urllib.request.urlopen(url, timeout=_HTTP_TIMEOUT_SECS) as resp:
       text = resp.read().decode("utf-8")
@@ -113,12 +138,21 @@ def fetch_canonical_metadata(family: str, ref: str | None = None) -> str:
     if cached.exists():
       return cached.read_text()
     raise RuntimeError(
-        f"Could not fetch the canonical LiteRT-LM config for '{family}' from"
-        f" {url}: {e}"
+        f"Could not fetch the canonical LiteRT-LM {filename} for '{family}'"
+        f" from {url}: {e}"
     ) from e
   cached.parent.mkdir(parents=True, exist_ok=True)
   cached.write_text(text)
   return text
+
+
+def write_canonical_file(family: str, filename: str, output_dir: str) -> str:
+  """Writes a canonical `models/<family>/<filename>` and returns its path."""
+  text = fetch_canonical_file(family, filename)
+  path = pathlib.Path(output_dir) / f"litert_lm_{family}_{filename}"
+  path.parent.mkdir(parents=True, exist_ok=True)
+  path.write_text(text)
+  return str(path)
 
 
 def with_max_num_tokens(pbtext: str, max_num_tokens: int) -> str:

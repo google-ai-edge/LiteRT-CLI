@@ -180,6 +180,26 @@ class FetchTest(absltest.TestCase):
     self.assertIn("max_num_tokens: 4096", text)
     self.assertIn("qwen3", text)
 
+  def test_write_canonical_file_caches_non_metadata_file(self):
+    out_dir = self.create_tempdir().full_path
+    with self._urlopen("{{ messages }}") as urlopen:
+      path = litert_lm_config.write_canonical_file(
+          "gemma4", "chat_template.jinja", out_dir
+      )
+    self.assertIn(
+        "/main/models/gemma4/chat_template.jinja", urlopen.call_args.args[0]
+    )
+    self.assertEqual(pathlib.Path(path).read_text(), "{{ messages }}")
+    cached_template = (
+        pathlib.Path(self.cache)
+        / "litert-cli"
+        / "litert_lm_models"
+        / "main"
+        / "gemma4"
+        / "chat_template.jinja"
+    )
+    self.assertEqual(cached_template.read_text(), "{{ messages }}")
+
 
 if __name__ == "__main__":
   absltest.main()
