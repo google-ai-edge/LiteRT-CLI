@@ -17,14 +17,65 @@
 
 from __future__ import annotations
 
-import collections
 import json
 import pathlib
 import sys
+from typing import Any
 
 import click
 
 from ..core.constants import LITERT_MODELS_CACHE_DIR
+
+
+def _load_metadata(model_dir: pathlib.Path) -> dict[str, Any]:
+  """Loads model metadata, returning an empty dict if metadata is unavailable."""
+  metadata_file = model_dir / "metadata.json"
+  if not metadata_file.exists():
+    return {}
+  try:
+    with open(metadata_file, "r") as f:
+      metadata = json.load(f)
+      return metadata if isinstance(metadata, dict) else {}
+  except Exception:
+    return {}
+
+
+def _model_summary(model_dir: pathlib.Path) -> dict[str, Any]:
+  """Builds a summary for a cached model directory."""
+  metadata = _load_metadata(model_dir)
+  return {
+      "ref": metadata.get("model_ref", model_dir.name),
+      "hf_id": metadata.get("hf_id", "N/A"),
+      "source": metadata.get("source", "N/A"),
+      "created_at": metadata.get("created_at", "N/A"),
+      "sub_references": metadata.get("sub_references", {}),
+  }
+
+
+def _model_details(model_ref: str, model_dir: pathlib.Path) -> dict[str, Any]:
+  """Builds detailed information for a cached model directory."""
+  summary = _model_summary(model_dir)
+  sub_refs = summary["sub_references"]
+  file_to_subrefs = {}
+  for sub_ref, info in sub_refs.items():
+    file_name = info.get("file") if isinstance(info, dict) else None
+    if file_name:
+      file_to_subrefs.setdefault(file_name, []).append(sub_ref)
+
+  files = []
+  for item in sorted(model_dir.iterdir()):
+    if item.name == "metadata.json":
+      continue
+    files.append({
+        "name": item.name,
+        "size_bytes": item.stat().st_size,
+        "is_dir": item.is_dir(),
+        "sub_references": file_to_subrefs.get(item.name, []),
+    })
+
+  summary["ref"] = summary.get("ref") or model_ref
+  summary["files"] = files
+  return summary
 
 
 @click.command(
@@ -32,11 +83,20 @@ from ..core.constants import LITERT_MODELS_CACHE_DIR
     help="List all managed models or detailed contents of a specific model.",
 )
 @click.argument("model_ref", required=False)
-def list_cmd(model_ref: str | None) -> None:
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    help="Output machine-readable JSON.",
+)
+def list_cmd(model_ref: str | None, as_json: bool) -> None:
   """Lists managed models. If MODEL_REF is provided, shows detailed contents."""
   cache_dir = pathlib.Path(LITERT_MODELS_CACHE_DIR)
 
   if not cache_dir.exists() or not cache_dir.is_dir():
+    if as_json:
+      click.echo(json.dumps([] if model_ref is None else {}, indent=2))
+      return
     click.echo("No managed models found (cache directory does not exist).")
     return
 
@@ -50,82 +110,59 @@ def list_cmd(model_ref: str | None) -> None:
       click.secho(f"Error: Managed model '{model_ref}' not found.", fg="red")
       sys.exit(1)
 
-    metadata_file = model_dir / "metadata.json"
-    metadata = {}
-    if metadata_file.exists():
-      try:
-        with open(metadata_file, "r") as f:
-          metadata = json.load(f)
-      except Exception:
-        pass
+    details = _model_details(model_ref, model_dir)
+    if as_json:
+      click.echo(json.dumps(details, indent=2))
+      return
 
+    metadata = _load_metadata(model_dir)
     click.echo(
         "Details for managed model:"
         f" {click.style(model_ref, fg='green', bold=True)}"
     )
     if metadata:
-      click.echo(f"  HF ID:      {metadata.get('hf_id', 'N/A')}")
-      click.echo(f"  Source:     {metadata.get('source', 'N/A')}")
-      click.echo(f"  Created At: {metadata.get('created_at', 'N/A')}")
+      click.echo(f"  HF ID:      {details.get('hf_id', 'N/A')}")
+      click.echo(f"  Source:     {details.get('source', 'N/A')}")
+      click.echo(f"  Created At: {details.get('created_at', 'N/A')}")
 
     click.echo("\nFiles in model directory:")
-    sub_refs = metadata.get("sub_references", {})
-    # Reverse mapping for display
-    file_to_subrefs = collections.defaultdict(list)
-    for sub, info in sub_refs.items():
-      f = info.get("file")
-      if f:
-        file_to_subrefs[f].append(sub)
-
-    for item in sorted(model_dir.iterdir()):
-      if item.name == "metadata.json":
-        continue
-
-      size_kb = item.stat().st_size / 1024
+    for item in details["files"]:
+      size_kb = item["size_bytes"] / 1024
       suffix = ""
-      if item.name in file_to_subrefs:
-        subs = ", ".join(file_to_subrefs[item.name])
+      if item["sub_references"]:
+        subs = ", ".join(item["sub_references"])
         suffix = f" {click.style(f'[{subs}]', fg='cyan')}"
 
-      click.echo(f"  - {item.name:<30} ({size_kb:>8.1f} KB){suffix}")
+      click.echo(f"  - {item['name']:<30} ({size_kb:>8.1f} KB){suffix}")
     return
 
   # Case 2: List all managed models (Default)
   models = [d for d in cache_dir.iterdir() if d.is_dir()]
 
   if not models:
+    if as_json:
+      click.echo(json.dumps([], indent=2))
+      return
     click.echo("No managed models found in cache.")
+    return
+
+  summaries = [_model_summary(model_dir) for model_dir in sorted(models)]
+
+  if as_json:
+    click.echo(json.dumps(summaries, indent=2))
     return
 
   click.echo(f"Managed models in {cache_dir}:")
   click.echo("-" * 60)
 
-  for model_dir in sorted(models, key=lambda x: x.name):
-    ref = model_dir.name
-    metadata_file = model_dir / "metadata.json"
-    hf_id = "N/A"
-    source = "N/A"
-    sub_refs = {}
+  for summary in summaries:
+    click.echo(f"Ref: {click.style(summary['ref'], fg='green', bold=True)}")
+    click.echo(f"  HF ID:  {summary['hf_id']}")
+    click.echo(f"  Source: {summary['source']}")
 
-    if metadata_file.exists():
-      try:
-        with open(metadata_file, "r") as f:
-          metadata = json.load(f)
-          # Use original model_ref from metadata if available
-          ref = metadata.get("model_ref", ref)
-          hf_id = metadata.get("hf_id", "N/A")
-          source = metadata.get("source", "N/A")
-          sub_refs = metadata.get("sub_references", {})
-      except Exception:
-        pass
-
-    click.echo(f"Ref: {click.style(ref, fg='green', bold=True)}")
-    click.echo(f"  HF ID:  {hf_id}")
-    click.echo(f"  Source: {source}")
-
-    if sub_refs:
+    if summary["sub_references"]:
       click.echo("  Sub-references:")
-      for sub_ref, info in sub_refs.items():
+      for sub_ref, info in summary["sub_references"].items():
         file_name = info.get("file", "N/A")
         click.echo(f"    - {sub_ref} -> {file_name}")
 
