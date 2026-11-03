@@ -81,7 +81,7 @@ if has_android_device; then
     run_case "Benchmark: ResNet18 Dynamic INT8 on Android" \
         litert benchmark "models/resnet18/resnet18_int8_dynamic.tflite" --android
 else
-    echo -e "\n${YELLOW}No Android device detected. Skipping benchmarks (litert benchmark only supports Android/GCP).${NC}"
+    echo -e "\n${YELLOW}No Android device detected. Skipping Android benchmarks.${NC}"
 fi
 
 

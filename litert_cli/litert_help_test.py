@@ -30,6 +30,7 @@ class LitertHelpTest(parameterized.TestCase):
     self.assertIn("LiteRT CLI", result.output)
 
   @parameterized.named_parameters(
+      ("benchmark", "benchmark"),
       ("download", "download"),
       ("visualize", "visualize"),
       ("quantize", "quantize"),

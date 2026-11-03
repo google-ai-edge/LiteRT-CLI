@@ -17,8 +17,8 @@
 
 This module defines the `benchmark` command using Click. It supports:
 1. Benchmarking on a local Android device via adb (Default).
-2. Benchmarking on Google Cloud Platform (GCP) via AI Edge Portal Cloud API.
-3. Benchmarking on Developer Device Platform (DDP) devices via Device Run API.
+2. Benchmarking on Developer Device Platform (DDP) devices via Device Run API.
+3. Benchmarking on a local Desktop machine.
 """
 
 from __future__ import annotations
@@ -57,30 +57,20 @@ Examples:
     $ litert benchmark model.tflite --android --gpu
     $ litert benchmark model.tflite --android --npu
 \b
-  # Benchmark on Google AI Edge Portal in Google Cloud. Prerequisites:
-  # - Set up your Google AI Edge Portal account by following up the instructions at:
-  #   https://ai.google.dev/edge/ai-edge-portal
-  # - Set up authentication by running: gcloud auth login
-  # - You can set the default GCP project by setting the environment variable LITERT_GCP_PROJECT,
-  #  or by providing the --gcp-project option.
-  # 
-    $ litert benchmark model.tflite --gcp --device "pixel 7"
-    $ litert benchmark model.tflite --gcp --device "pixel 7" --gcp-project "your-gcp-project-id"
-    $ litert benchmark model.tflite --gcp --devices "pixel 7, sm-s931u1" --gpu
-\b
   # Benchmark on Developer Device Platform (DDP) devices in Google Cloud. Prerequisites:
   # - Enable the Device Run API in your GCP project: gcloud services enable devicerun.googleapis.com
   # - Set up authentication by running: gcloud auth application-default login
   # - Find device ids by running: gcloud beta device-run devices list --project "your-gcp-project-id"
   #
-    $ litert benchmark model.tflite --ddp --device caiman-35 --gcp-project "your-gcp-project-id"
-    $ litert benchmark model.tflite --ddp --devices "caiman-35, pa3q-35" --gpu --gcp-project "your-gcp-project-id"
+    $ litert benchmark model.tflite --ddp --gcp-project "your-gcp-project-id"
+    $ litert benchmark model.tflite --ddp --device grizzly-37 --gcp-project "your-gcp-project-id"
+    $ litert benchmark model.tflite --ddp --devices "grizzly-37, pa3q-35" --gpu --gcp-project "your-gcp-project-id"
 \b
   # A .litertlm bundle on DDP devices runs LiteRT-LM's benchmark binary twice: a warm-up process
   # writes the caches beside the bundle, then the measured process runs --num-iterations times
   # from them: prefill and decode tokens/s at --prefill-tokens / --decode-tokens, both Init
   # times and the peak memory.
-    $ litert benchmark model.litertlm --ddp --device caiman-35 --gpu --gcp-project "your-gcp-project-id"
+    $ litert benchmark model.litertlm --ddp --device grizzly-37 --gpu --gcp-project "your-gcp-project-id"
 """,
 )
 @click.argument("model", type=str)
@@ -95,7 +85,10 @@ Examples:
     "--gcp",
     "target",
     flag_value="gcp",
-    help="Benchmark on Google AI Edge Portal in Google Cloud.",
+    help=(
+        "[Deprecated] Benchmark on Google AI Edge Portal in Google Cloud."
+        " Use --ddp instead."
+    ),
 )
 @click.option(
     "--ddp",
@@ -155,23 +148,22 @@ Examples:
     "devices",
     type=str,
     multiple=True,
-    default=["pixel 7"],
+    default=["pa3q-35"],
     help=(
-        "Target device model name(s) (e.g., 'pixel 7'). Can be specified"
-        " --device multiple times or use --devices 'pixel 7, sm-s931u1'."
-        " Default is 'pixel 7'. For DDP, use the device id such as"
-        " 'caiman-35'."
+        "Target device ID(s) for --ddp (e.g., 'grizzly-37'). Can be specified"
+        " --device multiple times or use --devices 'grizzly-37, pa3q-35'."
+        " Default is 'pa3q-35'."
     ),
 )
 @click.option(
     "--gcp-project",
     type=str,
-    help="GCP project ID for benchmarking (For --gcp and --ddp targets).",
+    help="GCP project ID for benchmarking (For --ddp target).",
 )
 @click.option(
     "--gcp-bucket",
     type=str,
-    help="GCS bucket name for uploading model (For --gcp and --ddp targets).",
+    help="GCS bucket name for uploading model (For --ddp target).",
 )
 @click.option(
     "--timeout",
@@ -298,9 +290,10 @@ def benchmark_cmd(
 
   Args:
     model: Path to the LiteRT model file or Model Reference.
-    target: Target platform for benchmark (android, gcp, ddp, desktop).
+    target: Target platform for benchmark (android, ddp, desktop; gcp is
+      deprecated).
     accelerator: Accelerator to use (cpu, gpu, npu).
-    devices: Target device model(s) (e.g., 'pixel 7').
+    devices: Target device ID(s) for --ddp (e.g., 'pa3q-35', 'grizzly-37').
     compilation_mode: Compilation mode for NPU (jit, aot).
     soc_model: Target SoC model for NPU AOT mode.
     gcp_project: GCP project ID for benchmarking.
@@ -377,6 +370,11 @@ def benchmark_cmd(
     # pylint: disable=g-import-not-at-top
     from litert_cli.commands.benchmark import gcp
 
+    # The default '--device' is a DDP device id, not a Portal device model.
+    device_source = click.get_current_context().get_parameter_source("devices")
+    if device_source == click.core.ParameterSource.DEFAULT:
+      devices = ()
+
     if accelerator != "npu":
       compilation_mode = None
       soc_model = None
@@ -393,11 +391,6 @@ def benchmark_cmd(
   elif target == "ddp":
     # pylint: disable=g-import-not-at-top
     from litert_cli.commands.benchmark import ddp
-
-    # The default '--device' is a Portal device model, not a DDP device id.
-    device_source = click.get_current_context().get_parameter_source("devices")
-    if device_source == click.core.ParameterSource.DEFAULT:
-      devices = ()
 
     ddp.run_ddp(
         resolved_model_path,

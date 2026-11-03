@@ -13,7 +13,11 @@
 # limitations under the License.
 # ==============================================================================
 
-"""Benchmarking on Google AI Edge Portal in GCP."""
+"""[Deprecated] Benchmarking on Google AI Edge Portal in GCP.
+
+Google AI Edge Portal benchmarking (`litert benchmark --gcp`) is deprecated.
+Use Developer Device Platform benchmarking (`litert benchmark --ddp`) instead.
+"""
 
 from __future__ import annotations
 
@@ -25,8 +29,15 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+import warnings
 
 import click
+
+_DEPRECATION_MESSAGE = (
+    "'litert benchmark --gcp' (Google AI Edge Portal) is deprecated and will"
+    " be removed in a future release. Please use 'litert benchmark --ddp'"
+    " (Developer Device Platform) instead."
+)
 
 _DEFAULT_GCP_PROJECT = os.environ.get("LITERT_GCP_PROJECT")
 _DEFAULT_GCP_LOCATION = "us-central1"
@@ -72,6 +83,9 @@ def run_gcp(
 ) -> None:
   """Runs the model on GCP via AI Edge Portal Cloud API.
 
+  Deprecated: Google AI Edge Portal is deprecated. Use `ddp.run_ddp`
+  (`litert benchmark --ddp`) instead.
+
   Uploads model to GCS if it's not already there.
   Submits benchmark job to AI Edge Portal Cloud API.
   Polls benchmark job status.
@@ -85,6 +99,8 @@ def run_gcp(
     compilation_mode: Compilation mode for NPU (jit, aot).
     soc_model: Target SoC model for NPU AOT mode.
   """
+  warnings.warn(_DEPRECATION_MESSAGE, DeprecationWarning, stacklevel=2)
+  click.secho(f"WARNING: {_DEPRECATION_MESSAGE}", fg="yellow", err=True)
 
   device_list = []
   if isinstance(devices, str):

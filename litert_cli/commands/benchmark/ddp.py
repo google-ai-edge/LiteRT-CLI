@@ -1083,7 +1083,7 @@ def run_ddp(
     model_path_str: Path to the LiteRT model file or .litertlm bundle (local or
       gs://).
     accelerator: Hardware accelerator to use (cpu, gpu).
-    devices: Target DDP device id(s) (e.g., 'caiman-35').
+    devices: Target DDP device id(s) (e.g., 'pa3q-35', 'grizzly-37').
     gcp_project: GCP project ID for benchmarking.
     gcp_bucket: GCS bucket name for the model and the session outputs.
     num_runs: Target number of benchmark iterations.

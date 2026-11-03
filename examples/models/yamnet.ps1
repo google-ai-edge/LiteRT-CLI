@@ -125,7 +125,7 @@ if (Has-AndroidDevice) {
     }
 } else {
     Write-Host ""
-    Write-Host "${YELLOW}No Android device detected. Skipping benchmarks (litert benchmark only supports Android/GCP).${NC}"
+    Write-Host "${YELLOW}No Android device detected. Skipping Android benchmarks.${NC}"
 }
 
 # --- 5. Compile (AOT Compilation) ---

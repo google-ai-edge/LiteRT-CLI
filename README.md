@@ -23,8 +23,8 @@ stacks, including [LiteRT](https://github.com/google-ai-edge/LiteRT),
 [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM),
 [LiteRT Torch](https://github.com/google-ai-edge/LiteRT-Torch),
 [LiteRT Quantizer](https://github.com/google-ai-edge/LiteRT/tree/main/litert_quantizer),
-[AI Edge Portal](https://ai.google.dev/edge/ai-edge-portal), and
-[Model Explorer](https://ai.google.dev/edge/model-explorer).
+[Developer Device Platform](https://docs.cloud.google.com/developer-device-platform/overview),
+and [Model Explorer](https://ai.google.dev/edge/model-explorer).
 
 --------------------------------------------------------------------------------
 
@@ -230,10 +230,6 @@ Verified in Python 3.13.
 *   `litert compile` only supports running on Linux now, and it requires newer
     Clang version `18.x.x` or above. Try `sudo apt install clang libc++-18-dev
     libc++abi-18-dev`.
-*   When benchmark using `--gcp` flag, you need to 1) Join the EAP program of
-    [Google AI Edge Portal](https://ai.google.dev/edge/ai-edge-portal); 2) Login
-    to GCP using `gcloud auth login`; 3) Set your GCP project using
-    `--gcp=<Your-GCP-Project>`.
 *   When benchmark using `--ddp` flag, you need to 1) Enable the Device Run API
     of
     [Developer Device Platform](https://docs.cloud.google.com/developer-device-platform/overview)
@@ -399,29 +395,20 @@ litert benchmark model.tflite --android --gpu
 # Benchmark on macOS (CPU)
 litert benchmark my_model_ref --desktop --cpu
 
-# Benchmark on Google AI Edge Portal in Google Cloud. Prerequisites:
-# - Set up your Google AI Edge Portal account by following up the instructions at:
-#   https://ai.google.dev/edge/ai-edge-portal
-# - Set up authentication by running: gcloud auth login
-# - You can set the default GCP project by setting the environment variable LITERT_GCP_PROJECT, or by providing the --gcp-project option.
-# - You can specific your GCP bucket by --gcp-bucket, otherwise, it will create default
-#   one.
-litert benchmark model.tflite --gcp --device "pixel 7" --gcp-project "your-gcp-project-id" --gcp-bucket "your-gcp-bucket"
-litert benchmark model.tflite --gcp --devices "pixel 7, sm-s931u1" --gpu
-
 # Benchmark on Developer Device Platform (DDP) devices in Google Cloud. Prerequisites:
 # - Enable the Device Run API in your GCP project: gcloud services enable devicerun.googleapis.com
 # - Set up authentication by running: gcloud auth application-default login
 # - Find device ids by running: gcloud beta device-run devices list --project "your-gcp-project-id"
-litert benchmark model.tflite --ddp --device caiman-35 --gcp-project "your-gcp-project-id"
-litert benchmark model.tflite --ddp --devices "caiman-35, pa3q-35" --gpu --gcp-project "your-gcp-project-id"
+litert benchmark model.tflite --ddp --gcp-project "your-gcp-project-id"
+litert benchmark model.tflite --ddp --device grizzly-37 --gcp-project "your-gcp-project-id"
+litert benchmark model.tflite --ddp --devices "grizzly-37, pa3q-35" --gpu --gcp-project "your-gcp-project-id"
 
 # A .litertlm bundle on DDP devices runs LiteRT-LM's benchmark binary twice: a warm-up process (one
 # iteration, a cold Init) writes the caches beside the bundle, then the measured process loads them and
 # runs --num-iterations times (default 5) at --prefill-tokens / --decode-tokens (default 1024 / 256).
 # The printed medians leave out its first --warmup-runs iterations (default 1); the summary also shows
 # both Init times and the peak memory.
-litert benchmark model.litertlm --ddp --device caiman-35 --gpu --gcp-project "your-gcp-project-id"
+litert benchmark model.litertlm --ddp --device grizzly-37 --gpu --gcp-project "your-gcp-project-id"
 ```
 
 ### 7. Run and benchmark a generative LLM model using LiteRT-LM CLI

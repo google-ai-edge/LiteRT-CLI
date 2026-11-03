@@ -539,12 +539,29 @@ class RunDdpTest(absltest.TestCase):
     with self.assertRaisesRegex(click.ClickException, "Missing GCP project"):
       ddp.run_ddp("m.tflite", "cpu", ["caiman-35"], **_BENCH_KWARGS)
 
-  def test_cli_rejects_the_default_device_for_ddp(self):
+  def test_cli_uses_the_default_device_for_ddp(self):
+    fake = _FakeCloud([_done_response(jobs=(_job_report("cpu-pa3q-35"),))])
+    with _patched(fake, self.tmp_dir), mock.patch.dict(os.environ):
+      os.environ.pop(constants.ENV_LITERT_DISABLE_MODEL_CACHES, None)
+      result = testing.CliRunner().invoke(
+          benchmark_cli.benchmark_cmd,
+          [str(self.model), "--ddp", "--gcp-project", "p"],
+      )
+    self.assertEqual(result.exit_code, 0, result.output)
+    body = json.loads(fake.requests[0].data.decode())
+    job = body["sessionConfig"]["jobConfigs"][0]
+    self.assertEqual(job["displayName"], "cpu-pa3q-35")
+    self.assertEqual(
+        job["allocationConfig"]["deviceConfigs"][0]["requirement"]["deviceId"],
+        "pa3q-35",
+    )
+
+  def test_cli_rejects_empty_device_for_ddp(self):
     runner = testing.CliRunner()
     with mock.patch.object(constants, "DEFAULT_QUIET", False):
       result = runner.invoke(
           benchmark_cli.benchmark_cmd,
-          ["m.tflite", "--ddp", "--gcp-project", "p"],
+          [str(self.model), "--ddp", "--device", "", "--gcp-project", "p"],
       )
     self.assertEqual(result.exit_code, 1)
     self.assertIn("--device is required", result.output)

@@ -86,7 +86,7 @@ if has_android_device; then
     run_case "Benchmark: YamNet Dynamic INT8 on Android" \
         litert benchmark "models/yamnet/yamnet_int8_dynamic.tflite" --android
 else
-    echo -e "\n${YELLOW}No Android device detected. Skipping benchmarks (litert benchmark only supports Android/GCP).${NC}"
+    echo -e "\n${YELLOW}No Android device detected. Skipping Android benchmarks.${NC}"
 fi
 
 
