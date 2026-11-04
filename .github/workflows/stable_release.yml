@@ -91,6 +91,9 @@ jobs:
     needs: test-before-publish
     if: success() && inputs.dry_run == false
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Download Stable Wheel
         uses: actions/download-artifact@v4
@@ -98,13 +101,25 @@ jobs:
           name: litert-cli-wheel
           path: ./dist
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
+      - name: Authenticate to Google Cloud (OSS Exit Gate)
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed
+        with:
+          workload_identity_provider: 'projects/305452601764/locations/global/workloadIdentityPools/builders/providers/github'
 
-      - name: Publish to PyPI
-        env:
-          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_UPLOAD_TOKEN }}
-        run: uv publish dist/*.whl
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f
+
+      - name: Stage to OSS Exit Gate and upload manifest
+        run: |
+          python3 -m pip install --upgrade pip twine
+          python3 -m twine upload \
+            --repository-url "https://us-python.pkg.dev/oss-exit-gate-prod/litert-cli--pypi/" \
+            -u oauth2accesstoken \
+            -p "$(gcloud auth print-access-token)" \
+            dist/*.whl
+          echo '{"publish_all": true}' > manifest.json
+          gcloud storage cp manifest.json \
+            "gs://oss-exit-gate-prod-projects-bucket/litert-cli/pypi/manifests/manifest-${{ github.run_id }}-${{ github.run_attempt }}.json"
 
   test-after-publish:
     needs: publish-stable
