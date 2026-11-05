@@ -497,7 +497,12 @@ class ResolveArgsTest(absltest.TestCase):
         message,
     )
     kept_log = self.tmp / "logs" / f"org__name-{_VARIANT}.log"
-    self.assertIn(f"full log: {kept_log}", message)
+    # The message shortens a path under the home directory to ~/...
+    home = os.path.expanduser("~")
+    shown = str(kept_log)
+    if shown.startswith(home + os.sep):
+      shown = "~" + shown[len(home) :]
+    self.assertIn(f"full log: {shown}", message)
     self.assertEqual(kept_log.read_text(), _MAMBA_LOG)
     self.assertIn("LITERT_VERBOSE=1 litert convert org/name", message)
     self.assertIn("export_hf may not support this architecture", message)

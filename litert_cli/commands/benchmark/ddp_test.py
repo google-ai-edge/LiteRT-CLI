@@ -2268,7 +2268,8 @@ class LmRunDdpTest(absltest.TestCase):
 
   def test_bundle_options_reach_the_binary(self):
     fake = _FakeCloud(
-        [_done_response("PASSED", (_lm_job_report("cpu-caiman-35"),))]
+        [_done_response("PASSED", (_lm_job_report("cpu-caiman-35"),))],
+        logcat=_LM_LOGCAT,
     )
     result = self._invoke(
         fake,
@@ -2336,6 +2337,44 @@ class LmRunDdpTest(absltest.TestCase):
     self.assertEqual(result.exit_code, 1)
     self.assertIn("Could not list the LiteRT-LM binaries", result.output)
     self.assertEmpty(fake.requests)
+
+  def test_passed_bundle_job_without_benchmark_results_exits_1(self):
+    # The binary can run zero prefill and decode turns and still exit 0.
+    zero_turns = (
+        "09-19 11:22:13.000  8446  8446 I native  :   Prefill Turns (Total 0"
+        " turns):\n"
+        "09-19 11:22:13.000  8446  8446 I native  :   Decode Turns (Total 0"
+        " turns):\n"
+    )
+    fake = _FakeCloud(
+        [_done_response("PASSED", (_lm_job_report("cpu-caiman-35"),))],
+        logcat=zero_turns,
+    )
+    result = self._invoke(fake)
+    self.assertEqual(result.exit_code, 1, result.output)
+    self.assertIn("Job 'cpu-caiman-35': PASSED", result.output)
+    self.assertIn("logged no prefill and decode speeds", result.output)
+    self.assertIn(
+        "Error: Job 'cpu-caiman-35': no LiteRT-LM benchmark results",
+        result.output,
+    )
+
+  def test_zero_turn_measured_process_is_not_replaced_by_the_warmup_one(self):
+    # The warm-up process ran its iteration; the measured one ran no turns.
+    zero_turns = (
+        "09-19 11:22:14.000  8446  8446 I native  : I0000 00:00:1789784534.0"
+        "    8446 litert_lm_lib.cc:424] BenchmarkInfo:\n"
+        "09-19 11:22:14.000  8446  8446 I native  :   Prefill Turns (Total 0"
+        " turns):\n"
+    )
+    lines = (
+        _lm_block("0.20", "480.00", "30.00", pid="8400")
+        + _lm_aggregated("8400", 1)
+        + zero_turns
+    ).splitlines()
+    self.assertEqual([len(p) for p in ddp._lm_processes(lines)], [1, 0])
+    self.assertEqual(ddp._lm_summary(lines, 0), [])
+    self.assertEqual(ddp._lm_summary(lines, 1), [])
 
   def test_failed_bundle_job_exits_1_with_the_logcat_tail(self):
     fake = _FakeCloud(

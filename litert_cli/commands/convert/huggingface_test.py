@@ -118,6 +118,33 @@ class ConvertHuggingFaceTest(absltest.TestCase):
         },
     )
 
+  def test_missing_model_package_names_the_pip_package(self):
+    fake = _FakeExportHf(_FakePlan("automatic_speech_recognition", {}))
+    fake.export = mock.Mock(
+        side_effect=[
+            fake.plan,
+            ModuleNotFoundError("No module named 'nemo'", name="nemo"),
+        ]
+    )
+
+    with self.assertRaises(click.ClickException) as cm:
+      self._run(fake)
+
+    self.assertIn(
+        "needs the Python package 'nemo_toolkit[asr]'", cm.exception.message
+    )
+    self.assertIn('pip install "nemo_toolkit[asr]"', cm.exception.message)
+
+  def test_other_import_errors_are_not_reported_as_missing_packages(self):
+    # Version skew: the package is installed but lacks a name.
+    error = ImportError(
+        "cannot import name 'X' from 'transformers'", name="transformers"
+    )
+    fake = _FakeExportHf(_FakePlan("automatic_speech_recognition", {}))
+    fake.export = mock.Mock(side_effect=[fake.plan, error])
+    with self.assertRaises(ImportError):
+      self._run(fake)
+
   def test_forwards_target_to_export_hf(self):
     fake = _FakeExportHf(_FakePlan("text_generation", {"cache_length": 1024}))
 

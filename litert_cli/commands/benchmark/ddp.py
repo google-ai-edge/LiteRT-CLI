@@ -758,7 +758,9 @@ def _lm_processes(lines: list[str]) -> list[list[dict[str, float]]]:
   and after every iteration an aggregated block, which is skipped. Blocks are
   grouped by the process id of their logcat lines, in order: the run script's
   warm-up process, then the measured one (lines without a logcat prefix count
-  as one process). A block without a prefill and a decode speed is dropped.
+  as one process). A block without a prefill and a decode speed is dropped,
+  but its process stays (with an empty list), so that a measured process that
+  ran no turns is not mistaken for the warm-up process before it.
   """
   processes: list[list[dict[str, float]]] = []
   pids: list[str | None] = []
@@ -786,7 +788,7 @@ def _lm_processes(lines: list[str]) -> list[list[dict[str, float]]]:
       [i for i in blocks if "prefill_tok_s" in i and "decode_tok_s" in i]
       for blocks in processes
   ]
-  return [blocks for blocks in measured if blocks]
+  return measured
 
 
 def _lm_summary(lines: list[str], warmup_iterations: int) -> list[str]:
@@ -816,12 +818,13 @@ def _lm_summary(lines: list[str], warmup_iterations: int) -> list[str]:
   )
   init = iterations[0].get("init_ms")
   warmup_process = processes[-2] if len(processes) > 1 else None
+  # The warm-up process can have no measured block of its own.
   cold_init = warmup_process[0].get("init_ms") if warmup_process else None
   peaks = [i["peak_mem_mb"] for i in iterations if "peak_mem_mb" in i]
   summary = [
       (
           "LiteRT-LM benchmark: "
-          + ("second process, " if warmup_process else "")
+          + ("second process, " if warmup_process is not None else "")
           + f"{len(iterations)} iteration(s), {warmup_iterations} warm-up;"
           f" median of the other {len(measured)}:"
       ),
@@ -832,7 +835,7 @@ def _lm_summary(lines: list[str], warmup_iterations: int) -> list[str]:
     summary[1] += f"; init {init:.0f} ms"
     if cold_init is not None:
       summary[1] += f" (cold {cold_init:.0f} ms in the first process)"
-    elif not warmup_process:
+    elif warmup_process is None:
       summary[1] += " (once per run)"
   if peaks:
     summary[1] += f"; peak memory {max(peaks):.0f} MB (RSS)"
@@ -898,7 +901,7 @@ def _print_logcat_results(
     warmup_iterations: int = 0,
     accelerator: str = "cpu",
     caches: bool = True,
-) -> None:
+) -> bool:
   """Prints the benchmark lines of a logcat, or its tail when the job failed.
 
   For a LiteRT-LM run (`lm`), the benchmark lines are the binary's
@@ -909,6 +912,9 @@ def _print_logcat_results(
   after a failure, followed by the model caches report; when the record's
   pids match no logcat line, every process's lines are printed and a line
   says so. `caches` is whether the job ran the script at all.
+
+  Returns False when a passed LiteRT-LM job logged no measured prefill and
+  decode iteration (e.g. the binary ran zero turns), True otherwise.
   """
   lines = logcat_path.read_text(errors="replace").splitlines()
   run_path = logcat_path.parent / _TFLITE_RUN_FILE
@@ -920,7 +926,7 @@ def _print_logcat_results(
     if run is not None:
       click.echo(f"{_TFLITE_RUN_FILE}:")
       click.echo(run_path.read_text(errors="replace").rstrip())
-    return
+    return True
   log_filter = (
       LmBenchmarkLogFilter(constants.DEFAULT_QUIET)
       if lm
@@ -961,7 +967,16 @@ def _print_logcat_results(
   for note in notes:
     click.secho(note, fg="green")
   if lm:
-    for line in _lm_summary(lines, warmup_iterations):
+    summary = _lm_summary(lines, warmup_iterations)
+    if not summary:
+      click.secho(
+          "The LiteRT-LM benchmark logged no prefill and decode speeds beyond"
+          f" its {warmup_iterations} warm-up iteration(s); see"
+          f" {logcat_path} for the binary's output.",
+          fg="red",
+      )
+      return False
+    for line in summary:
       click.secho(line, fg="green")
   elif run is not None:
     outcome = model_caches.Outcome(
@@ -973,6 +988,7 @@ def _print_logcat_results(
     )
     for line in model_caches.report(accelerator, outcome):
       click.secho(line, fg="green")
+  return True
 
 
 def _upload(local_path: str, gcs_dir: str, what: str) -> None:
@@ -1038,7 +1054,7 @@ def _fetch_session_outputs(
     click.echo(f"Output files saved to: {local_dir}")
     logcat_path = local_dir / "logcat.txt"
     if logcat_path.exists():
-      _print_logcat_results(
+      has_results = _print_logcat_results(
           logcat_path,
           passed=passed,
           lm=lm,
@@ -1046,6 +1062,10 @@ def _fetch_session_outputs(
           accelerator=accelerator,
           caches=caches,
       )
+      if passed and not has_results:
+        problems.append(f"Job '{job_name}': no LiteRT-LM benchmark results")
+    elif passed and lm:
+      problems.append(f"Job '{job_name}': no logcat.txt in its output files")
   return problems
 
 

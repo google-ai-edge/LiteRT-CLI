@@ -100,7 +100,8 @@ def run_gcp(
     soc_model: Target SoC model for NPU AOT mode.
   """
   warnings.warn(_DEPRECATION_MESSAGE, DeprecationWarning, stacklevel=2)
-  click.secho(f"WARNING: {_DEPRECATION_MESSAGE}", fg="yellow", err=True)
+  # stdout: the default quiet mode silences stderr.
+  click.secho(f"WARNING: {_DEPRECATION_MESSAGE}", fg="yellow")
 
   device_list = []
   if isinstance(devices, str):
@@ -115,7 +116,7 @@ def run_gcp(
 
   if not device_list:
     raise click.ClickException(
-        "Error: --device is required for running GCP benchmark tests."
+        "--device is required for running GCP benchmark tests."
     )
 
   if not gcp_project:
@@ -132,8 +133,7 @@ def run_gcp(
   if not model_path.startswith("gs://"):
     local_model = pathlib.Path(model_path)
     if not local_model.exists():
-      click.secho(f"Error: Local model file not found: {model_path}", fg="red")
-      return
+      raise click.ClickException(f"Local model file not found: {model_path}")
 
     target_bucket = gcp_bucket or _GCP_BUCKET
     if not target_bucket:
@@ -324,10 +324,9 @@ def run_gcp(
             if op_data.get("done"):
               click.echo("")  # Print a newline after the dots
               if "error" in op_data:
-                click.secho(
+                raise click.ClickException(
                     "Benchmark failed:"
-                    f" {json.dumps(op_data['error'], indent=2)}",
-                    fg="red",
+                    f" {json.dumps(op_data['error'], indent=2)}"
                 )
               else:
                 click.secho(
@@ -343,11 +342,12 @@ def run_gcp(
           )
           click.echo(
               f"You can check its status later by viewing it in the console:"
-              " {console_url}"
+              f" {console_url}"
           )
       else:
         click.echo(json.dumps(resp_data, indent=2))
   except urllib.error.HTTPError as e:
     err_body = e.read().decode()
-    click.secho(f"Failed to submit benchmark: {e.code} {e.reason}", fg="red")
-    click.secho(f"Details: {err_body}", fg="red")
+    raise click.ClickException(
+        f"Failed to submit benchmark: {e.code} {e.reason}\nDetails: {err_body}"
+    ) from e

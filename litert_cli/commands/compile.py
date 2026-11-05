@@ -156,7 +156,9 @@ def compile_cmd(
       f"Compiling model {resolved_model_path} for targets: {', '.join(target)}"
   )
 
-  aot_targets = [npu_utils.get_aot_target(t) for t in target]
+  aot_targets = npu_utils.get_aot_targets(
+      target, export_aipack=export_aipack is not None
+  )
 
   try:
     compiled_models = aot_lib.aot_compile(
@@ -191,21 +193,25 @@ def compile_cmd(
   except click.ClickException:
     raise
   except Exception as e:
+    hint = npu_utils.compile_failure_hint(e)
     unsupported = [
         t
         for t in target
         if not any(k in t.lower() for k in ("sm", "qnn", "qualcomm"))
     ]
     if unsupported:
-      raise click.ClickException(
+      message = (
           f"AOT Compilation failed for target(s) {', '.join(unsupported)}:"
           " Currently, only the Qualcomm platform is fully supported for"
           " offline AOT compilation."
-      ) from e
-
-    raise click.ClickException(
-        f"AOT Compilation of '{resolved_model_path}' for targets"
-        f" {', '.join(target)} failed: {e!r}"
-    ) from e
+      )
+    else:
+      message = (
+          f"AOT Compilation of '{resolved_model_path}' for targets"
+          f" {', '.join(target)} failed: {e!r}"
+      )
+    if hint:
+      message += f"\n{hint}"
+    raise click.ClickException(message) from e
 
   click.secho("AOT Compilation Completed Successfully!", fg="green")

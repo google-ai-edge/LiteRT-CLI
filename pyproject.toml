@@ -73,6 +73,8 @@ convert = [
     "transformers",
     "torchvision",
     "sentencepiece",
+    # Feature extractors of speech models (e.g. Parakeet).
+    "librosa",
 ]
 quantize = [
     "litert-quantizer-nightly",

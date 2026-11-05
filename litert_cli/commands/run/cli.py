@@ -30,6 +30,7 @@ Key Features:
 from __future__ import annotations
 
 from collections.abc import Sequence
+import os
 import textwrap
 
 import click
@@ -275,6 +276,12 @@ def run_cmd(
     # If the plugin handled it or showed help, we exit
     return
   # ----------------------------------
+
+  if not os.path.isfile(resolved_model_path):
+    raise click.ClickException(
+        f"Model file not found: {resolved_model_path} (not a local model file"
+        " or a model reference; see `litert list`)."
+    )
 
   if target == "desktop":
     from litert_cli.commands.run import desktop  # pylint: disable=g-import-not-at-top

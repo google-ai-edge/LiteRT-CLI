@@ -83,6 +83,20 @@ class LitertTest(parameterized.TestCase):
     self.assertEqual(result.exit_code, 0)
     self.assertIn(expected_string, result.output)
 
+  def test_run_reports_a_missing_model_file(self) -> None:
+    runner = testing.CliRunner()
+    result = runner.invoke(
+        litert.cli, ['run', 'no_such_model.tflite', '--desktop', '--cpu']
+    )
+    self.assertEqual(result.exit_code, 1, result.output)
+    self.assertIn('Model file not found: no_such_model.tflite', result.output)
+
+  def test_run_rejects_a_directory(self) -> None:
+    model_dir = self.create_tempdir().full_path
+    result = testing.CliRunner().invoke(litert.cli, ['run', model_dir])
+    self.assertEqual(result.exit_code, 1, result.output)
+    self.assertIn(f'Model file not found: {model_dir}', result.output)
+
 
 if __name__ == '__main__':
   absltest.main()

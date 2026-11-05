@@ -380,7 +380,8 @@ def benchmark_cmd(
       soc_model = None
 
     gcp.run_gcp(
-        str(model_path),
+        # Not str(model_path): pathlib turns gs://b/m into gs:/b/m.
+        resolved_model_path,
         accelerator,
         devices,
         gcp_project,

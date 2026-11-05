@@ -172,8 +172,9 @@ def convert_generic_script(
 
     builder = litert_torch
     if target:
-      for t in target:
-        target_obj = npu_utils.get_target(t)
+      for target_obj in npu_utils.get_aot_targets(
+          target, export_aipack=bool(export_aipack)
+      ):
         builder = builder.experimental_add_compilation_backend(target_obj)
 
     edge_model = builder.convert(

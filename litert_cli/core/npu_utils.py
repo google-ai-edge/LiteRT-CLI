@@ -26,6 +26,7 @@ from litert_cli.core import android_utils
 from litert_cli.core import constants
 import requests
 
+from ai_edge_litert.aot.vendors import fallback_backend
 from ai_edge_litert.aot.vendors.intel_openvino import target as intel_target
 from ai_edge_litert.aot.vendors.mediatek import target as mtk_target
 from ai_edge_litert.aot.vendors.qualcomm import target as qnn_target
@@ -382,3 +383,68 @@ def get_aot_target(
     return vendor_module.Target(model_enum)
   except AttributeError as e:
     raise click.ClickException("Target model enum not found in SDK") from e
+
+
+def get_aot_targets(
+    target_names: tuple[str, ...] | list[str], export_aipack: bool = False
+) -> list[
+    qnn_target.Target
+    | mtk_target.Target
+    | intel_target.Target
+    | fallback_backend.FallbackTarget
+]:
+  """Returns the AOT Target objects for the given codenames.
+
+  An AI Pack needs a fallback (uncompiled) model for devices that none of the
+  targets matches, so `export_aipack` appends the fallback target.
+
+  Args:
+    target_names: The codename strings of the targets (e.g., 'sm8550').
+    export_aipack: Whether the compiled models go into an AI Pack.
+
+  Returns:
+    The LiteRT AOT Target objects for AOT compilation.
+  """
+  targets = [get_aot_target(t) for t in target_names]
+  if export_aipack:
+    targets.append(fallback_backend.FallbackTarget())
+  return targets
+
+
+# Shared libraries that the NPU compiler plugins load from the host. A missing
+# one is only reported in the error file of `apply_plugin`.
+_MISSING_HOST_LIB_HINTS = (
+    (
+        "libc++.so.1",
+        (
+            "The NPU compiler plugin needs the LLVM C++ runtime (Clang 18 or"
+            " newer) on this machine. Install it, e.g. `sudo apt install"
+            " libc++1-18 libc++abi1-18`, then retry."
+        ),
+    ),
+)
+
+
+def compile_failure_hint(error: Exception) -> str | None:
+  """Returns a hint for a known host setup problem behind an AOT failure.
+
+  `aot_compile` reports a failed `apply_plugin` as "... See <file>.error for
+  details."; the hint comes from that file, when it names a missing host
+  library.
+
+  Args:
+    error: The exception raised by `aot_compile`.
+  """
+  message = str(error)
+  marker = " for details"
+  if "See " not in message or marker not in message:
+    return None
+  error_file = message.split("See ", 1)[1].split(marker, 1)[0].strip()
+  try:
+    details = pathlib.Path(error_file).read_text(errors="replace")
+  except OSError:
+    return None
+  for library, hint in _MISSING_HOST_LIB_HINTS:
+    if library in details and "cannot open shared object file" in details:
+      return hint
+  return None

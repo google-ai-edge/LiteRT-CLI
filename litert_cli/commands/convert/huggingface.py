@@ -175,11 +175,35 @@ def convert_huggingface(
     return plan
 
   except Exception as e:
+    if isinstance(e, ModuleNotFoundError):
+      message = _missing_dependency_message(model, e)
+      if message is not None:
+        raise click.ClickException(message) from e
     click.echo(f"Error during conversion: {e}")
     # Re-raise to let click handle the error exit
     raise
   finally:
     metadata_tmp_dir.cleanup()
+
+
+# pip packages of modules that export_hf model extensions import lazily, where
+# the package name differs from the module name.
+_PIP_PACKAGES = {"nemo": "nemo_toolkit[asr]"}
+
+
+def _missing_dependency_message(
+    model: str, error: ModuleNotFoundError
+) -> str | None:
+  """Returns an actionable message for a missing model-specific package."""
+  name = (error.name or "").split(".")[0]
+  if not name:
+    return None
+  package = _PIP_PACKAGES.get(name, name)
+  return (
+      f"Converting '{model}' needs the Python package '{package}', which is"
+      f' not installed. Install it (e.g. `pip install "{package}"`) and'
+      f" retry.\n({error})"
+  )
 
 
 def _resolve_llm_metadata(
