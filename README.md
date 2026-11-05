@@ -279,11 +279,20 @@ litert download litert-community/MobileNet-v3-large --model-ref my_model_ref
 ### 2. Convert a PyTorch model into a LiteRT model
 
 ```bash
-# Automated HF Conversion
-litert convert Qwen/Qwen1.5-0.5B-Chat --output /tmp/qwen
+# Automated HF Conversion (LLMs, VLMs, speech-to-text, text-to-speech, text-to-image, any-to-any)
+litert convert Qwen/Qwen3-0.6B --output /tmp/qwen
+litert convert google/gemma-4-E2B-it --output /tmp/gemma4
+litert convert openai/whisper-tiny --output /tmp/whisper
 
-# Automated HF Conversion with INT4 Weight-Only Quantization
-litert convert Qwen/Qwen1.5-0.5B-Chat --quantize-recipe weight_only_wi4_afp32 --output /tmp/qwen_w4
+# Print the resolved export plan without exporting
+litert convert Qwen/Qwen3-1.7B --dry-run
+
+# Override recommended export settings
+litert convert Qwen/Qwen3-1.7B --quantize dynamic_wi4b32_afp32 \
+  --prefill-lengths 128,512 --cache-length 4096 --output /tmp/qwen_w4
+
+# Explicitly select the export task (e.g. text-only export of a multimodal model)
+litert convert google/gemma-4-E2B-it --task text_generation --output /tmp/gemma4_text
 
 # Generic Script Injection with INT8 Dynamic Quantization
 litert convert my_model.py --quantize-recipe dynamic_wi8_afp32 --output /tmp/mymodel

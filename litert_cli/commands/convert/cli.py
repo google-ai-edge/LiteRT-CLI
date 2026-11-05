@@ -34,15 +34,14 @@ from litert_cli.core import deps
     help=textwrap.dedent("""\
         Convert a PyTorch model into a LiteRT model.
 
-        MODEL_OR_SCRIPT: Hugging Face model ID or path to a PyTorch script.
-
-        Note: Only AutoModelForCausalLM models are supported, when using HF mode.
+        MODEL_OR_SCRIPT: Hugging Face model ID, local checkpoint directory, or
+        path to a PyTorch script.
 
         Examples:
 
           Automated HF Conversion:
 
-            $ litert convert Qwen/Qwen1.5-0.5B-Chat --output /tmp/qwen
+            $ litert convert Qwen/Qwen3-0.6B --output /tmp/qwen
 
           HF Conversion with Weight-Only INT4 Quantization:
 
@@ -98,8 +97,9 @@ from litert_cli.core import deps
     type=str,
     multiple=True,
     help=(
-        "One or more NPU target codenames (e.g., sm8450) to apply AOT"
-        " compilation."
+        "Hardware target for HuggingFace export (default: 'cpu_gpu'), or one or"
+        " more NPU target codenames (e.g., sm8450) to apply AOT compilation in"
+        " script mode."
     ),
 )
 @click.option(
@@ -140,25 +140,27 @@ from litert_cli.core import deps
 @click.option(
     "--prefill-lengths",
     type=str,
-    default="256",
+    default=None,
     help=(
         "Comma-separated list of prefill lengths for HuggingFace models."
-        " Default: '256'."
+        " Default: litert-torch's recommendation for the model/target."
     ),
 )
 @click.option(
     "--cache-length",
     type=int,
-    default=4096,
-    help="KV cache length for HuggingFace models. Default: 4096.",
+    default=None,
+    help=(
+        "KV cache length for HuggingFace models. Default: litert-torch's"
+        " recommendation for the model/target."
+    ),
 )
 @click.option(
     "--bundle-litert-lm/--no-bundle-litert-lm",
-    is_flag=True,
-    default=True,
+    default=None,
     help=(
         "Bundle exported artifacts into a .litert_lm package (HuggingFace mode"
-        " only). Default: True."
+        " only). Default: litert-torch's recommendation for the model."
     ),
 )
 @click.option(
@@ -175,6 +177,24 @@ from litert_cli.core import deps
         " LlmMetadataProto pbtext."
     ),
 )
+@click.option(
+    "--task",
+    type=str,
+    default="auto",
+    show_default=True,
+    help=(
+        "HuggingFace export task ('auto' to detect from the checkpoint,"
+        " 'text_generation', 'image_text_to_text', 'multimodal_lm',"
+        " 'automatic_speech_recognition', 'text_to_speech', 'text_to_image',"
+        " or 'any_to_any')."
+    ),
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Print the resolved export plan for a HuggingFace model and exit.",
+)
 def convert_cmd(
     model_or_script: str,
     output: pathlib.Path | None,
@@ -184,10 +204,12 @@ def convert_cmd(
     export_aipack: pathlib.Path | None,
     quantize: str | None,
     model_args: str | None,
-    prefill_lengths: str,
-    cache_length: int,
-    bundle_litert_lm: bool,
+    prefill_lengths: str | None,
+    cache_length: int | None,
+    bundle_litert_lm: bool | None,
     llm_metadata: str,
+    task: str,
+    dry_run: bool,
 ) -> None:
   r"""Converts a PyTorch model into a LiteRT model.
 
@@ -196,15 +218,17 @@ def convert_cmd(
     output: Output directory for the converted model.
     model_func: Function to retrieve the model in 'script' mode.
     input_func: Function to retrieve sample inputs in 'script' mode.
-    target: NPU targets to compile for.
+    target: Hardware target for HF export or NPU targets to compile for.
     export_aipack: Output directory to export the AI Pack for PODAI.
-    quantize: Quantization recipe to apply (see litert_quantizer.recipe for
-      full list).
+    quantize: Quantization recipe to apply (see litert_quantizer.recipe for full
+      list).
     model_args: Arguments to pass to custom model/input functions.
     prefill_lengths: List of prefill lengths for HuggingFace models.
     cache_length: KV cache length for HuggingFace models.
     bundle_litert_lm: Whether to bundle artifacts into a .litert_lm package.
     llm_metadata: 'auto', 'none' or a path to an LlmMetadataProto pbtext.
+    task: HuggingFace export task, or 'auto' to detect it.
+    dry_run: Only print the resolved export plan.
   """
 
   from litert_cli.core import constants, utils
@@ -238,7 +262,9 @@ def convert_cmd(
         model_args=model_args,
         prefill_lengths=prefill_lengths,
         cache_length=cache_length,
-        bundle_litert_lm=bundle_litert_lm,
+        bundle_litert_lm=(
+            True if bundle_litert_lm is None else bundle_litert_lm
+        ),
     )
     if plugin_result is not None:
       return
@@ -269,4 +295,6 @@ def convert_cmd(
         cache_length,
         bundle_litert_lm,
         llm_metadata,
+        task=task,
+        dry_run=dry_run,
     )

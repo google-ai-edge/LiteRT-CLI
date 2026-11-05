@@ -72,10 +72,13 @@ def detect_family(model_id: str, config) -> str | None:
         str(getattr(config, "_name_or_path", "") or "")
     ):
       return family
-  model_types = [getattr(config, "model_type", None)]
-  text_config = getattr(config, "text_config", None)
-  if text_config is not None:
-    model_types.append(getattr(text_config, "model_type", None))
+  if isinstance(config, str):
+    model_types = [config]
+  else:
+    model_types = [getattr(config, "model_type", None)]
+    text_config = getattr(config, "text_config", None)
+    if text_config is not None:
+      model_types.append(getattr(text_config, "model_type", None))
   for model_type in model_types:
     if model_type in _MODEL_TYPE_TO_FAMILY:
       return _MODEL_TYPE_TO_FAMILY[model_type]

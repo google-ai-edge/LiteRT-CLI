@@ -69,6 +69,7 @@ class DetectFamilyTest(parameterized.TestCase):
       ),
       ("unknown_llama", "meta-llama/Llama-3.2-1B", _config("llama"), None),
       ("no_config", "Qwen/Qwen3-1.7B", None, None),
+      ("string_model_type", "Qwen/Qwen3-1.7B", "qwen3", "qwen3"),
   )
   def test_detect_family(self, model_id, config, expected):
     self.assertEqual(litert_lm_config.detect_family(model_id, config), expected)
