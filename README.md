@@ -229,7 +229,8 @@ Verified in Python 3.13.
     and disks, and be patient.
 *   `litert compile` only supports running on Linux now, and it requires newer
     Clang version `18.x.x` or above. Try `sudo apt install clang libc++-18-dev
-    libc++abi-18-dev`.
+    libc++abi-18-dev`. An error file that says `libc++.so.1: cannot open
+    shared object file` means the LLVM C++ runtime is missing.
 *   When benchmark using `--ddp` flag, you need to 1) Enable the Device Run API
     of
     [Developer Device Platform](https://docs.cloud.google.com/developer-device-platform/overview)
@@ -306,6 +307,12 @@ For models with a canonical config in
 such as Qwen2.5, Qwen3, Qwen3.5, LFM2 and MiniCPM5, `litert convert` tries to
 reuse that config.
 
+*   Gated Hugging Face models (e.g. `google/gemma-3-1b-it`) need you to accept
+    their license on Hugging Face and log in first: `hf auth login`, or set
+    `HF_TOKEN`.
+*   `litert lm run` and `litert lm benchmark` run LLMs only, not other models
+    such as ASR.
+
 ### 3. Quantize a LiteRT model
 
 ```bash
@@ -343,7 +350,7 @@ litert quantize model.tflite \
 litert compile model.tflite --target sm8750
 
 # Compile for multiple targets and export an AI Pack for Android
-litert compile model.tflite --target sm8750 --target mt6989 --export-aipack my_npu_models
+litert compile model.tflite --target sm8750 --target sm8650 --export-aipack my_npu_models
 ```
 
 ### 5. Run a LiteRT model on desktop or Android

@@ -97,8 +97,10 @@ fi
 if [[ "$(uname)" == "Linux" ]]; then
     run_case "Compile: EfficientNet FP32 for Qualcomm sm8750 NPU" \
         litert compile "$EFFICIENTNET_TFLITE" --target sm8750 --output-dir "models/efficientnet"
-    run_case "Compile: EfficientNet FP32 for MediaTek MT6993 NPU" \
-        litert compile "$EFFICIENTNET_TFLITE" --target MT6993 --output-dir "models/efficientnet"
+    # Offline AOT compilation supports Qualcomm only for now; enable this case
+    # once MediaTek is supported.
+    # run_case "Compile: EfficientNet FP32 for MediaTek MT6993 NPU" \
+    #     litert compile "$EFFICIENTNET_TFLITE" --target MT6993 --output-dir "models/efficientnet"
 else
     echo -e "\n${YELLOW}Skipping offline AOT compilation on non-Linux platform ($(uname)).${NC}"
 fi

@@ -82,7 +82,8 @@ function setup_test_env() {
 
     if [ ! -d ".venv" ] || [ ! -f ".venv/bin/litert" ]; then
       echo -e "\n${YELLOW}Creating Shared Python virtual environment with UV...${NC}"
-      UV_INDEX_URL=https://pypi.org/simple uv venv --clear --python=3.13 --seed
+      export UV_INDEX_URL="${UV_INDEX_URL:-https://pypi.org/simple}"
+      uv venv --clear --python=3.13 --seed
       source .venv/bin/activate
       echo -e "${YELLOW}Installing litert-cli with all extras into shared venv...${NC}"
       uv pip install -e "$REPO_ROOT[convert,quantize,lm,compile]"
@@ -100,7 +101,8 @@ function setup_test_env() {
     cd "$test_root"
 
     echo -e "${YELLOW}Creating Isolated Python virtual environment with UV...${NC}"
-    UV_INDEX_URL=https://pypi.org/simple uv venv --clear --python=3.13 --seed
+    export UV_INDEX_URL="${UV_INDEX_URL:-https://pypi.org/simple}"
+    uv venv --clear --python=3.13 --seed
     source .venv/bin/activate
 
     if [ -n "$extra_deps" ]; then
@@ -147,7 +149,10 @@ function run_case() {
         FAILED_CASES+=("$title")
     fi
     TOTAL_CASES=$((TOTAL_CASES + 1))
-    return $status
+    # Always return 0: the demo scripts run with `set -e`, and a failed case
+    # must not abort the remaining cases. print_summary_report exits 1 when any
+    # case failed.
+    return 0
 }
 
 # Runs `litert lm run` and checks that its output matches a pattern
