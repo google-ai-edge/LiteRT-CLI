@@ -448,3 +448,21 @@ def compile_failure_hint(error: Exception) -> str | None:
     if library in details and "cannot open shared object file" in details:
       return hint
   return None
+
+
+def check_ai_pack_dir(path: pathlib.Path) -> None:
+  """Checks that `path` is a new or empty directory for an AI Pack.
+
+  The CLI never deletes an existing AI Pack directory; the user removes it.
+
+  Args:
+    path: The AI Pack output directory.
+
+  Raises:
+    click.UsageError: If `path` exists and is not an empty directory.
+  """
+  if path.exists() and (not path.is_dir() or any(path.iterdir())):
+    raise click.UsageError(
+        f"--export-aipack {path} already exists and is not empty. Choose a"
+        " new directory, or remove it first."
+    )

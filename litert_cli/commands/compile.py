@@ -23,7 +23,6 @@ from __future__ import annotations
 from collections.abc import Sequence
 import importlib
 import pathlib
-import shutil
 import textwrap
 
 import click
@@ -146,6 +145,9 @@ def compile_cmd(
         click.echo(f"Warning: Failed to download default targets: {e}")
         click.echo("Falling back to built-in static target lists.")
 
+  if export_aipack:
+    npu_utils.check_ai_pack_dir(export_aipack)
+
   resolved_model_path, _ = core_models.resolve_model_reference(model_path)
   if str(resolved_model_path) != str(model_path):
     click.echo(f"Resolved model '{model_path}' to '{resolved_model_path}'")
@@ -172,11 +174,6 @@ def compile_cmd(
 
     if export_aipack:
       click.echo(f"Exporting AI Pack to: {export_aipack}")
-      if export_aipack.exists():
-        if export_aipack.is_dir():
-          shutil.rmtree(export_aipack)
-        else:
-          export_aipack.unlink()
       export_aipack.mkdir(parents=True, exist_ok=True)
       try:
         ai_pack_export.export(

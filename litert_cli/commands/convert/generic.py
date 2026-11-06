@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import importlib.util
 import pathlib
-import shutil
 import sys
 from typing import Any
 import uuid
@@ -59,6 +58,9 @@ def convert_generic_script(
   """
   # pylint: disable=g-import-not-at-top
   import litert_torch
+
+  if target and export_aipack:
+    npu_utils.check_ai_pack_dir(export_aipack)
 
   script_path = pathlib.Path(script).resolve()
   click.echo(f"Loading custom script from: {script_path}")
@@ -191,7 +193,6 @@ def convert_generic_script(
     if target and export_aipack:
       export_dir = pathlib.Path(export_aipack)
       click.echo(f"Exporting AI Pack to: {export_dir}")
-      shutil.rmtree(export_dir, ignore_errors=True)
       export_dir.mkdir(parents=True, exist_ok=True)
       ai_pack_export.export(edge_model, str(export_dir), model_name, "model")
     else:

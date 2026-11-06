@@ -24,7 +24,8 @@ import sys
 
 import click
 
-from ..core.constants import LITERT_MODELS_CACHE_DIR
+from ..core import constants
+from ..core import models as core_models
 
 
 @click.command(
@@ -34,7 +35,7 @@ from ..core.constants import LITERT_MODELS_CACHE_DIR
 @click.argument("model_ref", required=False)
 def list_cmd(model_ref: str | None) -> None:
   """Lists managed models. If MODEL_REF is provided, shows detailed contents."""
-  cache_dir = pathlib.Path(LITERT_MODELS_CACHE_DIR)
+  cache_dir = pathlib.Path(constants.LITERT_MODELS_CACHE_DIR)
 
   if not cache_dir.exists() or not cache_dir.is_dir():
     click.echo("No managed models found (cache directory does not exist).")
@@ -43,8 +44,7 @@ def list_cmd(model_ref: str | None) -> None:
   # Case 1: List detailed contents of a specific model
   if model_ref:
     # Flatten for directory check
-    ref_flat = model_ref.replace("/", "__") if "/" in model_ref else model_ref
-    model_dir = cache_dir / ref_flat
+    model_dir = core_models.cache_dir_for_ref(model_ref)
 
     if not model_dir.exists() or not model_dir.is_dir():
       click.secho(f"Error: Managed model '{model_ref}' not found.", fg="red")

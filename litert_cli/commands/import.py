@@ -24,7 +24,7 @@ import shutil
 
 import click
 
-from ..core import constants
+from ..core import models
 
 
 @click.command(
@@ -62,9 +62,7 @@ def import_cmd(
     main_ref = parts[0]
     resolved_sub_ref = parts[1]
 
-  # Flatten main_ref for directory name consistency (e.g. a/b -> a__b)
-  main_ref_flat = main_ref.replace("/", "__") if "/" in main_ref else main_ref
-  output_path = pathlib.Path(constants.LITERT_MODELS_CACHE_DIR) / main_ref_flat
+  output_path = models.cache_dir_for_ref(main_ref)
   output_path.mkdir(parents=True, exist_ok=True)
 
   click.echo(f"Importing {file_path} to {output_path}...")

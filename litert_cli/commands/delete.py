@@ -17,12 +17,10 @@
 
 from __future__ import annotations
 
-import pathlib
 import shutil
 
 import click
-
-from ..core.constants import LITERT_MODELS_CACHE_DIR
+from litert_cli.core import models
 
 
 @click.command(
@@ -37,9 +35,13 @@ def delete_cmd(ref: str, yes: bool) -> None:
     ref: The model reference to delete.
     yes: Whether to skip confirmation prompt.
   """
-  # Flatten for directory check
-  ref_flat = ref.replace("/", "__") if "/" in ref else ref
-  cache_path = pathlib.Path(LITERT_MODELS_CACHE_DIR) / ref_flat
+  if ":" in ref:
+    raise click.BadParameter(
+        f"'{ref}' names a sub-reference; `delete` removes whole models only."
+        f" Use '{ref.split(':', 1)[0]}' to delete the model.",
+        param_hint="ref",
+    )
+  cache_path = models.cache_dir_for_ref(ref)
 
   if not cache_path.exists() or not cache_path.is_dir():
     raise click.ClickException(f"Model reference '{ref}' not found in cache.")

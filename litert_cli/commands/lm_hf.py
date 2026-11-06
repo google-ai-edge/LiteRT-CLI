@@ -47,6 +47,7 @@ import time
 import click
 from litert_cli.core import constants
 from litert_cli.core import deps
+from litert_cli.core import models
 
 _SUBCOMMANDS = ("run", "benchmark")
 _HELP_ARGS = ("-h", "--help")
@@ -365,8 +366,7 @@ def inspect_repo(repo_id: str, token: str | None = None) -> RepoInfo:
     ) from e
   except huggingface_hub.utils.HFValidationError as e:
     raise click.ClickException(
-        f"'{repo_id}' is not a local path or a valid Hugging Face repo id:"
-        f" {e}"
+        f"'{repo_id}' is not a local path or a valid Hugging Face repo id: {e}"
     ) from e
   except huggingface_hub.utils.OfflineModeIsEnabled as e:
     raise HubUnreachableError("HF_HUB_OFFLINE is set") from e
@@ -441,10 +441,8 @@ def _no_checkpoint_message(repo: RepoInfo) -> str:
 
 def model_cache_dir(repo_id: str) -> pathlib.Path:
   """Returns the LiteRT CLI cache directory of a Hugging Face repo."""
-  # Same flattening as `litert download` and `litert import`.
-  return pathlib.Path(constants.LITERT_MODELS_CACHE_DIR) / repo_id.replace(
-      "/", "__"
-  )
+  # Same as `litert download` and `litert import`.
+  return models.cache_dir_for_ref(repo_id)
 
 
 def cached_bundle(
@@ -524,8 +522,8 @@ def convert_to_cache(
   Args:
     repo: The repo to convert.
     options: The conversion options.
-    token: Hugging Face token for the download; None uses HF_TOKEN or the
-      stored login.
+    token: Hugging Face token for the download; None uses HF_TOKEN or the stored
+      login.
 
   Returns:
     The bundle directory (it contains `model.litertlm`).

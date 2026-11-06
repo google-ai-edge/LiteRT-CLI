@@ -19,6 +19,7 @@ import pathlib
 from unittest import mock
 
 from absl.testing import absltest
+import click
 from litert_cli.core import npu_utils
 
 from ai_edge_litert.aot.vendors import fallback_backend
@@ -78,6 +79,25 @@ class CompileFailureHintTest(absltest.TestCase):
             ValueError("See /no/such/file.error for details.")
         )
     )
+
+
+class AiPackDirTest(absltest.TestCase):
+
+  def test_new_and_empty_directories_are_accepted(self):
+    root = pathlib.Path(self.create_tempdir().full_path)
+    (root / "empty").mkdir()
+    npu_utils.check_ai_pack_dir(root / "new")
+    npu_utils.check_ai_pack_dir(root / "empty")
+
+  def test_existing_contents_are_never_replaced(self):
+    root = pathlib.Path(self.create_tempdir().full_path)
+    (root / "src").mkdir()
+    (root / "src" / "main.py").write_text("x")
+    (root / "f").write_text("x")
+    for path in (root / "src", root / "f"):
+      with self.assertRaisesRegex(click.UsageError, "not empty"):
+        npu_utils.check_ai_pack_dir(path)
+    self.assertTrue((root / "src" / "main.py").exists())
 
 
 if __name__ == "__main__":

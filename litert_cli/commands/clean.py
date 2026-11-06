@@ -28,8 +28,28 @@ from litert_cli.core import constants
 
 
 @click.command(name="clean")
-def clean_cmd() -> None:
-  """Cleans up local caches, downloaded files, and remote Android directories."""
+@click.option("--yes", "-y", is_flag=True, help="Do not ask for confirmation.")
+def clean_cmd(yes: bool) -> None:
+  """Cleans up local caches, downloaded files, and remote Android directories.
+
+  This deletes the whole LiteRT CLI cache, including every managed model
+  (`litert list`), the bundles converted by `litert lm`, downloaded binaries
+  and NPU SDKs, and the CLI's directory on a connected Android device.
+
+  Args:
+    yes: Whether to skip the confirmation prompt.
+  """
+  cache_dir = pathlib.Path(constants.LITERT_CLI_CACHE_DIR)
+  if not yes:
+    click.echo(
+        f"This deletes {cache_dir}, including every managed model (`litert"
+        " list`) and the bundles converted by `litert lm`, the downloaded"
+        " binaries and NPU SDKs, and"
+        f" {constants.LITERT_CLI_ANDROID_ROOT} on a connected Android device."
+    )
+    if not click.confirm("Continue?"):
+      click.echo("Aborted.")
+      return
 
   click.echo("Cleaning LiteRT CLI workspace...")
 
@@ -44,7 +64,6 @@ def clean_cmd() -> None:
     click.secho(f"Warning: Failed to remove {qairt_dir}: {e}", fg="yellow")
 
   # 2. Clean local cache directory (e.g., ~/.cache/litert-cli)
-  cache_dir = pathlib.Path(constants.LITERT_CLI_CACHE_DIR)
   try:
     shutil.rmtree(cache_dir)
     click.echo(f"Removing local cache: {cache_dir}")

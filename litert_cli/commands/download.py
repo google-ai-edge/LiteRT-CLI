@@ -34,6 +34,7 @@ import requests
 
 from ..core import constants
 from ..core import deps
+from ..core import models
 
 
 def _download_from_url(model_path: str, output_dir: str | pathlib.Path) -> None:
@@ -200,8 +201,7 @@ def download_cmd(
       # Default to hf_id as ref if not provided
       ref = ref or model_path.replace("/", "__")
       # Flatten ref for directory name consistency
-      ref_flat = ref.replace("/", "__") if "/" in ref else ref
-      output_path = pathlib.Path(constants.LITERT_MODELS_CACHE_DIR) / ref_flat
+      output_path = models.cache_dir_for_ref(ref)
     else:
       output_path = pathlib.Path(".")
 

@@ -18,9 +18,48 @@
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 
+import click
 from litert_cli.core import constants
+
+
+def ref_dir_name(model_ref: str) -> str | None:
+  """Returns the cache directory name of a model reference, or None.
+
+  The main part of the reference (before any `:sub`) is flattened (`a/b` ->
+  `a__b`). Returns None for a name that would escape the models cache, such as
+  an empty name, `.`, `..` or one with a path separator left.
+
+  Args:
+    model_ref: The model reference, optionally with a `:sub` suffix.
+  """
+  main_ref = model_ref.split(":", 1)[0]
+  name = main_ref.replace("/", "__")
+  if not name or name in (".", "..") or os.sep in name or "\\" in name:
+    return None
+  if os.altsep and os.altsep in name:
+    return None
+  return name
+
+
+def cache_dir_for_ref(model_ref: str) -> pathlib.Path:
+  """Returns the cache directory of a model reference.
+
+  Args:
+    model_ref: The model reference, optionally with a `:sub` suffix.
+
+  Raises:
+    click.BadParameter: If the reference is not a valid model reference name.
+  """
+  name = ref_dir_name(model_ref)
+  if name is None:
+    raise click.BadParameter(
+        f"'{model_ref}' is not a valid model reference name.",
+        param_hint="model reference",
+    )
+  return pathlib.Path(constants.LITERT_MODELS_CACHE_DIR) / name
 
 
 def resolve_model_reference(model_ref: str) -> tuple[str, str | None]:
@@ -44,7 +83,9 @@ def resolve_model_reference(model_ref: str) -> tuple[str, str | None]:
     main_ref = parts[0]
     sub_ref = parts[1]
 
-  ref_name = main_ref.replace("/", "__") if "/" in main_ref else main_ref
+  ref_name = ref_dir_name(main_ref)
+  if ref_name is None:
+    return resolved_model_path, resolved_hf_id
   cache_path = pathlib.Path(constants.LITERT_MODELS_CACHE_DIR) / ref_name
 
   # 1. Check if it's a reference in the cache
