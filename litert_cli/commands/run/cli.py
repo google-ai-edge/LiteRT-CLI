@@ -297,6 +297,9 @@ def run_cmd(
   elif target == "android":
     from litert_cli.commands.run import android  # pylint: disable=g-import-not-at-top
 
+    if labels:
+      raise click.UsageError("--labels is supported with --desktop only.")
+
     android.run_android(
         model_path=str(resolved_model_path),
         inputs=inputs,

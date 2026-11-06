@@ -1159,7 +1159,7 @@ def run_ddp(
   local_model = None
   if not model_path.startswith("gs://"):
     local_model = pathlib.Path(model_path)
-    if not local_model.exists():
+    if not os.path.isfile(local_model):
       raise click.ClickException(f"Local model file not found: {model_path}")
   model_name = model_path.rsplit("/", 1)[-1]
 

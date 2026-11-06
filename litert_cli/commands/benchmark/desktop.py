@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import os
 import pathlib
 import platform
 import subprocess
@@ -303,7 +304,7 @@ def run_desktop(
   """
   click.echo("Preparing to run benchmark on local desktop...")
 
-  if not model_path.exists():
+  if not os.path.isfile(model_path):
     raise click.ClickException(f"Local model file not found: {model_path}")
 
   benchmark_bin = _ensure_desktop_binary("benchmark_model")

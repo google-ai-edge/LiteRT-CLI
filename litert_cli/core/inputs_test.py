@@ -28,6 +28,7 @@ import tempfile
 
 from absl.testing import absltest
 from absl.testing import parameterized
+import click
 from litert_cli.core import inputs
 import numpy as np
 
@@ -170,6 +171,16 @@ class ParseInputFilesTest(absltest.TestCase):
 
     with self.assertRaisesRegex(ValueError, "Unsupported input file extension"):
       inputs.parse_input(str(filepath), [1], np.float32)
+
+
+class CheckInputNamesTest(absltest.TestCase):
+
+  def test_known_and_unnamed_inputs_pass(self):
+    inputs.check_input_names({"x": "1", "_default_": "2"}, ["x", "y"])
+
+  def test_unknown_name_lists_the_model_inputs(self):
+    with self.assertRaisesRegex(click.ClickException, "'imgae'.*'image'"):
+      inputs.check_input_names({"imgae": "cat.jpg"}, ["image"])
 
 
 if __name__ == "__main__":

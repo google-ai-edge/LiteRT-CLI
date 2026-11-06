@@ -171,6 +171,7 @@ def _prepare_inputs(
   """
   inputs_dict = {}
   input_details = cm.get_input_tensor_details(sig_key)
+  inputs_utils.check_input_names(parsed_inputs, list(input_details))
 
   for name, details in input_details.items():
     shape = details.get("shape", [1])
@@ -367,9 +368,7 @@ def run_desktop(
         # loading GPU accelerators in hermetic .par file. Otherwise, use
         # default path.
         env = Environment.create(runtime_path="")
-      cm = CompiledModel.from_file(
-          model_path, hw_accel, environment=env
-      )
+      cm = CompiledModel.from_file(model_path, hw_accel, environment=env)
       signatures = cm.get_signature_list()
       if not signatures:
         raise click.ClickException(
@@ -425,6 +424,8 @@ def run_desktop(
           labels_option=labels,
       )
 
+    except click.ClickException:
+      raise
     except Exception as e:  # pylint: disable=broad-exception-caught
       raise click.ClickException(
           f"Inference failed for model {model_path!r} with accelerator"

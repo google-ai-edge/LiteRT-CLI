@@ -129,6 +129,81 @@ class EnvironmentErrorTest(parameterized.TestCase):
     self.assertIsInstance(result.exception, SystemExit)
 
 
+class ConvertOptionsTest(parameterized.TestCase):
+  """Options of one conversion mode are rejected in the other."""
+
+  def setUp(self):
+    super().setUp()
+    self.enter_context(mock.patch.object(constants, 'IS_INTERNAL_ENV', True))
+
+  @parameterized.parameters(
+      (['my_model.py', '--cache-length', '1024'], '--cache-length'),
+      (['my_model.py', '--dry-run'], '--dry-run'),
+      (['org/model', '--model-args', 'a=1'], '--model-args'),
+      (['org/model', '--export-aipack', 'pack'], '--export-aipack'),
+      (['my_model.py', '--export-aipack', 'pack'], 'needs --target'),
+  )
+  def test_options_of_the_other_mode_are_errors(self, args, message) -> None:
+    result = testing.CliRunner().invoke(litert.cli, ['convert', *args])
+    self.assertEqual(result.exit_code, 2, result.output)
+    self.assertIn(message, result.output)
+
+  def test_prefill_lengths_must_be_positive_integers(self) -> None:
+    result = testing.CliRunner().invoke(
+        litert.cli, ['convert', 'org/model', '--prefill-lengths', '128,x']
+    )
+    self.assertEqual(result.exit_code, 2, result.output)
+    self.assertIn('positive integers', result.output)
+
+  def test_model_args_are_python_literals(self) -> None:
+    from litert_cli.commands.convert import generic  # pylint: disable=g-import-not-at-top
+
+    self.assertEqual(
+        generic.parse_model_args('a=4,b=-1,c=1e-3,d=true,e=x'),
+        {'a': 4, 'b': -1, 'c': 1e-3, 'd': True, 'e': 'x'},
+    )
+    with self.assertRaisesRegex(click.BadParameter, 'key=value'):
+      generic.parse_model_args('batch_size')
+
+  def test_unknown_script_recipe_is_an_error(self) -> None:
+    from litert_cli.commands.convert import generic  # pylint: disable=g-import-not-at-top
+
+    self.assertIsNone(generic._quant_config_for_recipe('none'))
+    with self.assertRaisesRegex(click.BadParameter, 'weight_only_wi4_afp32'):
+      generic._quant_config_for_recipe('weight_only_w4')
+
+
+class QuantizeRecipesTest(absltest.TestCase):
+
+  def test_only_public_recipe_functions_are_listed(self) -> None:
+    from litert_cli.commands import quantize  # pylint: disable=g-import-not-at-top
+
+    module = types.ModuleType('fake_recipe')
+    exec(  # pylint: disable=exec-used
+        'import json\n'
+        'def dynamic_wi8_afp32(): return 1\n'
+        'def _private(): return 2\n',
+        module.__dict__,
+    )
+    self.assertEqual(
+        list(quantize._builtin_recipes(module)), ['dynamic_wi8_afp32']
+    )
+
+
+class LmHelpTest(absltest.TestCase):
+
+  def test_help_starts_with_the_litert_cli_options(self) -> None:
+    with (
+        mock.patch.object(constants, 'IS_INTERNAL_ENV', True),
+        mock.patch('subprocess.run', autospec=True) as run,
+    ):
+      run.return_value = mock.Mock(returncode=0)
+      result = testing.CliRunner().invoke(litert.cli, ['lm', '--help'])
+    self.assertEqual(result.exit_code, 0, result.output)
+    self.assertIn('--reconvert', result.output)
+    run.assert_called_once_with(['litert-lm', '--help'], check=False)
+
+
 class ModelCacheCommandsTest(parameterized.TestCase):
   """`delete`, `import` and `clean` must stay inside the CLI cache."""
 

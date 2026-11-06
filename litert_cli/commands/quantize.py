@@ -17,12 +17,26 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import importlib.util
+import inspect
 import pathlib
 import textwrap
+from typing import Any
 
 import click
 from litert_cli.core import deps
+
+
+def _builtin_recipes(recipe_module: Any) -> dict[str, Callable[[], Any]]:
+  """Returns the public recipe functions of `litert_quantizer.recipe`."""
+  return {
+      name: obj
+      for name, obj in vars(recipe_module).items()
+      if not name.startswith("_")
+      and inspect.isfunction(obj)
+      and obj.__module__ == recipe_module.__name__
+  }
 
 
 @click.command(
@@ -112,7 +126,6 @@ def quantize_cmd(
     click.ClickException: If calibration script loading fails or is invalid.
   """
   from litert_quantizer import quantizer as aeq  # pylint: disable=g-import-not-at-top
-  from litert_quantizer import qtyping  # pylint: disable=g-import-not-at-top
 
   from litert_cli.core import models as core_models
 
@@ -122,6 +135,8 @@ def quantize_cmd(
     click.echo(f"Resolved model '{model}' to '{resolved_model_path}'")
 
   model_path = pathlib.Path(resolved_model_path)
+  if not model_path.is_file():
+    raise click.ClickException(f"Model file not found: {model_path}")
 
   if quant_recipe == "static_wi8_ai8" and calibration_data is None:
     raise click.UsageError(
@@ -145,19 +160,16 @@ def quantize_cmd(
   else:
     from litert_quantizer import recipe as aeq_recipe
 
-    if hasattr(aeq_recipe, quant_recipe):
-      click.echo(f"Loading built-in recipe '{quant_recipe}'...")
-      recipe_obj = getattr(aeq_recipe, quant_recipe)()
-      quantizer.load_quantization_recipe(recipe_obj)
-    else:
-      click.echo(
-          f"Fallback configuring dynamic quantization for '{quant_recipe}'..."
+    recipes = _builtin_recipes(aeq_recipe)
+    if quant_recipe not in recipes:
+      raise click.BadParameter(
+          f"Unknown recipe '{quant_recipe}'. Built-in recipes:"
+          f" {', '.join(sorted(recipes))}. Use --custom-recipe for other"
+          " configurations.",
+          param_hint="--recipe",
       )
-      quantizer.add_dynamic_config(
-          regex=".*",
-          operation_name=qtyping.TFLOperationName.ALL_SUPPORTED,
-          num_bits=8,
-      )
+    click.echo(f"Loading built-in recipe '{quant_recipe}'...")
+    quantizer.load_quantization_recipe(recipes[quant_recipe]())
 
   calibration_result = None
   if quantizer.need_calibration:

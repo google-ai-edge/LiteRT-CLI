@@ -38,7 +38,8 @@ from litert_cli.core.targets_manager import TargetsManager
     help=textwrap.dedent("""\
         Apply AOT (Ahead-of-Time) compilation for NPUs to a TFLite model.
 
-        model_path: Path to a valid .tflite model.
+        model_path: Path to a .tflite model, or a model reference (see
+        `litert list`).
 
         Examples:
 
@@ -156,6 +157,8 @@ def compile_cmd(
     click.echo(f"Resolved model '{model_path}' to '{resolved_model_path}'")
 
   resolved_model_path = pathlib.Path(resolved_model_path)
+  if not resolved_model_path.is_file():
+    raise click.ClickException(f"Model file not found: {resolved_model_path}")
 
   click.echo(
       f"Compiling model {resolved_model_path} for targets: {', '.join(target)}"

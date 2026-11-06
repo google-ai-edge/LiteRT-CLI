@@ -23,6 +23,7 @@ models directly from the Hugging Face Hub.
 from __future__ import annotations
 
 import pathlib
+import re
 import tempfile
 from typing import Any
 
@@ -54,7 +55,14 @@ def _resolve_target(target: tuple[str, ...] | str | None) -> str:
         "Hugging Face conversion supports a single --target (e.g. --target"
         " cpu_gpu)."
     )
-  return cleaned[0]
+  value = cleaned[0]
+  if re.fullmatch(r"(sm|mt|qcs|sa)\d+\w*", value.lower()):
+    raise click.UsageError(
+        f"--target {value} is an NPU SoC codename, which only a PyTorch script"
+        " conversion or `litert compile` accept. For a Hugging Face model,"
+        " use --target npu or npu:<vendor> (e.g. npu:qualcomm)."
+    )
+  return value
 
 
 def convert_huggingface(
@@ -91,12 +99,13 @@ def convert_huggingface(
     The resolved `ExportPlan`.
   """
   del export_aipack
+  # Validate --target before the slow litert-torch import.
+  hf_target = _resolve_target(target)
   hf_export = _export_hf()
   click.echo(f"Starting conversion for model '{model}'")
 
   metadata_tmp_dir = tempfile.TemporaryDirectory(prefix="litert_cli_metadata_")
   try:
-    hf_target = _resolve_target(target)
     export_kwargs: dict[str, Any] = {}
     if quantize is not None:
       export_kwargs["quantization_recipe"] = (
@@ -174,6 +183,9 @@ def convert_huggingface(
     click.echo(f"Successfully converted and saved model to {output}")
     return plan
 
+  except click.ClickException:
+    # Click prints these itself.
+    raise
   except Exception as e:
     if isinstance(e, ModuleNotFoundError):
       message = _missing_dependency_message(model, e)

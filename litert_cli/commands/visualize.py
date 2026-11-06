@@ -40,6 +40,7 @@ import urllib.parse
 
 import click
 
+from ..core import constants
 from ..core import deps
 
 
@@ -74,6 +75,10 @@ def _find_available_port(start_port: int, max_attempts: int = 20) -> int:
       ),
       start_port,
   )
+
+
+# Seconds to wait for Model Explorer to fail on startup (e.g. a bad model).
+_STARTUP_CHECK_SECS = 3
 
 
 @click.command(
@@ -158,6 +163,8 @@ def visualize_cmd(
     click.echo(f"Resolved model '{model_path}' to '{resolved_model_path}'")
 
   resolved_model_path = pathlib.Path(resolved_model_path).resolve()
+  if not resolved_model_path.is_file():
+    raise click.ClickException(f'Model file not found: {resolved_model_path}')
 
   click.echo(
       f'Starting Model Explorer visualization for {resolved_model_path} in the'
@@ -195,40 +202,51 @@ def visualize_cmd(
     cmd.append('--reuse_server')
     cmd.append(f'--reuse_server_port={port}')
 
-  # Launch as a fully detached daemon so the terminal isn't blocked.
+  # Launch as a fully detached daemon so the terminal isn't blocked. Its
+  # output goes to a log file, which is shown if it exits right away.
+  log_path = pathlib.Path(constants.LITERT_CLI_CACHE_DIR) / 'model_explorer.log'
+  log_path.parent.mkdir(parents=True, exist_ok=True)
   try:
-    subprocess.Popen(
-        cmd,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
+    with open(log_path, 'wb') as log_file:
+      proc = subprocess.Popen(
+          cmd,
+          stdout=log_file,
+          stderr=subprocess.STDOUT,
+          start_new_session=True,
+      )
+  except FileNotFoundError as e:
+    raise click.ClickException(
+        '"model-explorer" command not found. Install it with `pip install'
+        ' ai-edge-model-explorer` and make sure it is on your PATH.'
+    ) from e
+
+  try:
+    returncode = proc.wait(timeout=_STARTUP_CHECK_SECS)
+  except subprocess.TimeoutExpired:
+    returncode = None
+  # With --reuse_server, Model Explorer can hand the model to a running server
+  # and exit with 0.
+  if returncode:
+    tail = log_path.read_text(errors='replace').strip().splitlines()[-10:]
+    raise click.ClickException(
+        f'Model Explorer exited with code {proc.returncode}:\n'
+        + '\n'.join(tail)
+        + f'\nFull log: {log_path}'
     )
 
+  click.secho(
+      '\nModel Explorer server is running in the background.', fg='green'
+  )
+  click.secho(
+      '► Please click the link below to view your model:',
+      fg='cyan',
+      bold=True,
+  )
+  click.secho(f'\n    {url}\n')
+  click.echo(f'Server log: {log_path}')
+  if reuse_server:
     click.secho(
-        '\nModel Explorer server is running in the background.', fg='green'
-    )
-    click.secho(
-        '► Please click the link below to view your model:',
-        fg='cyan',
-        bold=True,
-    )
-    click.secho(f'\n    {url}\n')
-    if reuse_server:
-      click.secho(
-          'It will reuse the existing server instance if one is already'
-          ' running, avoiding port conflicts.',
-          fg='cyan',
-      )
-  except FileNotFoundError:
-    click.secho(
-        '\nError: "model-explorer" command not found.', fg='red', bold=True
-    )
-    click.secho(
-        'Please make sure Model Explorer is installed and available in your'
-        ' PATH.',
-        fg='yellow',
-    )
-    click.secho(
-        'You can install it via: pip install model-explorer',
+        'It will reuse the existing server instance if one is already'
+        ' running, avoiding port conflicts.',
         fg='cyan',
     )

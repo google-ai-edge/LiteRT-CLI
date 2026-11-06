@@ -26,6 +26,7 @@ import json
 import pathlib
 import types
 
+import click
 from litert_cli.core.deps import ensure_extra
 import numpy as np
 
@@ -39,6 +40,30 @@ _TENSOR_TYPE_TO_NP_DTYPE = types.MappingProxyType({
     "bool": np.bool_,
     "float32": np.float32,
 })
+
+
+def check_input_names(
+    parsed_inputs: dict[str, str], input_names: Sequence[str]
+) -> None:
+  """Checks that every named --input matches an input of the model.
+
+  An unmatched name would otherwise leave that input filled with random data.
+
+  Args:
+    parsed_inputs: Input names (or '_default_' for unnamed inputs) to values.
+    input_names: The input names of the model signature.
+
+  Raises:
+    click.ClickException: If a name matches no model input.
+  """
+  unknown = [
+      k for k in parsed_inputs if k != "_default_" and k not in input_names
+  ]
+  if unknown:
+    raise click.ClickException(
+        f"Unknown input name(s) {', '.join(map(repr, unknown))}. The model's"
+        f" inputs are: {', '.join(map(repr, input_names))}."
+    )
 
 
 def get_np_dtype(tensor_type_str: str) -> np.dtype:

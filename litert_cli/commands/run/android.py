@@ -109,6 +109,7 @@ def _prepare_inputs_on_device(
         parsed_inputs[k] = v
       else:
         parsed_inputs["_default_"] = inp
+    inputs_utils.check_input_names(parsed_inputs, list(input_details))
 
     has_inputs = False
     # 3. Convert literals or files to raw binaries in a local temporary

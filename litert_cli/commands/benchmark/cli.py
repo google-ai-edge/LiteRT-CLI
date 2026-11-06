@@ -23,6 +23,7 @@ This module defines the `benchmark` command using Click. It supports:
 
 from __future__ import annotations
 
+import os
 import pathlib
 import textwrap
 
@@ -36,7 +37,8 @@ from litert_cli.core import utils
     help="""\b
 Benchmark LiteRT models on different platforms.
 \b
-MODEL: Path to the LiteRT model file.
+MODEL: Path to the LiteRT model file, or a model reference. The default
+target is --android; pass --desktop or --ddp for the others.
 \b
 With --android, --desktop and --ddp on the CPU and the GPU, benchmark_model
 runs twice: a first process writes the XNNPACK and GPU caches (no inference),
@@ -47,10 +49,10 @@ from the start.
 \b
 Examples:
 \b
-  # Benchmark on Desktop with CPU (Default) or GPU
+  # Benchmark on Desktop with CPU or GPU
 \b
-    $ litert benchmark model.tflite
-    $ litert benchmark model.tflite --gpu
+    $ litert benchmark model.tflite --desktop
+    $ litert benchmark model.tflite --desktop --gpu
 \b
   # Benchmark on Android with CPU (Default) or GPU or NPU
     $ litert benchmark model.tflite --android
@@ -334,7 +336,7 @@ def benchmark_cmd(
     # pylint: disable=g-import-not-at-top
     from litert_cli.commands.benchmark import android
 
-    if not model_path.exists():
+    if not os.path.isfile(model_path):
       raise click.ClickException(f"Local model file not found: {model_path}")
 
     android.run_android(
@@ -352,7 +354,7 @@ def benchmark_cmd(
     # pylint: disable=g-import-not-at-top
     from litert_cli.commands.benchmark import desktop
 
-    if not model_path.exists():
+    if not os.path.isfile(model_path):
       raise click.ClickException(f"Local model file not found: {model_path}")
 
     desktop.run_desktop(

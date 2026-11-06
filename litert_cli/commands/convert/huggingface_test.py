@@ -317,6 +317,10 @@ class ConvertHuggingFaceTest(absltest.TestCase):
     self.assertNotIn("use_jinja_template", kwargs)
     self.write_metadata.assert_not_called()
 
+  def test_resolve_target_rejects_a_soc_codename(self):
+    with self.assertRaisesRegex(click.UsageError, "npu:qualcomm"):
+      huggingface._resolve_target(("sm8750",))
+
   def test_resolve_target_handles_string_and_whitespace_inputs(self):
     self.assertEqual(
         huggingface._resolve_target("npu:mediatek"), "npu:mediatek"

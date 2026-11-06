@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import difflib
 import pathlib
 import subprocess
 import zipfile
@@ -374,10 +375,14 @@ def get_aot_target(
           f"Unsupported AOT target: {target_name} (the NPU target lists are"
           " not available; check your network connection)."
       )
+    close = difflib.get_close_matches(
+        target_name, list(constants.AOT_SUPPORTED_TARGETS), n=5
+    )
+    suggestion = f" Did you mean: {', '.join(close)}?" if close else ""
     raise click.ClickException(
-        f"Unsupported AOT target: {target_name}. Supported targets:"
-        f" {', '.join(sorted(constants.AOT_SUPPORTED_TARGETS))}. To refresh"
-        " the list from LiteRT, pass --update-targets main to litert compile."
+        f"Unsupported AOT target: {target_name}.{suggestion} To refresh the"
+        " target lists from LiteRT, pass --update-targets main to litert"
+        " compile."
     )
 
   vendor, model_str = constants.AOT_SUPPORTED_TARGETS[target_name]

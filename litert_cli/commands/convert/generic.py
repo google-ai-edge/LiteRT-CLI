@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import pathlib
 import sys
@@ -27,6 +28,107 @@ import click
 from litert_cli.core import npu_utils
 
 from ai_edge_litert.aot.ai_pack import export_lib as ai_pack_export
+
+# Generative quantization recipes for script mode: name -> (mode, weight
+# dtype) passed to litert_torch's quant_recipe_utils.
+_GENERATIVE_RECIPES = {
+    "dynamic_wi8_afp32": ("dynamic", "INT8"),
+    "dynamic_wi4_afp32": ("dynamic", "INT4"),
+    "weight_only_wi8_afp32": ("weight_only", "INT8"),
+    "weight_only_wi4_afp32": ("weight_only", "INT4"),
+    "fp16": ("fp16", None),
+}
+# PT2E recipes: name -> (is_dynamic, is_per_channel).
+_PT2E_RECIPES = {
+    "pt2e_static": (False, False),
+    "pt2e_static_per_channel": (False, True),
+    "pt2e_dynamic": (True, False),
+    "pt2e_dynamic_per_channel": (True, True),
+}
+
+
+def parse_model_args(model_args: str | None) -> dict[str, Any]:
+  """Parses `--model-args` ("k=v,k2=v2") into keyword arguments.
+
+  Values are Python literals when they parse as one (ints, floats, bools,
+  None, quoted strings), and plain strings otherwise.
+
+  Args:
+    model_args: The option value.
+
+  Raises:
+    click.BadParameter: If an item is not of the form key=value.
+  """
+  parsed_args = {}
+  if not model_args:
+    return parsed_args
+  for item in model_args.split(","):
+    key, sep, value = item.partition("=")
+    key = key.strip()
+    if not sep or not key:
+      raise click.BadParameter(
+          f"'{item}' is not of the form key=value.", param_hint="--model-args"
+      )
+    value = value.strip()
+    if value.lower() in ("true", "false"):
+      parsed_args[key] = value.lower() == "true"
+      continue
+    try:
+      parsed_args[key] = ast.literal_eval(value)
+    except (ValueError, SyntaxError):
+      parsed_args[key] = value
+  return parsed_args
+
+
+def _quant_config_for_recipe(quantize: str) -> Any:
+  """Returns the litert_torch QuantConfig for a script-mode recipe name.
+
+  Args:
+    quantize: The --quantize value; 'none' means no quantization.
+
+  Raises:
+    click.BadParameter: If the recipe is unknown.
+  """
+  name = quantize.strip().lower()
+  if name == "none":
+    return None
+  if name not in _GENERATIVE_RECIPES and name not in _PT2E_RECIPES:
+    raise click.BadParameter(
+        f"Unknown recipe '{quantize}' for a PyTorch script. Supported:"
+        f" {', '.join(sorted([*_GENERATIVE_RECIPES, *_PT2E_RECIPES, 'none']))}.",
+        param_hint="--quantize",
+    )
+  # pylint: disable=g-import-not-at-top
+  from litert_torch.quantize import quant_config as quant_config_lib
+
+  click.echo(f"Building QuantConfig for recipe '{name}'...")
+  if name in _PT2E_RECIPES:
+    from litert_torch.quantize import pt2e_quantizer as pt2eq
+
+    is_dynamic, is_per_channel = _PT2E_RECIPES[name]
+    pt2e_cfg = pt2eq.get_symmetric_quantization_config(
+        is_per_channel=is_per_channel, is_dynamic=is_dynamic
+    )
+    q = pt2eq.PT2EQuantizer().set_global(pt2e_cfg)
+    return quant_config_lib.QuantConfig(pt2e_quantizer=q)
+  from litert_torch.generative.quantize import quant_attrs
+  from litert_torch.generative.quantize import quant_recipe
+  from litert_torch.generative.quantize import quant_recipe_utils
+
+  mode, dtype = _GENERATIVE_RECIPES[name]
+  if mode == "fp16":
+    recipe_obj = quant_recipe_utils.create_layer_quant_fp16()
+  elif mode == "weight_only":
+    recipe_obj = quant_recipe_utils.create_layer_quant_weight_only(
+        getattr(quant_attrs.Dtype, dtype)
+    )
+  else:
+    recipe_obj = quant_recipe_utils.create_layer_quant_dynamic(
+        getattr(quant_attrs.Dtype, dtype)
+    )
+  return quant_config_lib.QuantConfig(
+      generative_recipe=quant_recipe.GenerativeQuantRecipe(default=recipe_obj)
+  )
 
 
 def convert_generic_script(
@@ -91,22 +193,7 @@ def convert_generic_script(
           f"Function '{input_func}' not found in {script_path}"
       )
 
-    # Parse model_args
-    parsed_args = {}
-    if model_args:
-      for item in model_args.split(","):
-        if "=" in item:
-          k, v = item.split("=", 1)
-          if v.isdigit():
-            parsed_args[k] = int(v)
-          elif v.replace(".", "", 1).isdigit():
-            parsed_args[k] = float(v)
-          elif v.lower() == "true":
-            parsed_args[k] = True
-          elif v.lower() == "false":
-            parsed_args[k] = False
-          else:
-            parsed_args[k] = v
+    parsed_args = parse_model_args(model_args)
 
     click.echo(
         f"Instantiating model via '{model_func}' with args: {parsed_args}..."
@@ -121,35 +208,7 @@ def convert_generic_script(
       quant_config = None
 
     if quant_config is None and quantize:
-      click.echo(f"Building dynamic QuantConfig for recipe '{quantize}'...")
-      from litert_torch.quantize import quant_config as quant_config_lib
-
-      if "pt2e" in quantize.lower():
-        from litert_torch.quantize import pt2e_quantizer as pt2eq
-
-        is_dynamic = "dynamic" in quantize.lower()
-        is_per_channel = "per_channel" in quantize.lower()
-        pt2e_cfg = pt2eq.get_symmetric_quantization_config(
-            is_per_channel=is_per_channel, is_dynamic=is_dynamic
-        )
-        q = pt2eq.PT2EQuantizer().set_global(pt2e_cfg)
-        quant_config = quant_config_lib.QuantConfig(pt2e_quantizer=q)
-      else:
-        from litert_torch.generative.quantize import quant_recipe
-        from litert_torch.generative.quantize import quant_recipe_utils
-
-        if "weight_only" in quantize.lower():
-          recipe_obj = quant_recipe_utils.create_layer_quant_weight_only()
-        elif "fp16" in quantize.lower():
-          recipe_obj = quant_recipe_utils.create_layer_quant_fp16()
-        else:
-          recipe_obj = quant_recipe_utils.create_layer_quant_dynamic()
-
-        quant_config = quant_config_lib.QuantConfig(
-            generative_recipe=quant_recipe.GenerativeQuantRecipe(
-                default=recipe_obj
-            )
-        )
+      quant_config = _quant_config_for_recipe(quantize)
 
     click.echo(
         f"Generating sample inputs via '{input_func}' with args:"
@@ -179,12 +238,20 @@ def convert_generic_script(
       ):
         builder = builder.experimental_add_compilation_backend(target_obj)
 
-    edge_model = builder.convert(
-        module=model,
-        sample_args=sample_args,
-        sample_kwargs=sample_kwargs,
-        quant_config=quant_config,
-    )
+    try:
+      edge_model = builder.convert(
+          module=model,
+          sample_args=sample_args,
+          sample_kwargs=sample_kwargs,
+          quant_config=quant_config,
+      )
+    except Exception as e:  # pylint: disable=broad-exception-caught
+      hint = npu_utils.compile_failure_hint(e) if target else None
+      if hint is None:
+        raise
+      raise click.ClickException(
+          f"AOT compilation for {', '.join(target)} failed: {e!r}\n{hint}"
+      ) from e
 
     out_path = pathlib.Path(output)
     out_path.mkdir(parents=True, exist_ok=True)
