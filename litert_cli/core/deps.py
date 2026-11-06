@@ -38,21 +38,50 @@ from litert_cli.core import constants
 
 # Map extra names to Python module names to check if the optional
 # dependency is already installed.
+# Distributions that show an extra is installed: every group must have one of
+# its alternatives (the nightly or the stable distribution) installed.
 _PACKAGE_BY_EXTRA = immutabledict({
-    "convert": ("litert-torch-nightly", "litert-torch"),
-    "torch": ("litert-torch-nightly", "litert-torch"),
-    "lm": ("litert-lm-nightly", "litert-lm"),
-    "download": ("huggingface-hub",),
-    "run": ("ai-edge-litert-nightly", "ai-edge-litert"),
+    "convert": (("litert-torch-nightly", "litert-torch"),),
+    "torch": (("litert-torch-nightly", "litert-torch"),),
+    "lm": (("litert-lm-nightly", "litert-lm"),),
     "compile": (
-        "ai-edge-litert-sdk-qualcomm-nightly",
-        "ai-edge-litert-sdk-qualcomm",
+        (
+            "ai-edge-litert-sdk-qualcomm-nightly",
+            "ai-edge-litert-sdk-qualcomm",
+        ),
+        (
+            "ai-edge-litert-sdk-mediatek-nightly",
+            "ai-edge-litert-sdk-mediatek",
+        ),
     ),
-    "visualize": ("model-explorer",),
-    "quantize": ("litert-quantizer-nightly", "litert-quantizer"),
-    "image": ("Pillow",),
-    "asr": ("librosa",),
+    "visualize": (("ai-edge-model-explorer",),),
+    "quantize": (("litert-quantizer-nightly", "litert-quantizer"),),
+    "image": (("Pillow",),),
+    "asr": (("librosa",),),
 })
+
+
+def _is_installed(groups: tuple[tuple[str, ...], ...]) -> bool:
+  """Returns whether every group has one of its distributions installed."""
+  for alternatives in groups:
+    for pkg in alternatives:
+      try:
+        importlib.metadata.version(pkg)
+        break
+      except importlib.metadata.PackageNotFoundError:
+        pass
+    else:
+      return False
+  return True
+
+
+def _source_checkout_root() -> pathlib.Path | None:
+  """Returns the repository root when running from a source checkout."""
+  # A source checkout: <repo>/litert_cli/core/deps.py.
+  project_root = pathlib.Path(__file__).resolve().parents[2]
+  if (project_root / "pyproject.toml").exists():
+    return project_root
+  return None
 
 
 def ensure_extra(extra_name: str, *, silent: bool = False) -> bool:
@@ -81,12 +110,8 @@ def ensure_extra(extra_name: str, *, silent: bool = False) -> bool:
       raise click.Abort()
     return False
 
-  for pkg in packages_to_check:
-    try:
-      importlib.metadata.version(pkg)
-      return True
-    except importlib.metadata.PackageNotFoundError:
-      pass
+  if _is_installed(packages_to_check):
+    return True
 
   if not silent:
     click.secho(
@@ -94,11 +119,10 @@ def ensure_extra(extra_name: str, *, silent: bool = False) -> bool:
         fg="cyan",
     )
 
-  project_root = pathlib.Path(__file__).resolve().parents[1]
-  pyproject_path = project_root / "pyproject.toml"
+  project_root = _source_checkout_root()
 
-  # If pyproject.toml exists, install from local source
-  if pyproject_path.exists():
+  # In a source checkout, install from local source
+  if project_root is not None:
     target = f".[{extra_name}]"
     cwd = str(project_root)
   else:
@@ -115,10 +139,10 @@ def ensure_extra(extra_name: str, *, silent: bool = False) -> bool:
   uv_path = shutil.which("uv")
   if uv_path:
     cmd = [uv_path, "pip", "install", "--python", sys.executable, target]
-    cmd_str = f"uv pip install -q {target}"
+    cmd_str = f"uv pip install '{target}'"
   else:
     cmd = [sys.executable, "-m", "pip", "install", target]
-    cmd_str = f"pip install -q {target}"
+    cmd_str = f"pip install '{target}'"
 
   if not silent:
     click.echo(f"    Running: {cmd_str}")
@@ -145,7 +169,8 @@ def ensure_extra(extra_name: str, *, silent: bool = False) -> bool:
           bold=True,
       )
       click.secho(
-          "Please try installing it manually or check your network connection.",
+          f"Install it manually with `{cmd_str}`, or check your network"
+          " connection and package index.",
           fg="yellow",
       )
       raise click.Abort() from e

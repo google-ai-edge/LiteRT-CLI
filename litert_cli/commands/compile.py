@@ -141,9 +141,12 @@ def compile_cmd(
       try:
         manager.download_targets(version="main")
         importlib.reload(constants)
-      except Exception as e:
-        click.echo(f"Warning: Failed to download default targets: {e}")
-        click.echo("Falling back to built-in static target lists.")
+      except click.ClickException as e:
+        raise click.ClickException(
+            f"{e.message}\nThe NPU target lists are needed to compile. Check"
+            " your network connection, then retry (or pass --update-targets"
+            " <LiteRT tag>)."
+        ) from e
 
   if export_aipack:
     npu_utils.check_ai_pack_dir(export_aipack)

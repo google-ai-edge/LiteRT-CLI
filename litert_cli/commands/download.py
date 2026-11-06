@@ -33,7 +33,6 @@ import huggingface_hub.utils
 import requests
 
 from ..core import constants
-from ..core import deps
 from ..core import models
 
 
@@ -167,7 +166,6 @@ def _download_from_hf(
 @click.option(
     "--hf-id", help="Optional Hugging Face ID to associate with the model."
 )
-@deps.require_extra("download")
 def download_cmd(
     model_path: str,
     model_ref: str | None,

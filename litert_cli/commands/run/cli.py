@@ -35,7 +35,6 @@ import textwrap
 
 import click
 from litert_cli.core import constants
-from litert_cli.core import deps
 from litert_cli.core import utils
 
 
@@ -89,7 +88,6 @@ from litert_cli.core import utils
             $ litert run model.tflite --accelerator npu,gpu,cpu
         """),
 )
-@deps.require_extra("run")
 @click.argument("model", type=str)
 @click.option(
     "--input",

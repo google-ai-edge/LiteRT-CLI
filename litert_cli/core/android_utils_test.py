@@ -17,10 +17,12 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import pathlib
 import subprocess
 import sys
+import time
 from unittest import mock
 
 from absl import flags
@@ -71,7 +73,9 @@ class GetAndroidAbiTest(absltest.TestCase):
       self, mock_run: mock.MagicMock
   ) -> None:
     mock_run.side_effect = subprocess.CalledProcessError(1, "adb")
-    with self.assertRaisesRegex(click.ClickException, "Error querying Android ABI"):
+    with self.assertRaisesRegex(
+        click.ClickException, "Error querying Android ABI"
+    ):
       android_utils.get_android_abi()
 
 
@@ -95,7 +99,9 @@ class FindAndroidBinaryTest(absltest.TestCase):
         "litert_cli.core.android_utils._ensure_downloaded_binary",
         autospec=True,
     ) as mock_download:
-      mock_download.side_effect = android_utils.DownloadError("Failed to download")
+      mock_download.side_effect = android_utils.DownloadError(
+          "Failed to download"
+      )
       with self.assertRaisesRegex(
           click.ClickException, "Could not find or download"
       ):
@@ -114,12 +120,9 @@ class EnsureDownloadedBinaryTest(absltest.TestCase):
         )
     )
 
-
   @mock.patch("requests.get", autospec=True)
   @mock.patch("click.progressbar", autospec=True)
-  def test_ensure_downloaded_binary_success(
-      self, mock_progressbar, mock_get
-  ):
+  def test_ensure_downloaded_binary_success(self, mock_progressbar, mock_get):
     mock_response = mock.MagicMock()
     mock_response.headers = {"Content-Length": "20"}
     mock_response.iter_content.return_value = iter([b"dummy_binary_content"])
@@ -153,9 +156,70 @@ class EnsureDownloadedBinaryTest(absltest.TestCase):
       android_utils._ensure_downloaded_binary("arm64-v8a", "run_model")
 
     mock_progressbar.assert_not_called()
-    cache_dir = self.test_dir / "binaries" / "arm64-v8a"
+    cache_dir = android_utils.binaries_cache_dir("arm64-v8a")
+    self.assertTrue(str(cache_dir).startswith(str(self.test_dir)))
     self.assertFalse((cache_dir / "run_model").exists())
     self.assertFalse((cache_dir / "run_model.tmp").exists())
+
+
+class BinaryCacheFreshnessTest(absltest.TestCase):
+
+  def setUp(self):
+    super().setUp()
+    self.test_dir = pathlib.Path(self.create_tempdir().full_path)
+    self.enter_context(
+        mock.patch.object(
+            android_utils.constants, "LITERT_CLI_CACHE_DIR", str(self.test_dir)
+        )
+    )
+
+  def _cached(self, version: str, age_secs: float) -> pathlib.Path:
+    with mock.patch.object(
+        android_utils.constants, "LITERT_BINARIES_VERSION", version
+    ):
+      path = android_utils.binaries_cache_dir("arm64-v8a") / "run_model"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"old")
+    mtime = time.time() - age_secs
+    os.utime(path, (mtime, mtime))
+    return path
+
+  def test_cache_dir_includes_the_version(self):
+    with mock.patch.object(
+        android_utils.constants, "LITERT_BINARIES_VERSION", "2.2.0"
+    ):
+      self.assertEqual(
+          android_utils.binaries_cache_dir("arm64-v8a"),
+          self.test_dir / "binaries" / "2.2.0" / "arm64-v8a",
+      )
+
+  def test_release_binaries_never_expire(self):
+    path = self._cached("2.2.0", age_secs=365 * 24 * 3600)
+    with mock.patch.object(
+        android_utils.constants, "LITERT_BINARIES_VERSION", "2.2.0"
+    ):
+      self.assertTrue(android_utils.is_cached_binary_fresh(path))
+
+  def test_nightly_binaries_expire_after_a_week(self):
+    fresh = self._cached("nightly", age_secs=3600)
+    with mock.patch.object(
+        android_utils.constants, "LITERT_BINARIES_VERSION", "nightly"
+    ):
+      self.assertTrue(android_utils.is_cached_binary_fresh(fresh))
+      fresh_mtime = time.time() - 8 * 24 * 3600
+      os.utime(fresh, (fresh_mtime, fresh_mtime))
+      self.assertFalse(android_utils.is_cached_binary_fresh(fresh))
+
+  @mock.patch("requests.get", autospec=True)
+  def test_stale_nightly_binary_is_kept_when_the_download_fails(self, mock_get):
+    path = self._cached("nightly", age_secs=8 * 24 * 3600)
+    mock_get.side_effect = requests.exceptions.RequestException("offline")
+    with mock.patch.object(
+        android_utils.constants, "LITERT_BINARIES_VERSION", "nightly"
+    ):
+      result = android_utils._ensure_downloaded_binary("arm64-v8a", "run_model")
+    self.assertEqual(result, path)
+    self.assertEqual(path.read_bytes(), b"old")
 
 
 class EnsureDownloadedLibraryTest(absltest.TestCase):
@@ -172,9 +236,7 @@ class EnsureDownloadedLibraryTest(absltest.TestCase):
 
   @mock.patch("requests.get", autospec=True)
   @mock.patch("click.progressbar", autospec=True)
-  def test_ensure_downloaded_library_success(
-      self, mock_progressbar, mock_get
-  ):
+  def test_ensure_downloaded_library_success(self, mock_progressbar, mock_get):
     mock_response = mock.MagicMock()
     mock_response.headers = {"Content-Length": "17"}
     mock_response.iter_content.return_value = iter([b"dummy_lib_content"])
@@ -226,9 +288,7 @@ class FindNpuDispatchLibTest(absltest.TestCase):
     )
 
   def test_find_npu_dispatch_lib_unsupported(self):
-    with self.assertRaisesRegex(
-        click.ClickException, "Unsupported NPU vendor"
-    ):
+    with self.assertRaisesRegex(click.ClickException, "Unsupported NPU vendor"):
       android_utils.find_npu_dispatch_lib("unknown_vendor", "arm64-v8a")
 
 
@@ -245,28 +305,57 @@ class PushFileToDeviceTest(absltest.TestCase):
   def test_push_file_to_device_skips_when_size_matches(
       self, mock_echo: mock.MagicMock, mock_run: mock.MagicMock
   ) -> None:
-    mock_run.return_value = mock.MagicMock(
-        returncode=0, stdout=str(len(b"dummy_bytes_12345"))
-    )
+    md5 = hashlib.md5(b"dummy_bytes_12345").hexdigest()
+    mock_run.side_effect = [
+        mock.MagicMock(returncode=0, stdout=str(len(b"dummy_bytes_12345"))),
+        mock.MagicMock(
+            returncode=0, stdout=f"{md5}  /data/local/tmp/test_model.tflite\n"
+        ),
+    ]
     android_utils.push_file_to_device(
         self.local_file, "/data/local/tmp/test_model.tflite"
     )
-    mock_run.assert_called_once_with(
-        [
-            "adb",
-            "shell",
-            "stat",
-            "-c",
-            "%s",
-            "/data/local/tmp/test_model.tflite",
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    mock_run.assert_has_calls([
+        mock.call(
+            [
+                "adb",
+                "shell",
+                "stat",
+                "-c",
+                "%s",
+                "/data/local/tmp/test_model.tflite",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        ),
+        mock.call(
+            ["adb", "shell", "md5sum", "/data/local/tmp/test_model.tflite"],
+            capture_output=True,
+            text=True,
+            check=False,
+        ),
+    ])
+    self.assertEqual(mock_run.call_count, 2)
     mock_echo.assert_called_once_with(
         "  Skipping test_model.tflite (already on device)",
     )
+
+  @mock.patch("subprocess.run", autospec=True)
+  @mock.patch("click.echo", autospec=True)
+  def test_push_file_to_device_pushes_when_same_size_but_contents_differ(
+      self, mock_echo: mock.MagicMock, mock_run: mock.MagicMock
+  ) -> None:
+    mock_run.side_effect = [
+        mock.MagicMock(returncode=0, stdout=str(len(b"dummy_bytes_12345"))),
+        mock.MagicMock(returncode=0, stdout="0" * 32 + "  x\n"),
+        mock.MagicMock(returncode=0),
+    ]
+    android_utils.push_file_to_device(
+        self.local_file, "/data/local/tmp/test_model.tflite"
+    )
+    self.assertEqual(mock_run.call_count, 3)
+    mock_echo.assert_called_once_with("Pushing test_model.tflite to device...")
 
   @mock.patch("subprocess.run", autospec=True)
   @mock.patch("click.echo", autospec=True)
@@ -329,9 +418,7 @@ class PushFileToDeviceTest(absltest.TestCase):
         self.local_file, "/data/local/tmp/test_model.tflite"
     )
     self.assertEqual(mock_run.call_count, 2)
-    mock_echo.assert_called_once_with(
-        "Pushing test_model.tflite to device..."
-    )
+    mock_echo.assert_called_once_with("Pushing test_model.tflite to device...")
 
   def test_push_file_to_device_missing_local_file_raises(self) -> None:
     missing_file = self.temp_dir / "missing.tflite"

@@ -28,6 +28,10 @@ class DepsTest(absltest.TestCase):
   def setUp(self):
     super().setUp()
     self.enter_context(mock.patch.object(constants, 'IS_INTERNAL_ENV', False))
+    # Install from PyPI, as for an installed package, not a source checkout.
+    self.enter_context(
+        mock.patch.object(deps, '_source_checkout_root', return_value=None)
+    )
 
   @mock.patch.object(importlib.metadata, 'version', autospec=True)
   def test_ensure_extra_already_installed(self, mock_version):
@@ -84,6 +88,32 @@ class DepsTest(absltest.TestCase):
     result = deps.ensure_extra('torch', silent=True)
 
     self.assertFalse(result)
+
+  @mock.patch.object(subprocess, 'check_call', autospec=True)
+  @mock.patch.object(importlib.metadata, 'version', autospec=True)
+  def test_visualize_checks_the_distribution_it_installs(
+      self, mock_version, mock_check_call
+  ):
+    mock_version.return_value = '0.1.0'
+
+    self.assertTrue(deps.ensure_extra('visualize'))
+
+    mock_version.assert_called_once_with('ai-edge-model-explorer')
+    mock_check_call.assert_not_called()
+
+  @mock.patch.object(subprocess, 'check_call', autospec=True)
+  @mock.patch.object(importlib.metadata, 'version', autospec=True)
+  def test_compile_needs_every_vendor_sdk(self, mock_version, mock_check_call):
+    def version(pkg):
+      if 'qualcomm' in pkg:
+        return '0.1.0'
+      raise importlib.metadata.PackageNotFoundError(pkg)
+
+    mock_version.side_effect = version
+
+    self.assertTrue(deps.ensure_extra('compile'))
+
+    mock_check_call.assert_called_once()
 
   @mock.patch.object(deps, 'ensure_extra', autospec=True)
   def test_require_extra_decorator(self, mock_ensure_extra):

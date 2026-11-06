@@ -15,6 +15,7 @@
 
 import importlib
 import os
+import subprocess
 import types
 from unittest import mock
 
@@ -98,6 +99,34 @@ class LitertTest(parameterized.TestCase):
     result = testing.CliRunner().invoke(litert.cli, ['run', model_dir])
     self.assertEqual(result.exit_code, 1, result.output)
     self.assertIn(f'Model file not found: {model_dir}', result.output)
+
+
+class EnvironmentErrorTest(parameterized.TestCase):
+
+  @parameterized.parameters(
+      (
+          subprocess.CalledProcessError(
+              1, ['adb', 'push'], stderr=b'no device'
+          ),
+          '`adb push` exited with 1: no device',
+      ),
+      (OSError(28, 'No space left on device'), 'No space left on device'),
+  )
+  def test_environment_errors_have_no_traceback(self, error, message) -> None:
+    with mock.patch.object(
+        litert.LazyCLI, 'get_command', autospec=True
+    ) as get_command:
+
+      @click.command('boom')
+      def boom():
+        raise error
+
+      get_command.return_value = boom
+      result = testing.CliRunner().invoke(litert.cli, ['boom'])
+    self.assertEqual(result.exit_code, 1, result.output)
+    self.assertIn(message, result.output)
+    self.assertIn('LITERT_VERBOSE=1', result.output)
+    self.assertIsInstance(result.exception, SystemExit)
 
 
 class ModelCacheCommandsTest(parameterized.TestCase):

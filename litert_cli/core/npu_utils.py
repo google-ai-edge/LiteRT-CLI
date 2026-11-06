@@ -163,8 +163,12 @@ def _ensure_targets_loaded():
     try:
       manager.download_targets(version="main")
       importlib.reload(constants)
-    except Exception as e:
-      click.echo(f"Warning: Failed to download default targets: {e}")
+    except click.ClickException as e:
+      click.secho(
+          f"Warning: {e.message}. NPU targets are unknown until the target"
+          " lists can be downloaded.",
+          fg="yellow",
+      )
 
 
 def get_soc_target_model(device_id: str | None = None) -> str:
@@ -365,7 +369,16 @@ def get_aot_target(
   target_name = target_name.lower().strip()
 
   if target_name not in constants.AOT_SUPPORTED_TARGETS:
-    raise click.ClickException(f"Unsupported AOT target: {target_name}")
+    if not constants.AOT_SUPPORTED_TARGETS:
+      raise click.ClickException(
+          f"Unsupported AOT target: {target_name} (the NPU target lists are"
+          " not available; check your network connection)."
+      )
+    raise click.ClickException(
+        f"Unsupported AOT target: {target_name}. Supported targets:"
+        f" {', '.join(sorted(constants.AOT_SUPPORTED_TARGETS))}. To refresh"
+        " the list from LiteRT, pass --update-targets main to litert compile."
+    )
 
   vendor, model_str = constants.AOT_SUPPORTED_TARGETS[target_name]
 

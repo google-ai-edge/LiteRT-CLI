@@ -80,13 +80,19 @@ class TargetsManager:
       os.makedirs(os.path.dirname(dest_path), exist_ok=True)
 
       click.echo(f"Downloading {v} targets from {url}...")
+      tmp_path = f"{dest_path}.tmp"
       try:
-        # Using standard urllib to avoid external dependencies like requests
-        urllib.request.urlretrieve(url, dest_path)
+        # Using standard urllib to avoid external dependencies like requests.
+        # Download to a temporary file so that a failure keeps the old list.
+        urllib.request.urlretrieve(url, tmp_path)
+        os.replace(tmp_path, dest_path)
         click.echo(f"Saved to {dest_path}")
       except Exception as e:
-        click.echo(f"Failed to download {v} targets: {e}")
-        raise
+        if os.path.exists(tmp_path):
+          os.remove(tmp_path)
+        raise click.ClickException(
+            f"Failed to download the {v} target list from {url}: {e}"
+        ) from e
 
   def load_targets(self) -> Dict[str, SoCTarget]:
     """Load and parse all cached targets.

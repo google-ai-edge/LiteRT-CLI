@@ -24,6 +24,43 @@ import sys
 import click
 
 
+def _environment_error_message(error: BaseException) -> str | None:
+  """Returns a one-line message for an error caused by the environment.
+
+  Failed subprocesses (e.g. adb), file system errors and network errors are
+  reported without a traceback unless LITERT_VERBOSE=1. Returns None for any
+  other error, which is raised as is.
+
+  Args:
+    error: The error raised by a command.
+  """
+  import os  # pylint: disable=g-import-not-at-top
+  import subprocess  # pylint: disable=g-import-not-at-top
+  import urllib.error  # pylint: disable=g-import-not-at-top
+
+  if os.environ.get('LITERT_VERBOSE') == '1':
+    return None
+  hint = ' (set LITERT_VERBOSE=1 for the full traceback)'
+  if isinstance(error, subprocess.CalledProcessError):
+    cmd = error.cmd if isinstance(error.cmd, str) else ' '.join(error.cmd)
+    stderr = error.stderr
+    if isinstance(stderr, bytes):
+      stderr = stderr.decode(errors='replace')
+    tail = f': {stderr.strip().splitlines()[-1]}' if stderr else ''
+    return f'`{cmd}` exited with {error.returncode}{tail}{hint}'
+  if isinstance(error, urllib.error.URLError):
+    return f'Network error: {error.reason}{hint}'
+  if isinstance(error, OSError):
+    return f'{error}{hint}'
+  try:
+    import requests  # pylint: disable=g-import-not-at-top
+  except ImportError:
+    return None
+  if isinstance(error, requests.RequestException):
+    return f'Network error: {error}{hint}'
+  return None
+
+
 class LazyCLI(click.Group):
   """Lazy loading command group.
 
@@ -33,11 +70,14 @@ class LazyCLI(click.Group):
   def invoke(self, ctx: click.Context):
     try:
       return super().invoke(ctx)
-    except Exception:
-      from litert_cli.core import utils
+    except BaseException as e:
+      from litert_cli.core import utils  # pylint: disable=g-import-not-at-top
 
       utils.restore_stderr()
-      raise
+      message = _environment_error_message(e)
+      if message is None:
+        raise
+      raise click.ClickException(message) from e
 
   def list_commands(self, ctx: click.Context) -> list[str]:
     del self
@@ -113,7 +153,7 @@ def _warn_if_deprecated_python() -> None:
   if sys.version_info < (3, 11):
     click.secho(
         'WARNING: litert-cli support for Python 3.10 is deprecated and will be'
-        ' removed in the next release, following Python 3.10\'s upstream'
+        " removed in the next release, following Python 3.10's upstream"
         ' end-of-life (https://peps.python.org/pep-0619/). Please upgrade to'
         ' Python 3.11 or newer.',
         fg='yellow',

@@ -18,14 +18,15 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+import hashlib
 import pathlib
 import shlex
 import subprocess
+import time
 
 import click
-import requests
-
 from litert_cli.core import constants
+import requests
 
 
 class DownloadError(Exception):
@@ -34,11 +35,37 @@ class DownloadError(Exception):
   pass
 
 
-def _construct_adb_command(command: Sequence[str], device_id: str | None) -> list[str]:
+def _construct_adb_command(
+    command: Sequence[str], device_id: str | None
+) -> list[str]:
   """Constructs an adb command list, including the device ID if provided."""
   if device_id:
     return ["adb", "-s", device_id, *command]
   return ["adb", *command]
+
+
+def _local_md5(path: pathlib.Path) -> str:
+  """Returns the MD5 hex digest of a local file."""
+  digest = hashlib.md5()
+  with open(path, "rb") as f:
+    for chunk in iter(lambda: f.read(1 << 20), b""):
+      digest.update(chunk)
+  return digest.hexdigest()
+
+
+def _remote_md5(remote_path: str, device_id: str | None) -> str | None:
+  """Returns the MD5 hex digest of a file on the device, or None."""
+  res = subprocess.run(
+      _construct_adb_command(
+          ["shell", "md5sum", shlex.quote(remote_path)], device_id
+      ),
+      capture_output=True,
+      text=True,
+      check=False,
+  )
+  if res.returncode != 0 or not res.stdout.strip():
+    return None
+  return res.stdout.split()[0]
 
 
 def push_file_to_device(
@@ -47,7 +74,9 @@ def push_file_to_device(
     device_id: str | None = None,
     label: str | None = None,
 ) -> None:
-  """Pushes a local file to the Android device if not already present or size differs.
+  """Pushes a local file to the Android device unless it is already there.
+
+  The file is skipped when the device has a file of the same size and MD5.
 
   Args:
     local_path: Path to the local file.
@@ -77,7 +106,10 @@ def push_file_to_device(
     )
     if check_res.returncode == 0 and check_res.stdout.strip().isdigit():
       remote_size = int(check_res.stdout.strip())
-      if remote_size == local_size:
+      # Same size is common for a re-exported model, so compare contents too.
+      if remote_size == local_size and _remote_md5(
+          remote_path, device_id
+      ) == _local_md5(local_path):
         click.echo(f"  Skipping {display_name} (already on device)")
         return
   except Exception:
@@ -95,6 +127,43 @@ def push_file_to_device(
     raise click.ClickException(
         f"Failed to push {display_name} to device at {remote_path}: {e}"
     ) from e
+
+
+# Cached nightly binaries are downloaded again after this many seconds.
+_NIGHTLY_BINARY_MAX_AGE_SECS = 7 * 24 * 3600
+
+
+def binaries_cache_dir(platform: str) -> pathlib.Path:
+  """Returns the cache directory of the prebuilt binaries for `platform`.
+
+  The directory includes the LiteRT binaries version, so that upgrading
+  LiteRT downloads matching binaries instead of reusing older ones.
+
+  Args:
+    platform: An Android ABI (e.g. 'arm64-v8a') or a desktop platform (e.g.
+      'linux_x86_64').
+  """
+  return (
+      pathlib.Path(constants.LITERT_CLI_CACHE_DIR)
+      / "binaries"
+      / constants.LITERT_BINARIES_VERSION
+      / platform
+  )
+
+
+def is_cached_binary_fresh(path: pathlib.Path) -> bool:
+  """Returns whether a cached binary can be used without downloading it again.
+
+  Release binaries never change. Nightly binaries are refreshed weekly.
+
+  Args:
+    path: The cached file.
+  """
+  if not path.exists():
+    return False
+  if constants.LITERT_BINARIES_VERSION != "nightly":
+    return True
+  return time.time() - path.stat().st_mtime < _NIGHTLY_BINARY_MAX_AGE_SECS
 
 
 def check_adb(device_id: str | None = None) -> None:
@@ -152,7 +221,9 @@ def get_android_abi(device_id: str | None = None) -> str:
     ).stdout.strip()
   except subprocess.CalledProcessError as e:
     device_info = f" for device {device_id}" if device_id else ""
-    raise click.ClickException(f"Error querying Android ABI{device_info}") from e
+    raise click.ClickException(
+        f"Error querying Android ABI{device_info}"
+    ) from e
 
 
 def _ensure_downloaded_file(
@@ -184,11 +255,11 @@ def _ensure_downloaded_file(
     )
 
   download_url = f"{base_url}/{file_name}"
-  cache_dir = pathlib.Path(constants.LITERT_CLI_CACHE_DIR) / "binaries" / abi
+  cache_dir = binaries_cache_dir(abi)
   cache_dir.mkdir(parents=True, exist_ok=True)
 
   cached_file_path = cache_dir / file_name
-  if cached_file_path.exists():
+  if is_cached_binary_fresh(cached_file_path):
     return cached_file_path
 
   click.secho(f"Downloading {file_name!r} for {abi!r}...", fg="cyan")
@@ -209,9 +280,7 @@ def _ensure_downloaded_file(
         )
         bar_label += " (size unknown)"
 
-      with click.progressbar(
-          length=bar_length, label=bar_label
-      ) as bar:
+      with click.progressbar(length=bar_length, label=bar_label) as bar:
         with open(tmp_cached_file, "wb") as f:
           for buffer in response.iter_content(chunk_size=8192):
             f.write(buffer)
@@ -222,10 +291,16 @@ def _ensure_downloaded_file(
       cached_file_path.chmod(0o755)
     return cached_file_path
   except (requests.exceptions.RequestException, OSError) as e:
-    if cached_file_path.exists():
-      cached_file_path.unlink()
     if tmp_cached_file.exists():
       tmp_cached_file.unlink()
+    if cached_file_path.exists():
+      # A stale nightly binary: keep using it rather than failing offline.
+      click.secho(
+          f"Warning: could not refresh {file_name!r} ({e}); using the cached"
+          " copy.",
+          fg="yellow",
+      )
+      return cached_file_path
     raise DownloadError(
         f"Failed to download {file_name!r} from {download_url!r}"
     ) from e

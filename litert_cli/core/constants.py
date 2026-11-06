@@ -65,6 +65,10 @@ except importlib.metadata.PackageNotFoundError:
   except importlib.metadata.PackageNotFoundError:
     _litert_binaries_version = "nightly"
 
+# The LiteRT release whose prebuilt binaries are downloaded ("nightly" or a
+# version such as "2.2.0"); also part of their cache directory.
+LITERT_BINARIES_VERSION: str = _litert_binaries_version
+
 LITERT_BINARIES_BASE_URL: str = (
     f"https://storage.googleapis.com/litert/binaries/{_litert_binaries_version}"
 )
@@ -82,8 +86,9 @@ _QAIRT_VERSION_MAP = {
     "2.1.6": "2.47.0.260601",  # Stable 2.1.6 release
     "2.2.0": "2.47.0.260601",  # Stable 2.2.0 release
 }
+# A release missing from the map is newer than the map: use the newest SDK.
 QAIRT_SDK_VERSION: str = _QAIRT_VERSION_MAP.get(
-    _litert_binaries_version, "2.44.0.260225"
+    _litert_binaries_version, _QAIRT_VERSION_MAP["nightly"]
 )
 
 QAIRT_SDK_URL: str = (

@@ -25,6 +25,7 @@ import tempfile
 
 import click
 from litert_cli.commands.benchmark import model_caches
+from litert_cli.core import android_utils
 from litert_cli.core import constants
 import requests
 
@@ -59,11 +60,11 @@ def _ensure_desktop_binary(tool_name: str) -> pathlib.Path:
   base_url = f"{constants.LITERT_BINARIES_BASE_URL}/{plat}"
   download_url = f"{base_url}/{tool_name}"
 
-  cache_dir = pathlib.Path(constants.LITERT_CLI_CACHE_DIR) / "binaries" / plat
+  cache_dir = android_utils.binaries_cache_dir(plat)
   cache_dir.mkdir(parents=True, exist_ok=True)
 
   cached_file_path = cache_dir / tool_name
-  if cached_file_path.exists():
+  if android_utils.is_cached_binary_fresh(cached_file_path):
     if system == "darwin":
       subprocess.run(
           ["xattr", "-c", str(cached_file_path)],
@@ -122,10 +123,16 @@ def _ensure_desktop_binary(tool_name: str) -> pathlib.Path:
       )
     return cached_file_path
   except (requests.exceptions.RequestException, OSError) as e:
-    if cached_file_path.exists():
-      cached_file_path.unlink()
     if tmp_cached_file.exists():
       tmp_cached_file.unlink()
+    if cached_file_path.exists():
+      # A stale nightly binary: keep using it rather than failing offline.
+      click.secho(
+          f"Warning: could not refresh {tool_name!r} ({e}); using the cached"
+          " copy.",
+          fg="yellow",
+      )
+      return cached_file_path
     raise click.ClickException(
         f"Failed to download {tool_name!r} from {download_url!r}: {e}"
     ) from e
