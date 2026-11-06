@@ -20,6 +20,7 @@ commands for improved startup performance.
 """
 
 import importlib
+import importlib.metadata
 import sys
 import click
 
@@ -127,7 +128,20 @@ class LazyCLI(click.Group):
       ) from e
 
 
+def _cli_version() -> str:
+  """Returns the installed LiteRT CLI package and version."""
+  for dist in ('litert-cli-nightly', 'litert-cli'):
+    try:
+      return f'{importlib.metadata.version(dist)} ({dist})'
+    except importlib.metadata.PackageNotFoundError:
+      pass
+  return 'unknown (not installed as a package)'
+
+
 @click.command(cls=LazyCLI)
+@click.version_option(
+    version=_cli_version(), prog_name='litert', message='%(prog)s %(version)s'
+)
 @click.option(
     '--enable-model-plugins',
     is_flag=True,

@@ -121,9 +121,12 @@ def ensure_extra(extra_name: str, *, silent: bool = False) -> bool:
 
   project_root = _source_checkout_root()
 
-  # In a source checkout, install from local source
+  # In a source checkout, install from local source. The CLI runs from the
+  # checkout, so keep it an editable install: a regular install would copy the
+  # checkout into site-packages, and later edits to it would be ignored.
   if project_root is not None:
     target = f".[{extra_name}]"
+    install_args = ["-e", target]
     cwd = str(project_root)
   else:
     # Otherwise, install from pypi, checking if nightly CLI is installed
@@ -134,15 +137,20 @@ def ensure_extra(extra_name: str, *, silent: bool = False) -> bool:
     except importlib.metadata.PackageNotFoundError:
       pass
     target = f"{cli_package}[{extra_name}]"
+    install_args = [target]
     cwd = None
 
   uv_path = shutil.which("uv")
   if uv_path:
-    cmd = [uv_path, "pip", "install", "--python", sys.executable, target]
-    cmd_str = f"uv pip install '{target}'"
+    cmd = [uv_path, "pip", "install", "--python", sys.executable]
+    cmd_str = "uv pip install"
   else:
-    cmd = [sys.executable, "-m", "pip", "install", target]
-    cmd_str = f"pip install '{target}'"
+    cmd = [sys.executable, "-m", "pip", "install"]
+    cmd_str = "pip install"
+  cmd += install_args
+  cmd_str += " " + " ".join(
+      f"'{arg}'" if arg == target else arg for arg in install_args
+  )
 
   if not silent:
     click.echo(f"    Running: {cmd_str}")

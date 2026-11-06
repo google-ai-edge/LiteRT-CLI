@@ -64,6 +64,18 @@ class DepsTest(absltest.TestCase):
 
   @mock.patch.object(subprocess, 'check_call', autospec=True)
   @mock.patch.object(importlib.metadata, 'version', autospec=True)
+  def test_source_checkout_stays_editable(self, mock_version, mock_check_call):
+    mock_version.side_effect = importlib.metadata.PackageNotFoundError
+    with mock.patch.object(
+        deps, '_source_checkout_root', return_value=deps.pathlib.Path('/repo')
+    ):
+      self.assertTrue(deps.ensure_extra('quantize'))
+    cmd = mock_check_call.call_args.args[0]
+    self.assertEqual(cmd[-2:], ['-e', '.[quantize]'])
+    self.assertEqual(mock_check_call.call_args.kwargs['cwd'], '/repo')
+
+  @mock.patch.object(subprocess, 'check_call', autospec=True)
+  @mock.patch.object(importlib.metadata, 'version', autospec=True)
   def test_ensure_extra_not_installed_failure(
       self, mock_version, mock_check_call
   ):

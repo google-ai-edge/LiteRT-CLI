@@ -15,6 +15,9 @@
 
 from __future__ import annotations
 
+import importlib.metadata
+from unittest import mock
+
 from absl.testing import absltest
 from absl.testing import parameterized
 from click import testing
@@ -40,6 +43,26 @@ class LitertHelpTest(parameterized.TestCase):
     result = runner.invoke(litert.cli, ["--help"])
     self.assertEqual(result.exit_code, 0)
     self.assertIn("LiteRT CLI", result.output)
+
+  def test_version(self):
+    runner = testing.CliRunner()
+    result = runner.invoke(litert.cli, ["--version"])
+    self.assertEqual(result.exit_code, 0)
+    self.assertStartsWith(result.output, "litert ")
+
+  @parameterized.parameters(
+      ("litert-cli-nightly", "1.2.3 (litert-cli-nightly)"),
+      ("litert-cli", "1.2.3 (litert-cli)"),
+      (None, "unknown (not installed as a package)"),
+  )
+  def test_cli_version_names_the_installed_package(self, installed, expected):
+    def version(dist):
+      if dist == installed:
+        return "1.2.3"
+      raise importlib.metadata.PackageNotFoundError(dist)
+
+    with mock.patch.object(importlib.metadata, "version", side_effect=version):
+      self.assertEqual(litert._cli_version(), expected)  # pylint: disable=protected-access
 
   def test_every_listed_command_resolves(self):
     for cmd in litert.cli.list_commands(None):
