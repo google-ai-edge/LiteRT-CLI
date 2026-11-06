@@ -20,6 +20,18 @@ from absl.testing import parameterized
 from click import testing
 from litert_cli import litert
 
+# `lm` has no click --help of its own: it forwards --help to the native
+# `litert-lm` binary, and first auto-installs the `lm` extra when it is missing,
+# so it cannot be checked hermetically here.
+_SKIPPED_COMMANDS = frozenset({"lm"})
+
+# Every registered command, so newly added commands are covered automatically.
+_COMMANDS = [
+    cmd
+    for cmd in litert.cli.list_commands(None)
+    if cmd not in _SKIPPED_COMMANDS
+]
+
 
 class LitertHelpTest(parameterized.TestCase):
 
@@ -29,15 +41,12 @@ class LitertHelpTest(parameterized.TestCase):
     self.assertEqual(result.exit_code, 0)
     self.assertIn("LiteRT CLI", result.output)
 
-  @parameterized.named_parameters(
-      ("benchmark", "benchmark"),
-      ("download", "download"),
-      ("visualize", "visualize"),
-      ("quantize", "quantize"),
-      ("run", "run"),
-      ("clean", "clean"),
-      ("compile", "compile"),
-  )
+  def test_every_listed_command_resolves(self):
+    for cmd in litert.cli.list_commands(None):
+      with self.subTest(cmd=cmd):
+        self.assertIsNotNone(litert.cli.get_command(None, cmd))
+
+  @parameterized.named_parameters((cmd, cmd) for cmd in _COMMANDS)
   def test_subcommands_help(self, cmd):
     runner = testing.CliRunner()
     result = runner.invoke(litert.cli, [cmd, "--help"])
@@ -46,6 +55,7 @@ class LitertHelpTest(parameterized.TestCase):
         0,
         msg=f"Command '{cmd}' failed to load --help. Output: {result.output}",
     )
+    self.assertIn("Usage:", result.output)
 
 
 if __name__ == "__main__":

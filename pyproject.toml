@@ -61,6 +61,7 @@ Homepage = "https://github.com/google-ai-edge/LiteRT-CLI"
 
 [project.optional-dependencies]
 test = [
+    "pytest",
 ]
 compile = [
     "ai-edge-litert-sdk-qualcomm-nightly",
@@ -101,9 +102,11 @@ litert = "litert_cli.litert:cli"
 [tool.setuptools.dynamic]
 version = {file = ["VERSION"]}
 
-[tool.setuptools]
-packages = {find = {}}
-
-[tool.setuptools.package-data]
-"litert_cli" = ["test_data/*"]
-"examples" = ["*"]
+# Only ship the `litert_cli` package. `examples/` and `tools/` are repo-only
+# helpers (shell scripts, the wheel build script) that nothing imports at
+# runtime, and `test_data/` is only used by the unit tests in a source checkout.
+# Sub-packages without an `__init__.py` (e.g. `litert_cli.core`) are picked up
+# because `find` defaults to `namespaces = true` in pyproject.toml.
+[tool.setuptools.packages.find]
+include = ["litert_cli*"]
+exclude = ["litert_cli.test_data*"]

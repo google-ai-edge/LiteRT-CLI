@@ -64,7 +64,7 @@ jobs:
     name: Test Install and Import litert-cli
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -85,6 +85,22 @@ jobs:
       - name: Import litert-cli
         run: |
           python -c "import litert_cli"
+
+      # Load every subcommand's --help, so a wheel with a missing module or a
+      # broken import in any command fails before (or right after) publishing.
+      # `lm` is skipped: it has no click --help of its own (it forwards --help
+      # to the native `litert-lm` binary) and would first auto-install the
+      # heavy `lm` extra.
+      - name: Smoke test litert CLI
+        run: |
+          litert --help
+          cmds=$(python -c "from litert_cli import litert; print(' '.join(c for c in litert.cli.list_commands(None) if c != 'lm'))")
+          test -n "$cmds"
+          for cmd in $cmds; do
+            echo "::group::litert $cmd --help"
+            litert "$cmd" --help
+            echo "::endgroup::"
+          done
 
   publish-stable:
     name: Publish to PyPI
@@ -115,7 +131,7 @@ jobs:
     name: Test Install and Import litert-cli from PyPI
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -130,3 +146,19 @@ jobs:
       - name: Import litert-cli
         run: |
           python -c "import litert_cli"
+
+      # Load every subcommand's --help, so a wheel with a missing module or a
+      # broken import in any command fails before (or right after) publishing.
+      # `lm` is skipped: it has no click --help of its own (it forwards --help
+      # to the native `litert-lm` binary) and would first auto-install the
+      # heavy `lm` extra.
+      - name: Smoke test litert CLI
+        run: |
+          litert --help
+          cmds=$(python -c "from litert_cli import litert; print(' '.join(c for c in litert.cli.list_commands(None) if c != 'lm'))")
+          test -n "$cmds"
+          for cmd in $cmds; do
+            echo "::group::litert $cmd --help"
+            litert "$cmd" --help
+            echo "::endgroup::"
+          done

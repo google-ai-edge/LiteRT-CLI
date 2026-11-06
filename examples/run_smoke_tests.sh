@@ -14,14 +14,29 @@
 # limitations under the License.
 # ==============================================================================
 
+# Smoke test for a LiteRT CLI source checkout: installs the package (with the
+# `test` and `lm` extras) from pypi.org into a fresh venv, checks that every
+# command loads its --help, and runs the unit tests with pytest.
+#
+# Must be run from the GitHub (exported) layout, where the package lives in
+# `<repo>/litert_cli/`.
 set -ex
 
 # Get current repo root
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 echo "Using REPO_ROOT: $REPO_ROOT"
 
+if [[ ! -f "$REPO_ROOT/litert_cli/__init__.py" ]]; then
+  set +x
+  echo "ERROR: $REPO_ROOT/litert_cli/ not found." >&2
+  echo "This script needs the GitHub layout of LiteRT CLI (the package in" >&2
+  echo "litert_cli/). From google3, export it first with the" >&2
+  echo "g3folder_to_gitfolder workflow in copy.bara.sky." >&2
+  exit 1
+fi
+
 # Portable test runner
-export LITERT_CLI_SMOKE_TEST_ROOT="/tmp/litert_cli_smoke_test"
+export LITERT_CLI_SMOKE_TEST_ROOT="${LITERT_CLI_SMOKE_TEST_ROOT:-${TMPDIR:-/tmp}/litert_cli_smoke_test}"
 rm -rf "$LITERT_CLI_SMOKE_TEST_ROOT"
 mkdir -p "$LITERT_CLI_SMOKE_TEST_ROOT"
 cd "$LITERT_CLI_SMOKE_TEST_ROOT"
@@ -34,25 +49,16 @@ source venv_smoke_test/bin/activate
 # Upgrade setuptools and pip to satisfy PEP 517 build requirements
 pip install -i https://pypi.org/simple --upgrade pip setuptools wheel
 
-# Install package with optional dependencies
+# Install package with optional dependencies (`test` brings in pytest).
 cd "$REPO_ROOT"
-pip install -i https://pypi.org/simple -e .[test,lm]
+pip install -i https://pypi.org/simple -e ".[test,lm]"
 
-# Set PYTHONPATH dynamically to resolve internal root and litert_cli imports
-INTERNAL_ROOT="$(cd "$REPO_ROOT/../../../../" && pwd)"
-export PYTHONPATH="$INTERNAL_ROOT:$PYTHONPATH"
-
-# Run a subset of CLI commands to verify they load
+# Check that every registered command loads. `lm --help` is forwarded to the
+# native litert-lm binary, which the `lm` extra above installs.
 litert --help
-litert download --help
-litert quantize --help
-litert run --help
-litert benchmark --help
-litert lm --help
-litert clean --help
-
-# Find and run all tests automatically in litert_cli directory
-for test_file in $(find litert_cli -name "*_test.py"); do
-  echo "Running test: $test_file"
-  python3 "$test_file"
+for cmd in $(python3 -c "from litert_cli import litert; print(' '.join(litert.cli.list_commands(None)))"); do
+  litert "$cmd" --help
 done
+
+# Run all unit tests. pytest exits non-zero (code 5) if no tests are collected.
+python3 -m pytest litert_cli

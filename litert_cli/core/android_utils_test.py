@@ -21,21 +21,13 @@ import hashlib
 import os
 import pathlib
 import subprocess
-import sys
 import time
 from unittest import mock
 
-from absl import flags
 from absl.testing import absltest
 import click
 from litert_cli.core import android_utils
 import requests
-
-# Parse flags to avoid UnparsedFlagAccessError when running with pytest
-try:
-  flags.FLAGS(sys.argv)
-except flags.UnrecognizedFlagError:
-  pass
 
 
 class CheckAdbTest(absltest.TestCase):

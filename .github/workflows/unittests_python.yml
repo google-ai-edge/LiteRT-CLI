@@ -44,25 +44,24 @@ jobs:
     needs: prepare-matrix
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
         os: ${{ fromJson(needs.prepare-matrix.outputs.os) }}
     runs-on: ${{ matrix.os }}
     # Python 3.10 is deprecated (upstream EOL 2026-10-01) and will be dropped in
     # the next release; its test results are informational and non-blocking.
     continue-on-error: ${{ matrix.python-version == '3.10' }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.trigger-sha }}
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: |
-          python -m pip install .
-          python -m pip install pytest
+          python -m pip install ".[test]"
 
       - name: Run Tests
         run: |
