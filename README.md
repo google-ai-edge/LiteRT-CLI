@@ -43,6 +43,11 @@ Please install `litert-cli-nightly` from PyPI or from local clone. LiteRT CLI
 will install the dependencies on-demand, based on which commands to run, to
 speed up initial installation.
 
+LiteRT CLI requires Python 3.10 or newer, and is verified in Python 3.13.
+Support for Python 3.10 is deprecated (it prints a warning) and will be removed
+in the next release, following its upstream end-of-life, so please use Python
+3.11 or newer.
+
 We support installation using either
 **[uv](https://docs.astral.sh/uv/getting-started/installation/)** (recommended
 for ultra-fast dependency resolution) or standard
@@ -85,6 +90,18 @@ cd LiteRT-CLI
 uv pip install -e .
 ```
 
+### Stable vs nightly
+
+*   `litert-cli-nightly` is built every night from `main`, and depends on the
+    nightly LiteRT packages (e.g. `ai-edge-litert-nightly`,
+    `litert-torch-nightly`). It gets new features and fixes first.
+*   `litert-cli` is the stable release, and depends on pinned stable versions
+    of the LiteRT packages.
+
+Both packages provide the same `litert` command, so install only one of them
+in a virtual environment; don't mix them (or their nightly and stable
+dependencies) in the same environment.
+
 --------------------------------------------------------------------------------
 
 ## ⚡ Quick start
@@ -124,10 +141,12 @@ litert benchmark efficientnet/efficientnet_b1.tflite --android --gpu
 
 ### Run LLMs
 
-You can run LLMs like Gemma4-E2B, using commands like `litert lm run`, which is
-an alias to `litert-lm run`, and please follow
-[LiteRT-LM CLI](https://developers.google.com/edge/litert-lm/cli) for detailed
-instructions.
+You can run LLMs like Gemma4-E2B, using commands like `litert lm run`, which
+forwards its arguments to the LiteRT-LM CLI (`litert-lm run`), and also accepts
+Hugging Face repo ids. Please follow
+[LiteRT-LM CLI](https://ai.google.dev/edge/litert-lm/cli) for detailed
+instructions, and [Run and benchmark LLMs](#7-run-and-benchmark-a-generative-llm-model-using-litert-lm-cli)
+for what `litert lm` adds.
 
 ```bash
 litert lm run  \
@@ -178,8 +197,8 @@ and try prompts such as:
     original FP32 model and the newly quantized INT8 model on the GPU of my
     connected Android device. Compare the average latency and report the
     throughput speedup.*
-*   *Convert the model `Qwen/Qwen1.5-0.5B-Chat` from HuggingFace, and run it
-    locally using the prompt 'Explain edge machine learning one sentence'*
+*   *Convert the model `Qwen/Qwen3-0.6B` from HuggingFace, and run it locally
+    using the prompt 'Explain edge machine learning one sentence'*
 *   *Download EfficientNet from huggingface repo
     `litert-community/efficientnet_b1`, offline compile (AOT) the model for the
     `sm8750` target NPU, and output the compiled model into `./models/compiled`.
@@ -206,24 +225,70 @@ Verified in Python 3.13.
 
 --------------------------------------------------------------------------------
 
+### Optional extras
+
+The dependencies of the heavier commands are installed on first use. To install
+them up front, e.g. for offline machines or CI, install the extras with the
+package (use `litert-cli[...]` for the stable package, or `.[...]` for a local
+clone):
+
+Extra         | Installs dependencies for
+------------- | ------------------------------------------------------------
+`[convert]`   | `litert convert` (LiteRT Torch, PyTorch, Transformers, ...)
+`[quantize]`  | `litert quantize` (LiteRT Quantizer)
+`[compile]`   | `litert compile` (NPU AOT compiler SDKs)
+`[lm]`        | `litert lm` (LiteRT-LM)
+`[visualize]` | `litert visualize` (`ai-edge-model-explorer`)
+`[all]`       | All extras
+
+```bash
+uv pip install "litert-cli-nightly[convert,lm]"
+```
+
+### Environment variables
+
+Variable                                     | Description
+-------------------------------------------- | -----------
+`LITERT_VERBOSE`                             | Set to `1` to enable verbose logging.
+`LITERT_GCP_PROJECT`                         | Default GCP project for `litert benchmark --ddp`, when `--gcp-project` is not set.
+`LITERT_GCP_BUCKET`                          | Default GCS bucket for `litert benchmark --ddp`, when `--gcp-bucket` is not set. Defaults to `<project>-devicerun`.
+`LITERT_DISABLE_MODEL_CACHES`                | Set to `1` to make `litert benchmark` run `benchmark_model` once, without the XNNPACK and GPU caches.
+`DDP_LITERT_VERSION`                         | LiteRT release of the prebuilt `benchmark_model` used on DDP devices (default `2.2.0`; e.g. `nightly`).
+`DDP_LITERT_LM_VERSION`, `DDP_LITERT_LM_DIR` | Version (default `latest`), or a whole `gs://` directory, of the prebuilt LiteRT-LM benchmark binary used for `.litertlm` bundles on DDP devices.
+`LITERT_LM_MODELS_REF`                       | LiteRT-LM git ref (default `main`) to read the canonical model configs from in `litert convert`; set it to a commit for reproducible conversions.
+`LITERT_CLI_ROOT`                            | Local directory for downloaded NPU SDKs and runtime libraries (default `~/.cache/litert-cli/root`).
+`LITERT_CLI_ANDROID_ROOT`                    | Working directory on the Android device (default `/data/local/tmp/litert-cli`).
+`HF_TOKEN`                                   | Hugging Face token for gated or private models (or run `hf auth login`).
+
 ### Troubleshooting and tips
 
 *   Always activate python virtual environment before running `litert` command,
     to avoid conflicts.
 *   When `uv` fails to resolve dependencies, try to set below environment
     variable first: `export UV_INDEX_URL=https://pypi.org/simple`.
-*   When run fails on GPU using `--gpu` flag, try to add both `--cpu --gpu`
-    flags in the command, then the CLI will try CPU first, and fall back to GPU
-    when CPU fails.
+*   When run fails on GPU using `--gpu` flag, try to add both `--gpu --cpu`
+    flags in the command, then `litert run` will try GPU first, and fall back
+    to CPU when GPU fails. With the `--npu`, `--gpu` and `--cpu` flags the
+    order is always NPU, then GPU, then CPU, whatever order you pass them in;
+    use `--accelerator gpu,cpu` to choose the order explicitly.
 *   When `litert run` fails on Android device, if the device is not detected,
     try to run `adb kill-server` first.
 *   When convert a traditional PyTorch model, you need to write a script to wrap
     it with required functions `get_model` and `get_args`. Check the script
     format in
     [resnet18.py](https://github.com/google-ai-edge/LiteRT-CLI/blob/main/litert_cli/test_data/resnet18.py).
-*   LLM conversion supports Hugging Face `AutoModelForCausalLM` models, the
-    Gemma 3, Gemma 3n and Gemma 4 vision-language models, and the text decoder
-    of Qwen3.5 (`Qwen3_5ForConditionalGeneration`).
+*   `litert convert <hf_id>` supports Hugging Face `AutoModelForCausalLM`
+    LLMs, plus these model families:
+    *   LLMs and VLMs: Gemma 3, Gemma 3n, Gemma 4, LFM2, LFM2-VL, Qwen3 and
+        Qwen3.5.
+    *   Speech-to-text: Whisper, Moonshine, Parakeet (CTC and TDT) and
+        Qwen3-ASR.
+    *   Text-to-speech: Kokoro and Qwen3-TTS.
+    *   Text-to-image: FLUX.2 [klein] and Bonsai FLUX.2.
+    *   Any-to-any: MiniCPM-o.
+
+    Use `litert convert <hf_id> --dry-run` to see the export plan for a model.
+    Other architectures can fail to export.
 *   For large models like LLMs, `litert convert` will take large memories and
     disks, and spend multiple minutes. Please make sure you have enough memory
     and disks, and be patient.
@@ -249,10 +314,12 @@ Verified in Python 3.13.
     visualize --stop-all` first.
 *   Exporting environment variable `LITERT_VERBOSE=1` can enable verbose
     logging.
-*   `litert clean` will clean all local caches, like model files and binaries,
-    which will free your disk space, and further, it will be very helpful for
-    fixing complicated issues, like issues caused by NPU library version
-    mismatch.
+*   `litert clean` deletes the whole local cache (`~/.cache/litert-cli`),
+    including all managed models (see `litert list`), the bundles converted by
+    `litert lm`, and the downloaded binaries, plus the LiteRT CLI directory on
+    a connected Android device. It asks for confirmation; pass `-y` to skip it.
+    Use it to free disk space, or as a last resort for issues like an NPU
+    library version mismatch.
 
 --------------------------------------------------------------------------------
 
@@ -300,7 +367,29 @@ litert convert my_model.py --quantize-recipe dynamic_wi8_afp32 --output /tmp/mym
 
 # Use a custom LlmMetadata (chat template, stop tokens) for the .litertlm bundle
 litert convert Qwen/Qwen3-1.7B --llm-metadata my_metadata.pbtext --output /tmp/qwen3
+
+# Export a Hugging Face model for NPU (uncompiled, no AOT compilation)
+litert convert Qwen/Qwen3-0.6B --target npu:qualcomm --output /tmp/qwen_npu
+
+# AOT compile a PyTorch script model for Qualcomm SM8750 and SM8650 NPUs
+litert convert my_model.py --target sm8750 --target sm8650 --output /tmp/mymodel_npu
 ```
+
+`litert convert` has two modes, picked from `MODEL_OR_SCRIPT`:
+
+*   **Hugging Face mode** (a Hugging Face model id or a local checkpoint
+    directory): `--target` takes a single hardware target: `cpu_gpu`
+    (default), `cpu`, `gpu`, `npu`, or `npu:<vendor>` (e.g. `npu:qualcomm`).
+    The NPU targets export a model for NPU without AOT compilation. `--dry-run`
+    prints the resolved export plan (task, target and export settings) and
+    exits. `--task` selects the export task (`auto` by default, which detects
+    it from the checkpoint; or `text_generation`, `image_text_to_text`,
+    `multimodal_lm`, `automatic_speech_recognition`, `text_to_speech`,
+    `text_to_image`, `any_to_any`).
+*   **Script mode** (a `.py` file): `--target` takes NPU SoC codenames (e.g.
+    `sm8750`), can be repeated, and AOT-compiles the converted model for each
+    of them. `--export-aipack <dir>` (script mode only, with `--target`)
+    exports an AI Pack instead.
 
 For models with a canonical config in
 [LiteRT-LM `models/<family>`](https://github.com/google-ai-edge/LiteRT-LM/tree/main/models),
@@ -346,12 +435,16 @@ litert quantize model.tflite \
 > supports are coming soon!
 
 ```bash
-# Basic compilation for specific Qualcomm NPU (e.g., sm8750)
+# Basic compilation for specific Qualcomm NPU (e.g., sm8750), which writes
+# model_Qualcomm_SM8750.tflite into the current directory (or --output-dir)
 litert compile model.tflite --target sm8750
 
 # Compile for multiple targets and export an AI Pack for Android
 litert compile model.tflite --target sm8750 --target sm8650 --export-aipack my_npu_models
 ```
+
+The `--export-aipack` directory must be new or empty; the CLI never deletes an
+existing directory, so remove a previous AI Pack yourself before re-exporting.
 
 ### 5. Run a LiteRT model on desktop or Android
 
@@ -372,7 +465,7 @@ litert run model.tflite --android --npu --cpu
 litert run model.tflite --android --accelerator npu,cpu
 
 # Run on connected Android device with NPU AOT-compiled model
-litert run model_sm8450.tflite --android --npu
+litert run model_Qualcomm_SM8750.tflite --android --npu
 
 # Run multiple iterations and print output tensors
 litert run model.tflite \
@@ -395,6 +488,8 @@ litert run model.tflite \
 # flags fails, benchmark_model runs once without them, as before, and the report says so;
 # LITERT_DISABLE_MODEL_CACHES=1 runs it once from the start.
 
+# Without --desktop or --ddp, litert benchmark runs on a connected Android device.
+
 # Benchmark on Android (CPU side)
 litert benchmark my_model_ref --android --cpu
 litert benchmark model.tflite --android --cpu
@@ -403,7 +498,7 @@ litert benchmark model.tflite --android --cpu
 litert benchmark model.tflite --android --npu
 
 # Benchmark AOT compiled model on Android NPU
-litert benchmark model_sm8450.tflite --android --npu
+litert benchmark model_Qualcomm_SM8750.tflite --android --npu
 
 # Benchmark on Android GPU
 litert benchmark model.tflite --android --gpu
@@ -429,9 +524,13 @@ litert benchmark model.litertlm --ddp --device grizzly-37 --gpu --gcp-project "y
 
 ### 7. Run and benchmark a generative LLM model using LiteRT-LM CLI
 
-`litert lm` command will utlitize `litert-lm`, and you can use the same command
-with `litert-lm`, for example, both `litert lm run` and `litert-lm run` or
-`litert lm benchmark` and `litert-lm benchmark` achieve the same results.
+`litert lm` forwards its arguments to `litert-lm` (the `lm` extra is installed
+on first use), so `litert lm run ./my_model.litertlm` and `litert-lm run
+./my_model.litertlm` achieve the same results. On top of that, `litert lm run`
+and `litert lm benchmark` also accept a Hugging Face repo id (see below), and
+read the `--quantize`, `--prefill-lengths`, `--cache-length` and `--reconvert`
+conversion options themselves. `litert lm --help` prints a short note about
+these before the native `litert-lm` help.
 
 Please follow the
 [LiteRT-LM CLI guide](https://ai.google.dev/edge/litert-lm/cli) for detailed
@@ -507,12 +606,15 @@ litert list my_model
 ### 11. Delete a managed model
 
 ```bash
-# Delete a model from cache
-litert delete my_model
+# Delete a model from cache (asks for confirmation; -y skips it)
+litert delete my_model -y
 ```
+
 ### 12. Clean up all caches
 
 ```bash
-# Clean up local cache, like model files and binaries.
+# Delete the whole local cache, including all managed models (`litert list`)
+# and the bundles converted by `litert lm`, plus the LiteRT CLI directory on a
+# connected Android device. Asks for confirmation; -y skips it.
 litert clean
 ```
