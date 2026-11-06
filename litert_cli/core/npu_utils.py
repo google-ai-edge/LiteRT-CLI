@@ -18,7 +18,10 @@
 from __future__ import annotations
 
 import difflib
+import importlib.metadata
+import importlib.util
 import pathlib
+import re
 import subprocess
 import zipfile
 
@@ -78,8 +81,93 @@ def _ensure_mediatek_libs(runtime_dir: pathlib.Path) -> pathlib.Path:
   return runtime_dir
 
 
+def _sdk_package_qairt_dir() -> pathlib.Path | None:
+  """Returns the QAIRT SDK of the installed Qualcomm SDK package, if usable.
+
+  `ai-edge-litert-sdk-qualcomm` (the `compile` extra) ships the QAIRT SDK that
+  the LiteRT release it belongs to was built with, so its Android libraries
+  match that release's dispatch library. It is used when it belongs to the
+  same release as the downloaded LiteRT binaries: the nightly package for
+  nightly binaries, or the same version for a stable release. A nightly
+  package older than the QAIRT SDK of `constants.QAIRT_SDK_VERSION` is not
+  used, since the nightly binaries are refreshed and it may have been
+  installed long before.
+  """
+  if constants.LITERT_BINARIES_VERSION == "nightly":
+    dist = "ai-edge-litert-sdk-qualcomm-nightly"
+  else:
+    dist = "ai-edge-litert-sdk-qualcomm"
+  try:
+    version = importlib.metadata.version(dist)
+  except importlib.metadata.PackageNotFoundError:
+    return None
+  if (
+      constants.LITERT_BINARIES_VERSION != "nightly"
+      and version != constants.LITERT_BINARIES_VERSION
+  ):
+    return None
+  try:
+    spec = importlib.util.find_spec("ai_edge_litert_sdk_qualcomm")
+  except (ImportError, ValueError):
+    return None
+  if spec is None or not spec.origin:
+    return None
+  sdk_dir = pathlib.Path(spec.origin).parent / "data"
+  if not (sdk_dir / "lib" / "aarch64-android" / "libQnnSystem.so").is_file():
+    return None
+  if constants.LITERT_BINARIES_VERSION == "nightly":
+    sdk_version = _qairt_version_key(_sdk_qairt_version(sdk_dir))
+    if sdk_version and sdk_version < _qairt_version_key(
+        constants.QAIRT_SDK_VERSION
+    ):
+      return None
+  return sdk_dir
+
+
+def _sdk_qairt_version(sdk_dir: pathlib.Path) -> str | None:
+  """Returns the QAIRT version of an SDK directory, e.g. "2.51.1.261002".
+
+  QAIRT SDKs describe themselves in sdk.yaml with `version: 2.51.1` and
+  `build_id: 261002102551`; their download names use the version and the first
+  six digits of the build id.
+  """
+  try:
+    text = (sdk_dir / "sdk.yaml").read_text()
+  except OSError:
+    return None
+  fields = dict(
+      re.findall(r"^(version|build_id):\s*(\S+)\s*$", text, re.MULTILINE)
+  )
+  if "version" not in fields:
+    return None
+  if "build_id" in fields:
+    return f"{fields['version']}.{fields['build_id'][:6]}"
+  return fields["version"]
+
+
+def _qairt_version_key(version: str | None) -> tuple[int, ...]:
+  """Returns a comparable key for a QAIRT version, or () if it isn't one."""
+  if not version or not re.fullmatch(r"\d+(\.\d+)*", version):
+    return ()
+  return tuple(int(part) for part in version.split("."))
+
+
+def _qairt_dir(runtime_dir: pathlib.Path) -> pathlib.Path:
+  """Returns the QAIRT SDK directory whose libraries are pushed to devices."""
+  sdk_dir = _sdk_package_qairt_dir()
+  if sdk_dir is not None:
+    return sdk_dir
+  return runtime_dir / "qairt" / constants.QAIRT_SDK_VERSION
+
+
 def _ensure_qualcomm_libs(runtime_dir: pathlib.Path) -> pathlib.Path:
   """Ensures Qualcomm runtime libraries are available."""
+  sdk_dir = _sdk_package_qairt_dir()
+  if sdk_dir is not None:
+    version = _sdk_qairt_version(sdk_dir) or "SDK"
+    click.echo(f"Using the QAIRT {version} runtime libraries in {sdk_dir}")
+    return runtime_dir
+
   marker_file = (
       runtime_dir
       / f".qairt_sdk_{constants.QAIRT_SDK_VERSION}_extracted.complete"
@@ -231,13 +319,9 @@ def _get_qualcomm_libs(
 
   click.echo(f"Selected Qualcomm runtime version: v{best_version}")
 
-  src_dir = (
-      runtime_dir / f"qairt/{constants.QAIRT_SDK_VERSION}/lib/aarch64-android"
-  )
-  skel_dir = (
-      runtime_dir
-      / f"qairt/{constants.QAIRT_SDK_VERSION}/lib/hexagon-v{best_version}/unsigned"
-  )
+  qairt_dir = _qairt_dir(runtime_dir)
+  src_dir = qairt_dir / "lib" / "aarch64-android"
+  skel_dir = qairt_dir / "lib" / f"hexagon-v{best_version}" / "unsigned"
 
   libs_to_push = [
       src_dir / "libQnnSystem.so",
@@ -296,6 +380,47 @@ def _get_mediatek_libs(
     )
 
   return libs_to_push
+
+
+# Lines LiteRT logs when the NPU dispatch runtime or compiler plugin can't be
+# set up; the run then uses the other accelerators.
+_NPU_FAILURE_MARKERS = (
+    "is mismatched",
+    "Failed to set up QNN manager",
+    "Failed to load plugin",
+    "Failed to initialize Dispatch API",
+    "No usable Dispatch runtime",
+)
+
+
+def warn_if_npu_unused(output_lines: list[str]) -> bool:
+  """Warns when a run that asked for the NPU didn't use it.
+
+  With an NPU and CPU (or GPU) accelerator list, LiteRT runs the model on the
+  other accelerators when the NPU runtime can't be set up, and the run still
+  succeeds. A model runs on the NPU when LiteRT applied its DispatchDelegate.
+
+  Args:
+    output_lines: The output of run_model or benchmark_model.
+
+  Returns:
+    True if it printed the warning.
+  """
+  if any("DispatchDelegate" in line for line in output_lines):
+    return False
+  reasons = dict.fromkeys(
+      line.strip()
+      for line in output_lines
+      if any(marker in line for marker in _NPU_FAILURE_MARKERS)
+  )
+  click.secho(
+      "Warning: the model did not run on the NPU; LiteRT used the other"
+      " accelerators instead.",
+      fg="yellow",
+  )
+  for reason in list(reasons)[:3]:
+    click.secho(f"  {reason}", fg="yellow")
+  return True
 
 
 _VENDOR_LIBS_HANDLERS = {

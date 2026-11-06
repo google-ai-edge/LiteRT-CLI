@@ -163,7 +163,11 @@ def run_android(
             f" {outcome.fallback}",
             fg="yellow",
         )
-      _run_on_device(env_vars + " ".join(bench_args), show=True, or_fail=True)
+      _, output_lines = _run_on_device(
+          env_vars + " ".join(bench_args), show=True, or_fail=True
+      )
+      if accelerator == "npu":
+        npu.warn_if_npu_unused(output_lines)
   except click.ClickException:
     raise
   except Exception as e:

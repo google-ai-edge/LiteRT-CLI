@@ -325,6 +325,8 @@ def run_android(
       for line in output_lines:
         click.echo(line, nl=False)
       raise click.ClickException("Execution failed on device.")
+    if "npu" in accel_list:
+      npu.warn_if_npu_unused(output_lines)
   except Exception as e:
     raise click.ClickException(f"Failed to execute on device: {e}")
   finally:
