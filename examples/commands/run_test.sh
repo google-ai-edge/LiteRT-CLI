@@ -45,18 +45,18 @@ fi
 
 # Multi-input tests
 run_case "Run: Multi-Input String Scalar" \
-    litert run dummy_cv_model.tflite --desktop --input inputs="0.5" --print-tensors --iterations 1
+    litert run dummy_cv_model.tflite --desktop --input args_0="0.5" --print-tensors --iterations 1
 
 run_case "Run: Multi-Input String Array" \
-    litert run dummy_cv_model.tflite --desktop --input inputs="[0.5, 0.5, 0.5]" --print-tensors --iterations 1
+    litert run dummy_cv_model.tflite --desktop --input args_0="[[[0.5]], [[0.5]], [[0.5]]]" --print-tensors --iterations 1
 
 echo "Generating test input files..."
 python3 generate_test_inputs.py .
 
 run_case "Run: Multi-Input .npy file" \
-    litert run dummy_cv_model.tflite --desktop --input inputs="test_input.npy" --print-tensors --iterations 1
+    litert run dummy_cv_model.tflite --desktop --input args_0="test_input.npy" --print-tensors --iterations 1
 
 run_case "Run: Multi-Input .raw file" \
-    litert run dummy_cv_model.tflite --desktop --input inputs="test_input.raw" --print-tensors --iterations 1
+    litert run dummy_cv_model.tflite --desktop --input args_0="test_input.raw" --print-tensors --iterations 1
 
 print_summary_report "Run Commands"

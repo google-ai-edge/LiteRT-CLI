@@ -307,6 +307,14 @@ def resolve_args(args: Sequence[str]) -> list[str]:
           f"Ignoring {', '.join(found)}: {repo_id} has a .litertlm file, so"
           " nothing is converted."
       )
+    if len(repo.litertlm_files) > 1 and not sys.stdin.isatty():
+      # litert-lm asks which file to use, which aborts without a terminal.
+      files = "\n".join(f"  - {f}" for f in repo.litertlm_files)
+      raise click.ClickException(
+          f"{repo_id} has {len(repo.litertlm_files)} .litertlm files:\n"
+          f"{files}\nPick one: litert lm {subcommand} {_HF_REPO_ARG}"
+          f" {repo_id} {repo.litertlm_files[0]} ..."
+      )
     click.echo(
         f"{repo_id} has a .litertlm file; running it with litert-lm"
         f" {_HF_REPO_ARG} {repo_id}."
@@ -812,6 +820,24 @@ def _last_line(text: str) -> str | None:
   return lines[-1] if lines else None
 
 
+def _cli_error(text: str) -> str | None:
+  """Returns the last `Error: ...` message that `litert convert` printed.
+
+  `litert convert` reports usage errors and unsupported models (for example a
+  checkpoint that is not a causal LM) as a one-line click error, without a
+  traceback.
+
+  Args:
+    text: The conversion's stderr.
+  """
+  errors = [
+      l.strip()[len("Error: ") :]
+      for l in text.splitlines()
+      if l.strip().startswith("Error: ")
+  ]
+  return errors[-1] if errors else None
+
+
 def failure_message(
     repo_id: str,
     returncode: int,
@@ -855,6 +881,8 @@ def failure_message(
       headline += f". Last log line: {last}"
   elif exception:
     headline = f"Conversion of {repo_id} failed: {exception}"
+  elif returncode != 0 and _cli_error(text):
+    headline = f"Conversion of {repo_id} failed: {_cli_error(text)}"
   elif returncode == 0:
     headline = (
         f"Conversion of {repo_id} finished without writing {_BUNDLE_FILE}"

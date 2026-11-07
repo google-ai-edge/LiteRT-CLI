@@ -24,6 +24,7 @@ import os
 import pathlib
 import shutil
 import subprocess
+import sys
 import tempfile
 import types
 from unittest import mock
@@ -289,10 +290,24 @@ class LmCommandTest(parameterized.TestCase):
       (["--help"],),
   )
   def test_other_arguments_are_forwarded_unchanged(self, args):
-    result = testing.CliRunner().invoke(litert.cli, ["lm"] + args)
+    runner = testing.CliRunner()
+    with runner.isolated_filesystem():
+      pathlib.Path("model.litertlm").touch()
+      result = runner.invoke(litert.cli, ["lm"] + args)
     self.assertEqual(result.exit_code, 0, msg=result.output)
     self.resolve.assert_not_called()
     self.run.assert_called_once_with(["litert-lm"] + args, check=False)
+
+  @parameterized.parameters("run", "benchmark")
+  def test_missing_litertlm_file_is_an_error(self, subcommand):
+    result = testing.CliRunner().invoke(
+        litert.cli, ["lm", subcommand, "/nonexistent/model.litertlm"]
+    )
+    self.assertEqual(result.exit_code, 1, msg=result.output)
+    self.assertIn(
+        "Model file not found: /nonexistent/model.litertlm", result.output
+    )
+    self.run.assert_not_called()
 
 
 class ResolveArgsTest(absltest.TestCase):
@@ -562,6 +577,52 @@ class ResolveArgsTest(absltest.TestCase):
     )
     self.assertIn("reinstall the 'convert' extra", message)
     self.assertNotIn("export_hf may not support", message)
+
+  def test_cli_error_without_traceback_is_the_headline(self):
+    self.model_info.side_effect = [
+        _model_info(_CHECKPOINT),
+        _hub_error(huggingface_hub.utils.RepositoryNotFoundError, "404"),
+    ]
+    self.convert.side_effect = self._fake_conversion(
+        returncode=2,
+        log=(
+            "Usage: python -m litert_cli.litert convert [OPTIONS]\n\n"
+            "Error: 'org/name' has architectures ['BertForMaskedLM'], which"
+            " are not an AutoModelForCausalLM.\n"
+        ),
+    )
+    with self.assertRaises(click.ClickException) as cm:
+      lm_hf.resolve_args(["run", "org/name"])
+    self.assertIn(
+        "Conversion of org/name failed: 'org/name' has architectures"
+        " ['BertForMaskedLM'], which are not an AutoModelForCausalLM.",
+        cm.exception.message,
+    )
+
+  def test_repo_with_several_litertlm_files_needs_a_file_without_tty(self):
+    self.model_info.return_value = _model_info(
+        [("a.litertlm", 10), ("b.litertlm", 10)]
+    )
+    self.enter_context(
+        mock.patch.object(sys, "stdin", mock.Mock(isatty=lambda: False))
+    )
+    with self.assertRaises(click.ClickException) as cm:
+      lm_hf.resolve_args(["run", "org/name", "--prompt", "hi"])
+    self.assertIn("org/name has 2 .litertlm files", cm.exception.message)
+    self.assertIn(
+        "litert lm run --from-huggingface-repo org/name a.litertlm",
+        cm.exception.message,
+    )
+
+  def test_repo_with_several_litertlm_files_lets_litert_lm_ask_on_a_tty(self):
+    self.model_info.return_value = _model_info(
+        [("a.litertlm", 10), ("b.litertlm", 10)]
+    )
+    self.enter_context(
+        mock.patch.object(sys, "stdin", mock.Mock(isatty=lambda: True))
+    )
+    args = lm_hf.resolve_args(["run", "org/name"])
+    self.assertEqual(args, ["run", "--from-huggingface-repo", "org/name"])
 
   def test_killed_conversion(self):
     self.model_info.side_effect = [

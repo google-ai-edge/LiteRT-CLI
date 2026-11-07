@@ -300,7 +300,11 @@ litert run model.tflite --iterations 5 --print-tensors
 
 # Multi-Input Formats using literals or numpy arrays
 
-litert run model.tflite --desktop --input inputs="[0.5, 0.5, 0.5]"
+# name=value sets the input with that name (an unknown name is an error that
+# lists the model's inputs). A literal is broadcast to the input shape with
+# NumPy rules: [0.5, 0.5, 0.5] fills the last dimension (channels of an NHWC
+# image); use [[[0.5]], [[0.5]], [[0.5]]] for the channels of an NCHW image.
+litert run model.tflite --desktop --input args_0="[0.5, 0.5, 0.5]"
 
 # Multi-Input Formats using files (numpy arrays, raw binaries, or images)
 

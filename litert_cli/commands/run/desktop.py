@@ -375,6 +375,15 @@ def run_desktop(
             f"No signatures found in the model: {model_path!r}"
         )
 
+      # An out-of-range index aborts the process in the native runtime.
+      if not 0 <= signature_index < len(signatures):
+        raise click.ClickException(
+            f"--signature-index {signature_index} is out of range: the model"
+            f" has {len(signatures)} signature(s)"
+            f" ({', '.join(repr(k) for k in signatures)}), so use 0 to"
+            f" {len(signatures) - 1}."
+        )
+
       try:
         sig_info = cm.get_signature_by_index(signature_index)
         sig_key = sig_info["key"]

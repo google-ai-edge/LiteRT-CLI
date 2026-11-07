@@ -100,6 +100,20 @@ class LitertTest(parameterized.TestCase):
     self.assertEqual(result.exit_code, 1, result.output)
     self.assertIn(f'Model file not found: {model_dir}', result.output)
 
+  def test_run_rejects_an_out_of_range_signature_index(self) -> None:
+    model = os.path.join(
+        os.path.dirname(__file__), 'test_data', 'dummy_cv_model.tflite'
+    )
+    result = testing.CliRunner().invoke(
+        litert.cli, ['run', model, '--desktop', '--signature-index', '5']
+    )
+    self.assertEqual(result.exit_code, 1, result.output)
+    self.assertIn(
+        '--signature-index 5 is out of range: the model has 1 signature(s)'
+        " ('serving_default'), so use 0 to 0.",
+        result.output,
+    )
+
 
 class EnvironmentErrorTest(parameterized.TestCase):
 

@@ -97,6 +97,14 @@ def _prepare_inputs_on_device(
       click.secho("No signatures found in the model for inputs.", fg="yellow")
       return ""
 
+    # An out-of-range index aborts the process in the native runtime.
+    if not 0 <= signature_index < len(signatures):
+      raise click.ClickException(
+          f"--signature-index {signature_index} is out of range: the model"
+          f" has {len(signatures)} signature(s)"
+          f" ({', '.join(repr(k) for k in signatures)}), so use 0 to"
+          f" {len(signatures) - 1}."
+      )
     sig_info = cm.get_signature_by_index(signature_index)
     sig_key = sig_info["key"]
     input_details = cm.get_input_tensor_details(sig_key)
@@ -159,6 +167,8 @@ def _prepare_inputs_on_device(
 
     return ""
 
+  except click.ClickException:
+    raise
   except Exception as e:  # pylint: disable=broad-exception-caught
     raise click.ClickException(
         f"Failed to prepare inputs for Android model {model_path}: {e!r}"

@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 
@@ -94,6 +95,14 @@ def lm_cmd(ctx: click.Context) -> None:
     click.echo(_help_preamble())
   if lm_hf.should_resolve(args):
     args = lm_hf.resolve_args(args)
+  elif (
+      len(args) >= 2
+      and args[0] in ("run", "benchmark")
+      and args[1].endswith(".litertlm")
+      and not os.path.exists(args[1])
+  ):
+    # litert-lm reports a missing file with exit code 0.
+    raise click.ClickException(f"Model file not found: {args[1]}")
   try:
     result = subprocess.run(["litert-lm"] + args, check=False)
     sys.exit(result.returncode)
