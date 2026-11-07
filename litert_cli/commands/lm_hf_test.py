@@ -284,6 +284,8 @@ class LmCommandTest(parameterized.TestCase):
   @parameterized.parameters(
       (["run", "./model.litertlm", "--prompt", "hi"],),
       (["run", "--from-huggingface-repo=org/name", "--prompt", "hi"],),
+      (["benchmark", "m.litertlm", "--from-huggingface-repo=org/name"],),
+      (["run", "m.litertlm", "--from-huggingface-repo", "org/name"],),
       (["run", "--prompt", "x", "org/name"],),
       (["benchmark", "gemma3-1b"],),
       (["list"],),

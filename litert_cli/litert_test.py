@@ -23,6 +23,7 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import click
 from click import testing
+import huggingface_hub
 from litert_cli import litert
 from litert_cli.core import constants
 
@@ -281,6 +282,65 @@ class ModelCacheCommandsTest(parameterized.TestCase):
     self.assertIn('every managed model', result.output)
     self.assertIn('Aborted.', result.output)
     self.assertTrue(os.path.isdir(self.models))
+
+
+class DownloadTest(absltest.TestCase):
+
+  def setUp(self):
+    super().setUp()
+    self.list_repo_files = self.enter_context(
+        mock.patch.object(
+            huggingface_hub.HfApi,
+            'list_repo_files',
+            autospec=True,
+            return_value=['README.md', 'a.litertlm', 'b.litertlm'],
+        )
+    )
+    self.snapshot_download = self.enter_context(
+        mock.patch.object(
+            huggingface_hub, 'snapshot_download', autospec=True
+        )
+    )
+    self.output = self.create_tempdir().full_path
+    self.snapshot_download.return_value = self.output
+
+  def test_file_that_matches_nothing_is_an_error(self) -> None:
+    result = testing.CliRunner().invoke(
+        litert.cli,
+        ['download', 'org/name', '--file', 'gone.litertlm', '--output',
+         self.output],
+    )
+    self.assertEqual(result.exit_code, 1, result.output)
+    self.assertIn(
+        "No file in org/name matches --file 'gone.litertlm'. Files in the"
+        ' repo: README.md, a.litertlm, b.litertlm',
+        result.output,
+    )
+    self.snapshot_download.assert_not_called()
+
+  def test_failed_managed_download_leaves_no_model(self) -> None:
+    cache = self.create_tempdir().full_path
+    models_dir = os.path.join(cache, 'models')
+    with mock.patch.object(constants, 'LITERT_MODELS_CACHE_DIR', models_dir):
+      result = testing.CliRunner().invoke(
+          litert.cli,
+          ['download', 'org/name', '--file', 'gone.litertlm', '--model-ref',
+           'mine'],
+      )
+    self.assertEqual(result.exit_code, 1, result.output)
+    self.assertFalse(os.path.exists(os.path.join(models_dir, 'mine')))
+
+  def test_file_pattern_that_matches_is_downloaded(self) -> None:
+    result = testing.CliRunner().invoke(
+        litert.cli,
+        ['download', 'org/name', '--file', '*.litertlm', '--output',
+         self.output],
+    )
+    self.assertEqual(result.exit_code, 0, result.output)
+    self.snapshot_download.assert_called_once()
+    kwargs = self.snapshot_download.call_args.kwargs
+    self.assertEqual(kwargs['repo_id'], 'org/name')
+    self.assertEqual(kwargs['allow_patterns'], '*.litertlm')
 
 
 if __name__ == '__main__':
