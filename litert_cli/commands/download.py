@@ -103,10 +103,27 @@ def _download_from_hf(
     kwargs["allow_patterns"] = file_pattern
 
   try:
+    if file_pattern:
+      # snapshot_download downloads nothing, and succeeds, when --file matches
+      # no file (e.g. a file that was removed from the repo).
+      repo_files = huggingface_hub.HfApi().list_repo_files(repo_id, token=token)
+      if not list(
+          huggingface_hub.utils.filter_repo_objects(
+              repo_files, allow_patterns=file_pattern
+          )
+      ):
+        names = sorted(repo_files)
+        listed = ", ".join(names[:20]) + (", ..." if len(names) > 20 else "")
+        raise click.ClickException(
+            f"No file in {repo_id} matches --file {file_pattern!r}. Files in"
+            f" the repo: {listed}"
+        )
     downloaded_path = huggingface_hub.snapshot_download(
         repo_id=repo_id, **kwargs
     )
     click.secho(f"Successfully downloaded to {downloaded_path}", fg="green")
+  except click.ClickException:
+    raise
   except huggingface_hub.utils.HfHubHTTPError as e:
     if "401" in str(e):
       raise click.ClickException(
@@ -208,7 +225,14 @@ def download_cmd(
   if model_path.startswith(("http://", "https://")):
     _download_from_url(model_path, output_path)
   else:
-    _download_from_hf(model_path, output_path, file_pattern, token)
+    try:
+      _download_from_hf(model_path, output_path, file_pattern, token)
+    except click.ClickException:
+      # Don't leave an empty model directory that `litert list` shows as a
+      # model after a failed managed download.
+      if not output and not any(output_path.iterdir()):
+        output_path.rmdir()
+      raise
 
     # Save metadata if it's a managed download (non-URL) to the centralized cache
     if not model_path.startswith(("http://", "https://")) and not output:
