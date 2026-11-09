@@ -28,16 +28,19 @@ on:
     - cron: '0 7 * * *'
       timezone: 'America/Los_Angeles'
 
+permissions:
+  contents: read
+
 jobs:
   build-nightly:
     name: Build and Release Python Wheel Nightly
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
 
       - name: Set up Python
         run: uv python install
@@ -47,7 +50,7 @@ jobs:
           python tools/build_wheels.py --type nightly
 
       - name: Upload Nightly Wheel
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: litert-cli-nightly-wheel
           path: dist/*.whl
@@ -61,7 +64,7 @@ jobs:
     name: Test Install and Import litert-cli-nightly
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -70,7 +73,7 @@ jobs:
           python -m pip install --upgrade pip
 
       - name: Download Nightly Wheel
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: litert-cli-nightly-wheel
           path: ./dist
@@ -103,20 +106,54 @@ jobs:
     name: Publish to PyPI
     needs: test-before-publish
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Download Nightly Wheel
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: litert-cli-nightly-wheel
           path: ./dist
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
+      - name: Authenticate to Google Cloud (OSS Exit Gate)
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: 'projects/305452601764/locations/global/workloadIdentityPools/builders/providers/github'
 
-      - name: Publish to PyPI
-        env:
-          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_UPLOAD_TOKEN }}
-        run: uv publish dist/*.whl
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: Clean up stale releases from staging repo
+        run: |
+          # clean up stale releases from staging repo
+          packages=$(gcloud artifacts packages list \
+              --project="oss-exit-gate-prod" \
+              --location="us" \
+              --repository="litert-cli--pypi" \
+              --format="value(name)" 2>/dev/null)
+
+          echo "${packages}" | xargs -r -I {} sh -c '
+              package_name=$(basename "{}")
+              echo "Deleting package: $package_name..."
+              gcloud artifacts packages delete "{}" \
+                  --project="oss-exit-gate-prod" \
+                  --location="us" \
+                  --repository="litert-cli--pypi" \
+                  --quiet
+          '
+
+      - name: Stage to OSS Exit Gate and upload manifest
+        run: |
+          python3 -m pip install --upgrade pip twine
+          python3 -m twine upload \
+            --repository-url "https://us-python.pkg.dev/oss-exit-gate-prod/litert-cli--pypi/" \
+            -u oauth2accesstoken \
+            -p "$(gcloud auth print-access-token)" \
+            dist/*.whl
+          echo '{"publish_all": true}' > manifest.json
+          gcloud storage cp manifest.json \
+            "gs://oss-exit-gate-prod-projects-bucket/litert-cli/pypi/manifests/manifest-${{ github.run_id }}-${{ github.run_attempt }}.json"
 
   test-after-publish:
     needs: publish-nightly
@@ -127,7 +164,7 @@ jobs:
     name: Test Install and Import litert-cli-nightly from PyPI
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: ${{ matrix.python-version }}
 
