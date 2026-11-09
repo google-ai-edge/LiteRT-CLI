@@ -100,6 +100,10 @@ def lm_cmd(ctx: click.Context) -> None:
       and args[0] in ("run", "benchmark")
       and args[1].endswith(".litertlm")
       and not os.path.exists(args[1])
+      # With --from-huggingface-repo, the file name is in the repo.
+      and not any(
+          a.partition("=")[0] == "--from-huggingface-repo" for a in args[1:]
+      )
   ):
     # litert-lm reports a missing file with exit code 0.
     raise click.ClickException(f"Model file not found: {args[1]}")

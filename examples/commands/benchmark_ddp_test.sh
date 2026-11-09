@@ -61,9 +61,9 @@ run_case "Benchmark: GPU Mode on default DDP device (pa3q-35)" \
 echo -e "\n${BLUE}${BOLD}--- 2. Benchmark a LiteRT-LM bundle on DDP devices ---${NC}"
 
 run_case "Download: Qwen3-0.6B bundle" \
-    litert download litert-community/Qwen3-0.6B --file "qwen3_0_6b_mixed_int4.litertlm" --output "models/qwen3"
+    litert download litert-community/Qwen3-0.6B --file "Qwen3-0.6B_dynamic_wi4b32_afp32.litertlm" --output "models/qwen3"
 
 run_case "Benchmark: LiteRT-LM bundle, GPU on a DDP device" \
-    litert benchmark models/qwen3/qwen3_0_6b_mixed_int4.litertlm --ddp --gpu --device 'grizzly-37' --gcp-project "$GCP_PROJECT"
+    litert benchmark models/qwen3/Qwen3-0.6B_dynamic_wi4b32_afp32.litertlm --ddp --gpu --device 'grizzly-37' --gcp-project "$GCP_PROJECT"
 
 print_summary_report "Benchmark DDP Commands"
