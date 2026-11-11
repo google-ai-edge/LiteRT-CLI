@@ -104,6 +104,7 @@ class LazyCLI(click.Group):
         'lm',
         'quantize',
         'run',
+        'verify',
         'visualize',
     ]
 
@@ -123,6 +124,7 @@ class LazyCLI(click.Group):
         'lm': ('litert_cli.commands.lm', 'lm_cmd'),
         'quantize': ('litert_cli.commands.quantize', 'quantize_cmd'),
         'run': ('litert_cli.commands.run.cli', 'run_cmd'),
+        'verify': ('litert_cli.commands.verify', 'verify_cmd'),
         'visualize': ('litert_cli.commands.visualize', 'visualize_cmd'),
     }
     if cmd_name not in routes:

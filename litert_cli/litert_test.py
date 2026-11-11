@@ -14,6 +14,7 @@
 # ==============================================================================
 
 import importlib
+import json
 import os
 import subprocess
 import types
@@ -26,6 +27,7 @@ from click import testing
 import huggingface_hub
 from litert_cli import litert
 from litert_cli.core import constants
+import numpy as np
 
 
 class LitertTest(parameterized.TestCase):
@@ -47,6 +49,7 @@ class LitertTest(parameterized.TestCase):
             'lm',
             'quantize',
             'run',
+            'verify',
             'visualize',
         ],
     )
@@ -113,6 +116,354 @@ class LitertTest(parameterized.TestCase):
         '--signature-index 5 is out of range: the model has 1 signature(s)'
         " ('serving_default'), so use 0 to 0.",
         result.output,
+    )
+
+
+def _split_stream_runner() -> testing.CliRunner:
+  """A runner that keeps stdout and stderr apart across click versions."""
+  try:
+    return testing.CliRunner(mix_stderr=False)  # click < 8.2
+  except TypeError:
+    return testing.CliRunner()  # click >= 8.2 never mixes them
+
+
+_DUMMY_MODEL = os.path.join(
+    os.path.dirname(__file__), 'test_data', 'dummy_cv_model.tflite'
+)
+# `scaled = x * 2 + 1` (float32[1, 4]) and `total = sum(x)` (scalar), with a
+# float32 input `x`; and the same graph fully quantized with int8 I/O. See
+# test_data/generate_verify_models.py.
+_VERIFY_FLOAT_MODEL = os.path.join(
+    os.path.dirname(__file__), 'test_data', 'verify_float.tflite'
+)
+_VERIFY_INT8_MODEL = os.path.join(
+    os.path.dirname(__file__), 'test_data', 'verify_int8.tflite'
+)
+
+
+class VerifyTest(absltest.TestCase):
+  """`litert verify` compares a model with reference outputs."""
+
+  def test_npz_goldens_computed_outside_litert_pass(self) -> None:
+    # Goldens computed with numpy (float64, as a script would produce them),
+    # including a rank-0 output: this fails if the model is not actually run
+    # or if scalar outputs come back with shape (1,).
+    ref = self.create_tempdir().full_path
+    x = np.array([[0.5, -1.0, 2.0, 0.25]])
+    inputs_path = os.path.join(ref, 'inputs.npz')
+    outputs_path = os.path.join(ref, 'outputs.npz')
+    np.savez(inputs_path, x=x)
+    np.savez(outputs_path, scaled=x * 2 + 1, total=np.sum(x))
+
+    result = _split_stream_runner().invoke(
+        litert.cli,
+        [
+            '--json',
+            'verify',
+            _VERIFY_FLOAT_MODEL,
+            '--inputs',
+            inputs_path,
+            '--expected',
+            outputs_path,
+        ],
+    )
+    self.assertEqual(result.exit_code, 0, result.output)
+    doc = json.loads(result.stdout)
+    self.assertTrue(doc['passed'])
+    by_name = {r['name']: r for r in doc['outputs']}
+    self.assertEqual(by_name['scaled']['shape'], [1, 4])
+    self.assertEqual(by_name['total']['shape'], [])
+    self.assertEqual(by_name['total']['dtype'], 'float32')
+
+    # Wrong goldens are detected, not masked by the scalar handling.
+    np.savez(outputs_path, scaled=x * 2 + 1, total=np.sum(x) + 1.0)
+    result = _split_stream_runner().invoke(
+        litert.cli,
+        [
+            '--json',
+            'verify',
+            _VERIFY_FLOAT_MODEL,
+            '--inputs',
+            inputs_path,
+            '--expected',
+            outputs_path,
+        ],
+    )
+    self.assertEqual(result.exit_code, 5, result.output)
+    by_name = {r['name']: r for r in json.loads(result.stdout)['outputs']}
+    self.assertTrue(by_name['scaled']['passed'])
+    self.assertFalse(by_name['total']['passed'])
+    self.assertAlmostEqual(by_name['total']['max_abs_diff'], 1.0, places=5)
+
+  def test_against_uses_given_inputs_and_saves_them(self) -> None:
+    ref = self.create_tempdir().full_path
+    x = np.array([[0.5, -1.0, 2.0, 0.25]], dtype=np.float32)
+    inputs_path = os.path.join(ref, 'given.npz')
+    np.savez(inputs_path, x=x)
+    save_dir = os.path.join(ref, 'saved')
+
+    result = _split_stream_runner().invoke(
+        litert.cli,
+        [
+            '--json',
+            'verify',
+            _VERIFY_FLOAT_MODEL,
+            '--against',
+            _VERIFY_FLOAT_MODEL,
+            '--inputs',
+            inputs_path,
+            '--save',
+            save_dir,
+        ],
+    )
+    self.assertEqual(result.exit_code, 0, result.output)
+    self.assertIn(f'inputs from {inputs_path}', result.stderr)
+    doc = json.loads(result.stdout)
+    with np.load(doc['saved']['inputs']) as saved_inputs:
+      np.testing.assert_array_equal(saved_inputs['x'], x)
+    with np.load(doc['saved']['outputs']) as saved_outputs:
+      np.testing.assert_allclose(saved_outputs['scaled'], x * 2 + 1)
+      self.assertEqual(saved_outputs['total'].shape, ())
+
+  def test_int8_model_against_float_original_is_rejected(self) -> None:
+    result = _split_stream_runner().invoke(
+        litert.cli,
+        ['verify', _VERIFY_INT8_MODEL, '--against', _VERIFY_FLOAT_MODEL],
+    )
+    self.assertEqual(result.exit_code, 1, result.output)
+    self.assertIn("Input 'x' has dtype float32", result.stderr)
+    self.assertIn('expects int8', result.stderr)
+    self.assertIn('not supported yet', result.stderr)
+
+  def test_int8_model_against_itself_passes(self) -> None:
+    result = _split_stream_runner().invoke(
+        litert.cli,
+        [
+            '--json',
+            'verify',
+            _VERIFY_INT8_MODEL,
+            '--against',
+            _VERIFY_INT8_MODEL,
+        ],
+    )
+    self.assertEqual(result.exit_code, 0, result.output)
+    doc = json.loads(result.stdout)
+    self.assertTrue(doc['passed'])
+    self.assertEqual({r['dtype'] for r in doc['outputs']}, {'int8'})
+
+  def test_against_itself_passes_and_saves_the_reference(self) -> None:
+    ref = os.path.join(self.create_tempdir().full_path, 'ref')
+    result = _split_stream_runner().invoke(
+        litert.cli,
+        [
+            '--json',
+            'verify',
+            _DUMMY_MODEL,
+            '--against',
+            _DUMMY_MODEL,
+            '--save',
+            ref,
+        ],
+    )
+    self.assertEqual(result.exit_code, 0, result.output)
+    doc = json.loads(result.stdout)
+    self.assertEqual(doc['schema'], 'litert.verify.v1')
+    self.assertTrue(doc['passed'])
+    self.assertEqual(doc['signature'], 'serving_default')
+    for record in doc['outputs']:
+      self.assertEqual(record['max_abs_diff'], 0.0)
+    self.assertIn('Verification passed.', result.stderr)
+    inputs = np.load(doc['saved']['inputs'])
+    outputs = np.load(doc['saved']['outputs'])
+    self.assertEqual(inputs.files, ['args_0'])
+    self.assertEqual(outputs.files, ['output_0'])
+    self.assertEqual(list(outputs['output_0'].shape), [1, 10])
+
+  def test_npz_reference_and_tampering_exits_with_5(self) -> None:
+    ref = os.path.join(self.create_tempdir().full_path, 'ref')
+    runner = testing.CliRunner()
+    result = runner.invoke(
+        litert.cli,
+        ['verify', _DUMMY_MODEL, '--against', _DUMMY_MODEL, '--save', ref],
+    )
+    self.assertEqual(result.exit_code, 0, result.output)
+    inputs_path = os.path.join(ref, 'inputs.npz')
+    outputs_path = os.path.join(ref, 'outputs.npz')
+
+    result = runner.invoke(
+        litert.cli,
+        [
+            'verify',
+            _DUMMY_MODEL,
+            '--inputs',
+            inputs_path,
+            '--expected',
+            outputs_path,
+        ],
+    )
+    self.assertEqual(result.exit_code, 0, result.output)
+
+    with np.load(outputs_path) as f:
+      tampered = {k: f[k] + 1.0 for k in f.files}
+    np.savez(outputs_path, **tampered)
+    result = _split_stream_runner().invoke(
+        litert.cli,
+        [
+            '--json',
+            'verify',
+            _DUMMY_MODEL,
+            '--inputs',
+            inputs_path,
+            '--expected',
+            outputs_path,
+        ],
+    )
+    self.assertEqual(result.exit_code, 5, result.output)
+    doc = json.loads(result.stdout)
+    self.assertFalse(doc['passed'])
+    self.assertIn('outside atol', doc['outputs'][0]['reason'])
+    self.assertIn('Verification failed for', result.stderr)
+
+    # Loosening the tolerance accepts the difference.
+    result = runner.invoke(
+        litert.cli,
+        [
+            'verify',
+            _DUMMY_MODEL,
+            '--inputs',
+            inputs_path,
+            '--expected',
+            outputs_path,
+            '--atol',
+            '2',
+        ],
+    )
+    self.assertEqual(result.exit_code, 0, result.output)
+
+  def test_exactly_one_reference_is_required(self) -> None:
+    runner = testing.CliRunner()
+    result = runner.invoke(litert.cli, ['verify', _DUMMY_MODEL])
+    self.assertEqual(result.exit_code, 2, result.output)
+    self.assertIn('exactly one reference', result.output)
+    result = runner.invoke(
+        litert.cli, ['verify', _DUMMY_MODEL, '--expected', _DUMMY_MODEL]
+    )
+    self.assertEqual(result.exit_code, 2, result.output)
+    self.assertIn('--expected requires --inputs', result.output)
+
+  def test_compare_outputs_reports_structural_mismatches(self) -> None:
+    from litert_cli.commands import verify  # pylint: disable=g-import-not-at-top
+
+    records = verify.compare_outputs(
+        actual={
+            'same': np.array([1.0, 2.0]),
+            'shape': np.zeros((2, 2)),
+            'extra': np.zeros(1),
+        },
+        expected={
+            'same': np.array([1.0, 2.0 + 1e-7]),
+            'shape': np.zeros(4),
+            'missing': np.zeros(1),
+        },
+        atol=1e-5,
+        rtol=1e-4,
+    )
+    by_name = {r['name']: r for r in records}
+    self.assertTrue(by_name['same']['passed'])
+    self.assertEqual(
+        by_name['shape']['reason'], 'shape [2, 2] != reference [4]'
+    )
+    self.assertEqual(by_name['extra']['reason'], 'not in reference')
+    self.assertEqual(by_name['missing']['reason'], 'missing from model outputs')
+
+  def test_compare_outputs_keeps_nan_mismatches_out_of_the_stats(self) -> None:
+    from litert_cli.commands import verify  # pylint: disable=g-import-not-at-top
+
+    nan, inf = float('nan'), float('inf')
+    records = verify.compare_outputs(
+        # Matching nan/inf pairs pass and do not poison the stats.
+        actual={
+            'same': np.array([nan, inf, 1.0]),
+            'nan_vs_finite': np.array([nan, 1.0]),
+            'finite_vs_inf': np.array([1.0, 2.0]),
+        },
+        expected={
+            'same': np.array([nan, inf, 1.0]),
+            'nan_vs_finite': np.array([0.0, 1.0]),
+            'finite_vs_inf': np.array([1.0, inf]),
+        },
+        atol=1e-5,
+        rtol=1e-4,
+    )
+    by_name = {r['name']: r for r in records}
+    self.assertTrue(by_name['same']['passed'])
+    self.assertEqual(by_name['same']['max_abs_diff'], 0.0)
+    self.assertFalse(by_name['nan_vs_finite']['passed'])
+    self.assertEqual(by_name['nan_vs_finite']['mismatched'], 1)
+    self.assertTrue(np.isnan(by_name['nan_vs_finite']['max_abs_diff']))
+    self.assertFalse(by_name['finite_vs_inf']['passed'])
+    self.assertEqual(by_name['finite_vs_inf']['max_abs_diff'], inf)
+
+    # Under --json the non-finite stats become null, never bare NaN/Infinity.
+    from litert_cli.core import report  # pylint: disable=g-import-not-at-top
+
+    text = report.dumps({'outputs': records})
+    self.assertNotIn('NaN', text)
+    self.assertNotIn('Infinity', text)
+    by_name = {r['name']: r for r in json.loads(text)['outputs']}
+    self.assertIsNone(by_name['nan_vs_finite']['max_abs_diff'])
+    self.assertIsNone(by_name['finite_vs_inf']['max_abs_diff'])
+
+  def test_np_dtype_rejects_types_verify_cannot_move(self) -> None:
+    from litert_cli.commands import verify  # pylint: disable=g-import-not-at-top
+
+    self.assertEqual(verify.np_dtype('float32', tensor='x'), np.float32)
+    self.assertEqual(verify.np_dtype('INT8', tensor='x'), np.int8)
+    self.assertEqual(verify.np_dtype('bool', tensor='x'), np.bool_)
+    for unsupported in ('float64', 'int16', 'uint16', 'uint32', 'unknown'):
+      with self.subTest(unsupported):
+        with self.assertRaisesRegex(click.ClickException, unsupported):
+          verify.np_dtype(unsupported, tensor='x')
+
+  def test_random_input_matches_dtype(self) -> None:
+    from litert_cli.commands import verify  # pylint: disable=g-import-not-at-top
+
+    rng = np.random.default_rng(0)
+    bools = verify.random_input(rng, [2, 64], np.dtype(np.bool_))
+    self.assertEqual(bools.dtype, np.bool_)
+    self.assertTrue(bools.any() and not bools.all())  # not all True
+    ints = verify.random_input(rng, [8], np.dtype(np.int8))
+    self.assertEqual(ints.dtype, np.int8)
+    self.assertTrue(((ints >= 0) & (ints < 10)).all())
+    floats = verify.random_input(rng, [8], np.dtype(np.float16))
+    self.assertEqual(floats.dtype, np.float16)
+    self.assertTrue(((floats >= -1.0) & (floats < 1.0)).all())
+
+  def test_coerce_input_casts_floats_but_not_across_kinds(self) -> None:
+    from litert_cli.commands import verify  # pylint: disable=g-import-not-at-top
+
+    f32 = np.dtype(np.float32)
+    out = verify.coerce_input('x', np.array([[1.0, 2.0]]), [1, 2], f32)
+    self.assertEqual(out.dtype, np.float32)
+    with self.assertRaisesRegex(click.ClickException, 'expects int8'):
+      verify.coerce_input(
+          'x', np.zeros((1, 2), np.float32), [1, 2], np.dtype(np.int8)
+      )
+    with self.assertRaisesRegex(click.ClickException, 'expects float32'):
+      verify.coerce_input('x', np.zeros((1, 2), np.int8), [1, 2], f32)
+    with self.assertRaisesRegex(click.ClickException, 'has shape'):
+      verify.coerce_input('x', np.zeros((2,), np.float32), [1, 2], f32)
+
+  def test_accelerators_default_to_cpu(self) -> None:
+    from litert_cli.commands import verify  # pylint: disable=g-import-not-at-top
+
+    self.assertEqual(verify._accelerators(None, False, False, False), ['cpu'])
+    self.assertEqual(verify._accelerators(None, False, True, False), ['gpu'])
+    self.assertEqual(
+        verify._accelerators(None, True, True, True), ['npu', 'gpu', 'cpu']
+    )
+    self.assertEqual(
+        verify._accelerators(' GPU, cpu ', False, False, False), ['gpu', 'cpu']
     )
 
 

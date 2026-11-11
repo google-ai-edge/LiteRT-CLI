@@ -458,6 +458,33 @@ mismatch), since models must be downloaded or converted again afterwards.
 litert clean -y
 ```
 
+### 13. Verify
+
+`litert verify` checks a model's outputs against a reference: either a pair of
+`.npz` files keyed by signature input/output names (dumped from the original
+PyTorch/JAX model, or saved by an earlier `verify --save`), or another LiteRT
+model run on the same inputs (`--against`, with `--inputs` or seeded random
+inputs). Use it after
+re-authoring, quantizing, or re-targeting a model. Pass `--json` right after
+`litert` for one JSON document on stdout (prose goes to stderr; `schema` is
+`litert.verify.v1`). Exit codes: 0 all outputs within tolerance; **5** the model
+ran but an output is outside tolerance (read `outputs[].max_abs_diff` and
+`reason`); 1 the tool could not run.
+
+```bash
+litert --json verify candidate.tflite --against model.tflite
+litert --json verify candidate.tflite --inputs ref/inputs.npz --expected ref/outputs.npz
+litert verify model_dr.tflite --against model.tflite --atol 0.05      # weight-only quantized
+litert verify model.tflite --against model.tflite --gpu --save ref/     # GPU vs CPU, keep goldens
+```
+
+Defaults are `--atol 1e-5 --rtol 1e-4` (numpy.isclose); loosen them
+deliberately, and say so, for quantized or GPU candidates. Both sides must take
+inputs of the same dtype: a fully quantized model with int8/uint8 inputs cannot
+yet be verified against its float original (`verify` exits with code 1 and says
+so), only float-I/O models can. To see what a model
+contains before changing it, use `litert visualize` (Model Explorer).
+
 ## 🧪 Testing
 
 Agents should run tests after modifying code to ensure no regressions.
