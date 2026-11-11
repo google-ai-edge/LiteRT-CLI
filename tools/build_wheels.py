@@ -22,12 +22,12 @@ import sys
 # Mapping of base package name to its pinned stable version specifier.
 # Update these version numbers when preparing a new stable release.
 STABLE_DEPENDENCIES = {
-    "ai-edge-litert": "==2.2.0",
-    "ai-edge-litert-sdk-qualcomm": "==2.2.0",
-    "ai-edge-litert-sdk-mediatek": "==2.2.0",
-    "litert-torch": "==0.9.4",
-    "litert-quantizer": "==0.11.0",
-    "litert-lm": "==0.17.1",
+    "ai-edge-litert": "==2.3.2",
+    "ai-edge-litert-sdk-qualcomm": "==2.3.2",
+    "ai-edge-litert-sdk-mediatek": "==2.3.2",
+    "litert-torch": "==0.10.0",
+    "litert-quantizer": "==0.10.1",
+    "litert-lm": "==0.19.1",
 }
 
 
