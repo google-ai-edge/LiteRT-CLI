@@ -51,8 +51,8 @@ import time
 from typing import Any, TYPE_CHECKING
 
 import click
-from litert_cli.core import constants
 from litert_cli.core import inputs as inputs_utils
+from litert_cli.core import runtime
 from litert_cli.core import utils
 import numpy as np
 
@@ -173,10 +173,11 @@ def _prepare_inputs(
   input_details = cm.get_input_tensor_details(sig_key)
   inputs_utils.check_input_names(parsed_inputs, list(input_details))
 
+  rng = np.random.default_rng()
   for name, details in input_details.items():
     shape = details.get("shape", [1])
     tensor_type = details.get("dtype", "?")
-    np_dtype = inputs_utils.get_np_dtype(tensor_type)
+    np_dtype = runtime.np_dtype(tensor_type, tensor=name)
 
     input_data_str = parsed_inputs.get(name) or parsed_inputs.get("_default_")
 
@@ -200,13 +201,7 @@ def _prepare_inputs(
           f"Generating random dummy input {name!r} with shape {shape} and"
           f" dtype {tensor_type}"
       )
-      rng = np.random.default_rng()
-      if np.issubdtype(np_dtype, np.integer):
-        input_data = rng.integers(0, 10, size=shape, dtype=np_dtype)
-      else:
-        input_data = np.asarray(
-            rng.uniform(low=-1.0, high=1.0, size=shape)
-        ).astype(np_dtype)
+      input_data = runtime.random_input(rng, shape, np_dtype)
 
     tb = cm.create_input_buffer_by_name(sig_key, name)
     tb.write(input_data)
@@ -241,18 +236,8 @@ def _print_outputs(
   for out_name, out_tb in outputs_by_name.items():
     try:
       details = output_details.get(out_name, {})
-      shape = details.get("shape", [])
-      if not shape and hasattr(out_tb, "shape"):
-        shape = out_tb.shape
-      num_elements = int(np.prod(shape)) if shape else 1
-
-      tensor_type = details.get("dtype", "?")
-      np_dtype = inputs_utils.get_np_dtype(tensor_type)
-
-      out_np = out_tb.read(num_elements, np_dtype)
-
-      if shape:
-        out_np = out_np.reshape(shape)
+      out_np = runtime.read_output(out_name, out_tb, details)
+      shape = list(out_np.shape)
 
       if print_tensors:
         flat_out = out_np.ravel()
@@ -333,64 +318,20 @@ def run_desktop(
     click.ClickException: On loading failure or inference execution errors.
   """
 
-  accel_list = [a.strip().lower() for a in accelerator.split(",") if a.strip()]
-
-  # pylint: disable=g-import-not-at-top,reimported
-  from ai_edge_litert.compiled_model import CompiledModel
-  from ai_edge_litert.compiled_model import Environment
-  from ai_edge_litert.hardware_accelerator import HardwareAccelerator
-
-  hw_accel = HardwareAccelerator(0)
-  for accel in accel_list:
-    if accel == "cpu":
-      hw_accel |= HardwareAccelerator.CPU
-    elif accel == "gpu":
-      hw_accel |= HardwareAccelerator.GPU
-    elif accel == "npu":
-      hw_accel |= HardwareAccelerator.NPU
-    else:
-      raise click.ClickException(f"Unsupported hardware accelerator: {accel!r}")
-
-  if hw_accel == HardwareAccelerator(0):
-    hw_accel = HardwareAccelerator.CPU
+  accel_list = runtime.parse_accelerators(accelerator)
 
   click.echo(
       f"Loading model on desktop: {model_path} with native hardware"
-      f" accelerators: {hw_accel}"
+      f" accelerators: {','.join(accel_list)}"
   )
 
   ctx = utils.silence_stderr() if quiet else contextlib.nullcontext()
   with ctx:
     try:
-      env = None
-      if constants.IS_INTERNAL_ENV:
-        # In internal environment, we need to fallback to LD_LIBRARY_PATH for
-        # loading GPU accelerators in hermetic .par file. Otherwise, use
-        # default path.
-        env = Environment.create(runtime_path="")
-      cm = CompiledModel.from_file(model_path, hw_accel, environment=env)
-      signatures = cm.get_signature_list()
-      if not signatures:
-        raise click.ClickException(
-            f"No signatures found in the model: {model_path!r}"
-        )
-
-      # An out-of-range index aborts the process in the native runtime.
-      if not 0 <= signature_index < len(signatures):
-        raise click.ClickException(
-            f"--signature-index {signature_index} is out of range: the model"
-            f" has {len(signatures)} signature(s)"
-            f" ({', '.join(repr(k) for k in signatures)}), so use 0 to"
-            f" {len(signatures) - 1}."
-        )
-
-      try:
-        sig_info = cm.get_signature_by_index(signature_index)
-        sig_key = sig_info["key"]
-      except Exception as e:  # pylint: disable=broad-exception-caught
-        raise click.ClickException(
-            f"Failed to get signature at index {signature_index}: {e!r}"
-        ) from e
+      cm = runtime.load_model(model_path, accel_list)
+      signatures, sig_key = runtime.pick_signature(
+          cm, model_path, signature_index
+      )
 
       click.echo(f"Using signature: {sig_key!r}")
 
@@ -403,10 +344,7 @@ def run_desktop(
 
       run_times = []
 
-      sig_idx = cm.get_signature_index(sig_key)
-      out_buffers = cm.create_output_buffers(sig_idx)
-      out_names = signatures[sig_key]["outputs"]
-      outputs_by_name = dict(zip(out_names, out_buffers))
+      outputs_by_name = runtime.create_output_buffers(cm, signatures, sig_key)
 
       for _ in range(iterations):
         start_time = time.perf_counter()

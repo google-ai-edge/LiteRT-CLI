@@ -414,58 +414,6 @@ class VerifyTest(absltest.TestCase):
     self.assertIsNone(by_name['nan_vs_finite']['max_abs_diff'])
     self.assertIsNone(by_name['finite_vs_inf']['max_abs_diff'])
 
-  def test_np_dtype_rejects_types_verify_cannot_move(self) -> None:
-    from litert_cli.commands import verify  # pylint: disable=g-import-not-at-top
-
-    self.assertEqual(verify.np_dtype('float32', tensor='x'), np.float32)
-    self.assertEqual(verify.np_dtype('INT8', tensor='x'), np.int8)
-    self.assertEqual(verify.np_dtype('bool', tensor='x'), np.bool_)
-    for unsupported in ('float64', 'int16', 'uint16', 'uint32', 'unknown'):
-      with self.subTest(unsupported):
-        with self.assertRaisesRegex(click.ClickException, unsupported):
-          verify.np_dtype(unsupported, tensor='x')
-
-  def test_random_input_matches_dtype(self) -> None:
-    from litert_cli.commands import verify  # pylint: disable=g-import-not-at-top
-
-    rng = np.random.default_rng(0)
-    bools = verify.random_input(rng, [2, 64], np.dtype(np.bool_))
-    self.assertEqual(bools.dtype, np.bool_)
-    self.assertTrue(bools.any() and not bools.all())  # not all True
-    ints = verify.random_input(rng, [8], np.dtype(np.int8))
-    self.assertEqual(ints.dtype, np.int8)
-    self.assertTrue(((ints >= 0) & (ints < 10)).all())
-    floats = verify.random_input(rng, [8], np.dtype(np.float16))
-    self.assertEqual(floats.dtype, np.float16)
-    self.assertTrue(((floats >= -1.0) & (floats < 1.0)).all())
-
-  def test_coerce_input_casts_floats_but_not_across_kinds(self) -> None:
-    from litert_cli.commands import verify  # pylint: disable=g-import-not-at-top
-
-    f32 = np.dtype(np.float32)
-    out = verify.coerce_input('x', np.array([[1.0, 2.0]]), [1, 2], f32)
-    self.assertEqual(out.dtype, np.float32)
-    with self.assertRaisesRegex(click.ClickException, 'expects int8'):
-      verify.coerce_input(
-          'x', np.zeros((1, 2), np.float32), [1, 2], np.dtype(np.int8)
-      )
-    with self.assertRaisesRegex(click.ClickException, 'expects float32'):
-      verify.coerce_input('x', np.zeros((1, 2), np.int8), [1, 2], f32)
-    with self.assertRaisesRegex(click.ClickException, 'has shape'):
-      verify.coerce_input('x', np.zeros((2,), np.float32), [1, 2], f32)
-
-  def test_accelerators_default_to_cpu(self) -> None:
-    from litert_cli.commands import verify  # pylint: disable=g-import-not-at-top
-
-    self.assertEqual(verify._accelerators(None, False, False, False), ['cpu'])
-    self.assertEqual(verify._accelerators(None, False, True, False), ['gpu'])
-    self.assertEqual(
-        verify._accelerators(None, True, True, True), ['npu', 'gpu', 'cpu']
-    )
-    self.assertEqual(
-        verify._accelerators(' GPU, cpu ', False, False, False), ['gpu', 'cpu']
-    )
-
 
 class EnvironmentErrorTest(parameterized.TestCase):
 

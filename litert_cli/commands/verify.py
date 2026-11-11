@@ -58,8 +58,8 @@ import textwrap
 from typing import Any
 
 import click
-from litert_cli.core import constants
 from litert_cli.core import report
+from litert_cli.core import runtime
 import numpy as np
 
 # Schema of the document `litert --json verify` emits.
@@ -71,142 +71,11 @@ VERIFICATION_FAILED_EXIT_CODE = 5
 INPUTS_FILE = "inputs.npz"
 OUTPUTS_FILE = "outputs.npz"
 
-# LiteRT tensor type names (as reported by `CompiledModel`) that `verify` can
-# move in and out of tensor buffers, and their numpy dtypes. `bfloat16` is
-# added when `ml_dtypes` is importable.
-_NP_DTYPES: dict[str, np.dtype] = {
-    "float32": np.dtype(np.float32),
-    "float16": np.dtype(np.float16),
-    "int32": np.dtype(np.int32),
-    "int64": np.dtype(np.int64),
-    "int8": np.dtype(np.int8),
-    "uint8": np.dtype(np.uint8),
-    "bool": np.dtype(np.bool_),
-}
-try:
-  import ml_dtypes  # pylint: disable=g-import-not-at-top
-
-  _NP_DTYPES["bfloat16"] = np.dtype(ml_dtypes.bfloat16)
-except ImportError:  # pragma: no cover
-  pass
-
 
 class VerificationFailed(click.ClickException):
   """The model ran, but at least one output differs from the reference."""
 
   exit_code = VERIFICATION_FAILED_EXIT_CODE
-
-
-def _accelerators(accelerator: str | None, cpu: bool, gpu: bool, npu: bool):
-  if accelerator:
-    return [a.strip().lower() for a in accelerator.split(",") if a.strip()]
-  chosen = [a for a, on in (("npu", npu), ("gpu", gpu), ("cpu", cpu)) if on]
-  return chosen or ["cpu"]
-
-
-def np_dtype(tensor_type: str, *, tensor: str) -> np.dtype:
-  """Returns the numpy dtype for a LiteRT tensor type name.
-
-  Args:
-    tensor_type: Type name reported by `CompiledModel`, e.g. `"float32"`.
-    tensor: Tensor name, for the error message.
-
-  Raises:
-    click.ClickException: If `verify` cannot handle the type.
-  """
-  dtype = _NP_DTYPES.get(tensor_type.lower())
-  if dtype is None:
-    raise click.ClickException(
-        f"Tensor {tensor!r} has dtype {tensor_type!r}, which `litert verify`"
-        f" does not support yet (supported: {', '.join(sorted(_NP_DTYPES))})."
-    )
-  return dtype
-
-
-def random_input(
-    rng: np.random.Generator, shape: list[int], dtype: np.dtype
-) -> np.ndarray:
-  """Seeded random input: bools, integers in [0, 10), or floats in [-1, 1)."""
-  if dtype == np.bool_:
-    return rng.integers(0, 2, size=shape).astype(np.bool_)
-  if np.issubdtype(dtype, np.integer):
-    return rng.integers(0, 10, size=shape, dtype=dtype)
-  return rng.uniform(-1.0, 1.0, size=shape).astype(dtype)
-
-
-def coerce_input(name: str, value: Any, shape: list[int], dtype: np.dtype):
-  """Checks a reference input against the model's input `shape` and `dtype`.
-
-  Floats are cast between float widths (goldens are often float64). Any other
-  dtype difference, in particular float vs. quantized int8/uint8, is an error:
-  casting would silently produce a meaningless comparison.
-
-  Args:
-    name: Input name, for error messages.
-    value: The reference value.
-    shape: Shape the model expects.
-    dtype: Dtype the model expects.
-
-  Returns:
-    The input as an array of `dtype`.
-
-  Raises:
-    click.ClickException: On a shape or dtype mismatch.
-  """
-  array = np.asarray(value)
-  same_kind_float = array.dtype.kind == "f" and dtype.kind == "f"
-  if array.dtype != dtype and not same_kind_float:
-    raise click.ClickException(
-        f"Input {name!r} has dtype {array.dtype} but the model expects"
-        f" {dtype}. Comparing models with different input dtypes (e.g. a"
-        " fully quantized int8 model against its float original) is not"
-        " supported yet."
-    )
-  array = array.astype(dtype, copy=False)
-  if list(array.shape) != shape:
-    raise click.ClickException(
-        f"Input {name!r} has shape {list(array.shape)} but the model"
-        f" expects {shape}."
-    )
-  return array
-
-
-def _load_model(model_path: str, accelerators: list[str]) -> Any:
-  """Loads a CompiledModel for the requested accelerators (fallback order)."""
-  # pylint: disable=g-import-not-at-top
-  from ai_edge_litert.compiled_model import CompiledModel
-  from ai_edge_litert.compiled_model import Environment
-  from ai_edge_litert.hardware_accelerator import HardwareAccelerator
-  # pylint: enable=g-import-not-at-top
-
-  flags = {
-      "cpu": HardwareAccelerator.CPU,
-      "gpu": HardwareAccelerator.GPU,
-      "npu": HardwareAccelerator.NPU,
-  }
-  hw = HardwareAccelerator(0)
-  for a in accelerators:
-    if a not in flags:
-      raise click.ClickException(f"Unsupported hardware accelerator: {a!r}")
-    hw |= flags[a]
-  env = None
-  if constants.IS_INTERNAL_ENV:
-    env = Environment.create(runtime_path="")
-  return CompiledModel.from_file(model_path, hw, environment=env)
-
-
-def _signature(cm: Any, model_path: str, index: int) -> tuple[dict, str]:
-  signatures = cm.get_signature_list()
-  if not signatures:
-    raise click.ClickException(
-        f"No signatures found in the model: {model_path!r}"
-    )
-  if not 0 <= index < len(signatures):
-    raise click.ClickException(
-        f"--signature-index {index} is out of range: the model has"
-        f" {len(signatures)} signature(s) ({', '.join(map(repr, signatures))})."
-    )
-  return signatures, cm.get_signature_by_index(index)["key"]
 
 
 def run_model(
@@ -219,51 +88,12 @@ def run_model(
 ) -> tuple[str, dict[str, np.ndarray], dict[str, np.ndarray]]:
   """Runs one signature; returns `(signature_key, inputs, outputs)`.
 
-  When `inputs` is None, seeded random inputs matching the signature are
-  generated (see `random_input`).
+  See `runtime.run_once`.
   """
-  cm = _load_model(model_path, accelerators)
-  signatures, sig_key = _signature(cm, model_path, signature_index)
-  input_details = cm.get_input_tensor_details(sig_key)
-  rng = np.random.default_rng(seed)
+  return runtime.run_once(
+      model_path, accelerators, signature_index, inputs, seed=seed
+  )
 
-  fed: dict[str, np.ndarray] = {}
-  buffers: dict[str, Any] = {}
-  for name, details in input_details.items():
-    shape = list(details.get("shape", [1]))
-    dtype = np_dtype(details.get("dtype", "unknown"), tensor=name)
-    if inputs is None:
-      array = random_input(rng, shape, dtype)
-    elif name not in inputs:
-      raise click.ClickException(
-          f"Reference inputs have no entry for model input {name!r}."
-          f" Available: {', '.join(map(repr, inputs))}."
-      )
-    else:
-      array = coerce_input(name, inputs[name], shape, dtype)
-    tb = cm.create_input_buffer_by_name(sig_key, name)
-    tb.write(array)
-    fed[name] = array
-    buffers[name] = tb
-
-  out_names = signatures[sig_key]["outputs"]
-  out_buffers = cm.create_output_buffers(cm.get_signature_index(sig_key))
-  outputs_by_name = dict(zip(out_names, out_buffers))
-  cm.run_by_name(sig_key, buffers, outputs_by_name)
-
-  output_details = cm.get_output_tensor_details(sig_key)
-  outputs: dict[str, np.ndarray] = {}
-  for name, tb in outputs_by_name.items():
-    details = output_details.get(name, {})
-    shape = details.get("shape")
-    if shape is None and hasattr(tb, "get_tensor_details"):
-      shape = tb.get_tensor_details().get("shape")
-    dtype = np_dtype(details.get("dtype", "unknown"), tensor=name)
-    # A rank-0 tensor has shape [] and one element; keep it a scalar.
-    count = int(np.prod(shape)) if shape is not None else 1
-    array = tb.read(count, dtype)
-    outputs[name] = array.reshape(shape) if shape is not None else array
-  return sig_key, fed, outputs
 
 
 def compare_outputs(
@@ -456,7 +286,9 @@ def verify_cmd(
     return str(path)
 
   model_path = resolve(model)
-  accelerators = _accelerators(accelerator, cpu, gpu, npu)
+  accelerators = runtime.parse_accelerators(
+      accelerator, cpu=cpu, gpu=gpu, npu=npu
+  )
 
   try:
     if against:

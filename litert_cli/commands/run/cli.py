@@ -212,23 +212,11 @@ def run_cmd(
     sample_size: Number of sample elements to print from tensors.
   """
   # Resolve the order of accelerators
-  accelerator_list = []
-  if accelerator:
-    accelerator_list = [
-        a.strip().lower() for a in accelerator.split(",") if a.strip()
-    ]
-  else:
-    if npu:
-      accelerator_list.append("npu")
-    if gpu:
-      accelerator_list.append("gpu")
-    if cpu:
-      accelerator_list.append("cpu")
+  from litert_cli.core import runtime  # pylint: disable=g-import-not-at-top
 
-    if not accelerator_list:
-      accelerator_list = ["cpu"]
-
-  accelerator = ",".join(accelerator_list)
+  accelerator = ",".join(
+      runtime.parse_accelerators(accelerator, cpu=cpu, gpu=gpu, npu=npu)
+  )
 
   # Quiet if default is true
   if constants.DEFAULT_QUIET:
