@@ -80,6 +80,16 @@ class LazyCLI(click.Group):
         raise
       raise click.ClickException(message) from e
 
+  def resolve_command(
+      self, ctx: click.Context, args: list[str]
+  ) -> tuple[str | None, click.Command | None, list[str]]:
+    cmd_name, cmd, args = super().resolve_command(ctx, args)
+    if cmd is not None:
+      from litert_cli.core import report  # pylint: disable=g-import-not-at-top
+
+      report.check_json_supported(ctx, cmd)
+    return cmd_name, cmd, args
+
   def list_commands(self, ctx: click.Context) -> list[str]:
     del self
     return [
@@ -149,10 +159,26 @@ def _cli_version() -> str:
     hidden=True,
     help='Enable experimental model-specific plugin handlers.',
 )
+@click.option(
+    '--json',
+    'output_json',
+    is_flag=True,
+    default=False,
+    envvar='LITERT_JSON',
+    help=(
+        'Print results as a single JSON document on stdout (prose goes to'
+        ' stderr). Commands that do not support it yet fail with a usage'
+        ' error.'
+    ),
+)
 @click.pass_context
-def cli(ctx: click.Context, enable_model_plugins: bool) -> None:
+def cli(
+    ctx: click.Context, enable_model_plugins: bool, output_json: bool
+) -> None:
   """Runs the LiteRT CLI."""
-  ctx.ensure_object(dict)
+  from litert_cli.core import report  # pylint: disable=g-import-not-at-top
+
+  report.install(ctx, json_mode=output_json)
   _warn_if_deprecated_python()
   if enable_model_plugins:
     from litert_cli.core import constants
