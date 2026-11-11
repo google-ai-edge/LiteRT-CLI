@@ -85,6 +85,7 @@ _QAIRT_VERSION_MAP = {
     "2.1.5": "2.44.0.260225",  # Stable 2.1.5 release
     "2.1.6": "2.47.0.260601",  # Stable 2.1.6 release
     "2.2.0": "2.47.0.260601",  # Stable 2.2.0 release
+    "2.3.2": "2.51.1.261002",  # Stable 2.3.2 release
 }
 # A release missing from the map is newer than the map: use the newest SDK.
 QAIRT_SDK_VERSION: str = _QAIRT_VERSION_MAP.get(
