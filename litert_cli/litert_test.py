@@ -370,6 +370,10 @@ class VerifyTest(absltest.TestCase):
     )
     by_name = {r['name']: r for r in records}
     self.assertTrue(by_name['same']['passed'])
+    # A passing output still reports its true margin, not 0.0.
+    self.assertAlmostEqual(by_name['same']['max_abs_diff'], 1e-7, places=12)
+    self.assertAlmostEqual(by_name['same']['mean_abs_diff'], 5e-8, places=12)
+    self.assertEqual(by_name['same']['mismatched'], 0)
     self.assertEqual(
         by_name['shape']['reason'], 'shape [2, 2] != reference [4]'
     )

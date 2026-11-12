@@ -126,10 +126,14 @@ def compare_outputs(
         g = got.astype(np.float64, copy=False)
         w = want.astype(np.float64, copy=False)
         close = np.isclose(g, w, atol=atol, rtol=rtol, equal_nan=True)
-        # Matching nan/inf pairs must not poison the stats; a nan or inf at
-        # a mismatched position is kept, so the stats are non-finite exactly
-        # when a mismatch is (and `--json` writes them as null).
-        diff = np.where(close, 0.0, np.abs(g - w))
+        # Report the true distance, including for elements within tolerance,
+        # so a passing output still shows its margin. Only matching nan/inf
+        # pairs (whose difference is nan) are zeroed so they do not poison
+        # the stats; a nan or inf at a mismatched position is kept, so the
+        # stats are non-finite exactly when a mismatch is (and `--json`
+        # writes them as null).
+        diff = np.abs(g - w)
+        diff = np.where(close & ~np.isfinite(diff), 0.0, diff)
         mismatched = int(np.count_nonzero(~close))
         record.update(
             max_abs_diff=float(np.max(diff)) if diff.size else 0.0,
