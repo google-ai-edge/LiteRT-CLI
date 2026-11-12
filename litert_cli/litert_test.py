@@ -224,6 +224,11 @@ class VerifyTest(absltest.TestCase):
     with np.load(doc['saved']['outputs']) as saved_outputs:
       np.testing.assert_allclose(saved_outputs['scaled'], x * 2 + 1)
       self.assertEqual(saved_outputs['total'].shape, ())
+    # The verified model's own outputs are saved too, so a later step can
+    # consume them (e.g. a decode signature fed with a prefill's KV cache).
+    with np.load(doc['saved']['actual']) as saved_actual:
+      self.assertEqual(sorted(saved_actual.files), ['scaled', 'total'])
+      np.testing.assert_allclose(saved_actual['scaled'], x * 2 + 1)
 
   def test_int8_model_against_float_original_is_rejected(self) -> None:
     result = _split_stream_runner().invoke(
@@ -378,7 +383,43 @@ class VerifyTest(absltest.TestCase):
         by_name['shape']['reason'], 'shape [2, 2] != reference [4]'
     )
     self.assertEqual(by_name['extra']['reason'], 'not in reference')
+    self.assertTrue(by_name['extra']['skipped'])
+    self.assertTrue(by_name['extra']['passed'])
+    self.assertEqual(by_name['extra']['shape'], [1])
     self.assertEqual(by_name['missing']['reason'], 'missing from model outputs')
+    self.assertFalse(by_name['missing']['passed'])
+
+  def test_partial_expected_skips_uncovered_outputs(self) -> None:
+    # A reference that covers only `scaled` passes; `total` is skipped, not
+    # failed. A reference covering none of the outputs is an error.
+    ref = self.create_tempdir().full_path
+    x = np.array([[0.5, -1.0, 2.0, 0.25]], dtype=np.float32)
+    inputs_path = os.path.join(ref, 'inputs.npz')
+    outputs_path = os.path.join(ref, 'outputs.npz')
+    np.savez(inputs_path, x=x)
+    np.savez(outputs_path, scaled=x * 2 + 1)
+    args = [
+        '--json',
+        'verify',
+        _VERIFY_FLOAT_MODEL,
+        '--inputs',
+        inputs_path,
+        '--expected',
+        outputs_path,
+    ]
+    result = _split_stream_runner().invoke(litert.cli, args)
+    self.assertEqual(result.exit_code, 0, result.output)
+    doc = json.loads(result.stdout)
+    self.assertTrue(doc['passed'])
+    by_name = {r['name']: r for r in doc['outputs']}
+    self.assertFalse(by_name['scaled'].get('skipped', False))
+    self.assertTrue(by_name['total']['skipped'])
+    self.assertIn('SKIP total (not in reference)', result.stderr)
+
+    np.savez(outputs_path, unrelated=x)
+    result = _split_stream_runner().invoke(litert.cli, args)
+    self.assertEqual(result.exit_code, 1, result.output)
+    self.assertIn('none of the model', result.stderr)
 
   def test_compare_outputs_keeps_nan_mismatches_out_of_the_stats(self) -> None:
     from litert_cli.commands import verify  # pylint: disable=g-import-not-at-top

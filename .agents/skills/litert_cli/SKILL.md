@@ -479,7 +479,17 @@ litert verify model.tflite --against model.tflite --gpu --save ref/     # GPU vs
 ```
 
 Defaults are `--atol 1e-5 --rtol 1e-4` (numpy.isclose); loosen them
-deliberately, and say so, for quantized or GPU candidates. Both sides must take
+deliberately, and say so, for quantized or GPU candidates. `max_abs_diff` /
+`mean_abs_diff` are the true distances to the reference, also for passing
+outputs, so report them as the margin. The reference may cover only some of
+the model's outputs (e.g. logits but not KV-cache tensors): uncovered outputs
+are listed as `SKIP` (`skipped: true`) and do not fail the run; a reference
+that names an output the model does not produce does. `--save DIR` writes
+`inputs.npz` and `outputs.npz` (the reference side) plus `actual.npz` (the
+verified model's own outputs), so a multi-signature model can be checked step
+by step: verify `prefill` with `--signature-index 0 --save step1/`, build the
+decode inputs from `step1/actual.npz` (rename keys with NumPy), then verify
+`decode` with `--signature-index 1`. Both sides must take
 inputs of the same dtype: a fully quantized model with int8/uint8 inputs cannot
 yet be verified against its float original (`verify` exits with code 1 and says
 so), only float-I/O models can. To see what a model

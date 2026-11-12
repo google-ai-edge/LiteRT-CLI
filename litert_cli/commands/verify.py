@@ -24,10 +24,15 @@ References come from one of two places:
 
 * `--inputs inputs.npz --expected outputs.npz`: arrays keyed by signature
   input/output name, produced by anything (a PyTorch script, NumPy, a
-  previous `verify --against ... --save DIR`).
+  previous `verify --against ... --save DIR`). The reference may cover only
+  some of the model's outputs; the others are reported as skipped.
 * `--against reference.tflite`: another LiteRT model; `verify` feeds both
   models the same inputs (`--inputs`, or seeded random inputs) and compares
   their outputs.
+
+`--save DIR` keeps the inputs (`inputs.npz`), the reference outputs
+(`outputs.npz`) and the verified model's own outputs (`actual.npz`), so one
+step's outputs can become the next step's inputs (e.g. prefill -> decode).
 
 Both models must take inputs of the same dtype. Comparing a model with
 quantized (int8/uint8) inputs or outputs against its float original is not
@@ -70,6 +75,7 @@ VERIFICATION_FAILED_EXIT_CODE = 5
 
 INPUTS_FILE = "inputs.npz"
 OUTPUTS_FILE = "outputs.npz"
+ACTUAL_FILE = "actual.npz"
 
 
 class VerificationFailed(click.ClickException):
@@ -103,12 +109,25 @@ def compare_outputs(
     atol: float,
     rtol: float,
 ) -> list[dict[str, Any]]:
-  """Compares each expected output with the actual one (numpy.isclose)."""
+  """Compares each expected output with the actual one (numpy.isclose).
+
+  Model outputs that the reference does not contain are reported as skipped
+  (`passed` is true, `skipped` is true) rather than failed, so a reference may
+  cover only the outputs that matter (e.g. logits but not KV-cache tensors).
+  Expected outputs that the model does not produce are failures.
+  """
   records = []
   for name in sorted(set(expected) | set(actual)):
     record: dict[str, Any] = {"name": name}
     if name not in expected:
-      record.update(passed=False, reason="not in reference")
+      got = np.asarray(actual[name])
+      record.update(
+          shape=list(got.shape),
+          dtype=str(got.dtype),
+          passed=True,
+          skipped=True,
+          reason="not in reference",
+      )
     elif name not in actual:
       record.update(passed=False, reason="missing from model outputs")
     else:
@@ -200,7 +219,10 @@ def _load_npz(path: str) -> dict[str, np.ndarray]:
     "--expected",
     "expected_path",
     type=click.Path(exists=True, dir_okay=False),
-    help="Reference outputs (.npz keyed by output name).",
+    help=(
+        "Reference outputs (.npz keyed by output name). May cover only some"
+        " of the model's outputs; the rest are skipped."
+    ),
 )
 @click.option(
     "--against",
@@ -213,8 +235,8 @@ def _load_npz(path: str) -> dict[str, np.ndarray]:
     "save_dir",
     type=click.Path(file_okay=False),
     help=(
-        "Write the inputs and reference outputs used to DIR as inputs.npz /"
-        " outputs.npz."
+        "Write the inputs, reference outputs and MODEL's outputs to DIR as"
+        " inputs.npz / outputs.npz / actual.npz."
     ),
 )
 @click.option(
@@ -324,16 +346,25 @@ def verify_cmd(
   saved = None
   if save_dir:
     # Save the reference's own inputs: they are what produced `expected`.
+    # MODEL's outputs go next to them so a later step can consume them (for
+    # example a decode signature fed with the KV cache a prefill run emitted).
     out = pathlib.Path(save_dir)
     out.mkdir(parents=True, exist_ok=True)
     np.savez(out / INPUTS_FILE, **ref_inputs)
     np.savez(out / OUTPUTS_FILE, **expected)
+    np.savez(out / ACTUAL_FILE, **actual)
     saved = {
         "inputs": str(out / INPUTS_FILE),
         "outputs": str(out / OUTPUTS_FILE),
+        "actual": str(out / ACTUAL_FILE),
     }
-    reporter.echo(f"Saved reference inputs/outputs to {out}")
+    reporter.echo(f"Saved reference inputs/outputs and model outputs to {out}")
 
+  if not set(actual) & set(expected):
+    raise click.ClickException(
+        f"Reference {reference_desc} has none of the model's outputs"
+        f" ({', '.join(sorted(actual))}); nothing to verify."
+    )
   records = compare_outputs(actual, expected, atol=atol, rtol=rtol)
   passed = all(r["passed"] for r in records)
 
@@ -341,14 +372,17 @@ def verify_cmd(
       f"Verification against {reference_desc} (atol={atol}, rtol={rtol}):"
   )
   for r in records:
-    status = "OK  " if r["passed"] else "FAIL"
+    if r.get("skipped"):
+      status = "SKIP"
+    else:
+      status = "OK  " if r["passed"] else "FAIL"
     detail = ""
     if "max_abs_diff" in r:
       detail = (
           f" max_abs_diff={r['max_abs_diff']:.3e}"
           f" mean_abs_diff={r['mean_abs_diff']:.3e}"
       )
-    if not r["passed"]:
+    if not r["passed"] or r.get("skipped"):
       detail += f" ({r['reason']})"
     reporter.echo(f"  {status} {r['name']}{detail}")
 
