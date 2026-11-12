@@ -30,6 +30,13 @@ STABLE_DEPENDENCIES = {
     "litert-lm": "==0.17.1",
 }
 
+# Version specifiers that pyproject.toml keeps on a nightly dependency, as
+# "<package>-nightly<specifier>". The stable build replaces the whole
+# requirement with the pinned stable version; the restore puts it back.
+NIGHTLY_SPECIFIERS = {
+    "litert-torch": ">=0.11.0.dev20261104",
+}
+
 
 def configure_build(is_nightly: bool, restore: bool = False):
   pyproject_path = "pyproject.toml"
@@ -79,11 +86,12 @@ def configure_build(is_nightly: bool, restore: bool = False):
   to_nightly_deps = True if restore else is_nightly
 
   for pkg, stable_ver in STABLE_DEPENDENCIES.items():
+    nightly_req = f"{pkg}-nightly{NIGHTLY_SPECIFIERS.get(pkg, '')}"
     if to_nightly_deps:
-      content = content.replace(f'"{pkg}{stable_ver}"', f'"{pkg}-nightly"')
-      content = content.replace(f'"{pkg}"', f'"{pkg}-nightly"')
+      content = content.replace(f'"{pkg}{stable_ver}"', f'"{nightly_req}"')
+      content = content.replace(f'"{pkg}"', f'"{nightly_req}"')
     else:
-      content = content.replace(f'"{pkg}-nightly"', f'"{pkg}{stable_ver}"')
+      content = content.replace(f'"{nightly_req}"', f'"{pkg}{stable_ver}"')
 
   with open(pyproject_path, "w") as f:
     f.write(content)

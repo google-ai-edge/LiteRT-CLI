@@ -69,7 +69,10 @@ compile = [
 ]
 convert = [
     "litert-quantizer-nightly",
-    "litert-torch-nightly",
+    # `litert convert <hf_id>` passes `target` to export_hf.export, which
+    # litert-torch-nightly has from 0.11.0.dev20261104. The floor also keeps pip
+    # from resolving to a months-old build.
+    "litert-torch-nightly>=0.11.0.dev20261104",
     "torch",
     "transformers",
     "torchvision",
