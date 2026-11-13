@@ -13,6 +13,7 @@
 # limitations under the License.
 # ==============================================================================
 
+import copy
 import importlib
 import json
 import os
@@ -27,7 +28,10 @@ from click import testing
 import huggingface_hub
 from litert_cli import litert
 from litert_cli.core import constants
+from litert_cli.core import runtime
 import numpy as np
+
+from ai_edge_litert.tools import flatbuffer_utils
 
 
 class LitertTest(parameterized.TestCase):
@@ -420,6 +424,207 @@ class VerifyTest(absltest.TestCase):
     result = _split_stream_runner().invoke(litert.cli, args)
     self.assertEqual(result.exit_code, 1, result.output)
     self.assertIn('none of the model', result.stderr)
+
+  def test_dump_intermediates_writes_every_computed_tensor(self) -> None:
+    # verify_float computes `scaled = x * 2 + 1` and `total = sum(x)`: the dump
+    # must hold the input, the outputs and the x * 2 intermediate, each with
+    # the op that produced it, and no weights/constants.
+    ref = self.create_tempdir().full_path
+    x = np.array([[0.5, -1.0, 2.0, 0.25]], dtype=np.float32)
+    inputs_path = os.path.join(ref, 'inputs.npz')
+    np.savez(inputs_path, x=x)
+    dump_dir = os.path.join(ref, 'dump')
+    result = _split_stream_runner().invoke(
+        litert.cli,
+        [
+            '--json',
+            'verify',
+            _VERIFY_FLOAT_MODEL,
+            '--against',
+            _VERIFY_FLOAT_MODEL,
+            '--inputs',
+            inputs_path,
+            '--dump-intermediates',
+            dump_dir,
+        ],
+    )
+    self.assertEqual(result.exit_code, 0, result.output)
+    doc = json.loads(result.stdout)
+    self.assertTrue(doc['passed'])
+    self.assertEqual(
+        doc['intermediates']['path'], os.path.join(dump_dir, 'intermediates.npz')
+    )
+    with open(doc['intermediates']['index']) as f:
+      index = json.load(f)
+    records = index['tensors']
+    self.assertLen(records, doc['intermediates']['count'])
+    # Exactly the input followed by one record per op, in execution order.
+    model = flatbuffer_utils.read_model(_VERIFY_FLOAT_MODEL)
+    subgraph = model.subgraphs[0]
+    op_names = [
+        flatbuffer_utils.opcode_to_name(model, op.opcodeIndex)
+        for op in subgraph.operators
+    ]
+    self.assertContainsSubset({'MUL', 'ADD'}, op_names)
+    self.assertEqual([r['op'] for r in records], ['INPUT'] + op_names)
+    self.assertEqual(
+        [r['op_index'] for r in records[1:]], list(range(len(op_names)))
+    )
+    # The model has constants (the 2 and the 1), and none of them is dumped.
+    constants_in_model = {
+        i
+        for i, t in enumerate(subgraph.tensors)
+        if t.buffer and model.buffers[t.buffer].data is not None
+    }
+    self.assertNotEmpty(constants_in_model)
+    self.assertNoCommonElements(
+        constants_in_model, [r['index'] for r in records]
+    )
+    self.assertEqual(index['skipped'], [])
+    self.assertEqual(doc['intermediates']['skipped'], 0)
+    self.assertEqual(
+        doc['intermediates']['bytes'],
+        os.path.getsize(doc['intermediates']['path'])
+        + os.path.getsize(doc['intermediates']['index']),
+    )
+    with np.load(doc['intermediates']['path']) as dump:
+      by_name = {name: dump[name] for name in dump.files}
+    self.assertEqual(sorted(by_name), sorted(r['name'] for r in records))
+    values = list(by_name.values())
+    self.assertTrue(any(np.allclose(v, x) for v in values))
+    self.assertTrue(any(np.allclose(v, x * 2) for v in values))
+    self.assertTrue(any(np.allclose(v, x * 2 + 1) for v in values))
+    self.assertTrue(any(np.allclose(v, np.sum(x)) for v in values))
+    self.assertIn('Dumped', result.stderr)
+
+  def _edited_float_model(self, edit) -> str:
+    """Writes verify_float.tflite, changed by `edit(model)`, to a temp file."""
+    model = flatbuffer_utils.read_model(_VERIFY_FLOAT_MODEL)
+    edit(model)
+    path = os.path.join(self.create_tempdir().full_path, 'edited.tflite')
+    flatbuffer_utils.write_model(model, path)
+    return path
+
+  def _dump(self, model_path: str, *extra_args: str):
+    """Verifies `model_path` against itself with --dump-intermediates."""
+    dump_dir = os.path.join(self.create_tempdir().full_path, 'dump')
+    result = _split_stream_runner().invoke(
+        litert.cli,
+        [
+            '--json',
+            'verify',
+            model_path,
+            '--against',
+            model_path,
+            '--dump-intermediates',
+            dump_dir,
+            *extra_args,
+        ],
+    )
+    return result, dump_dir
+
+  def test_dump_intermediates_follows_the_signature_index(self) -> None:
+    # A second signature over a copy of the graph whose tensors are renamed:
+    # the dump of signature 1 must come from that subgraph, not from the first.
+    def add_second_signature(model):
+      subgraph = copy.deepcopy(model.subgraphs[0])
+      for tensor in subgraph.tensors:
+        tensor.name = tensor.name + b'_second'
+      model.subgraphs.append(subgraph)
+      signature = copy.deepcopy(model.signatureDefs[0])
+      signature.signatureKey = b'second'
+      signature.subgraphIndex = len(model.subgraphs) - 1
+      model.signatureDefs.append(signature)
+
+    model_path = self._edited_float_model(add_second_signature)
+    result, _ = self._dump(model_path, '--signature-index', '1')
+    self.assertEqual(result.exit_code, 0, result.output)
+    doc = json.loads(result.stdout)
+    self.assertEqual(doc['signature'], 'second')
+    with open(doc['intermediates']['index']) as f:
+      index = json.load(f)
+    self.assertEqual(index['signature'], 'second')
+    self.assertNotEmpty(index['tensors'])
+    for record in index['tensors']:
+      self.assertEndsWith(record['name'], '_second')
+    with np.load(doc['intermediates']['path']) as dump:
+      self.assertEqual(
+          sorted(dump.files), sorted(r['name'] for r in index['tensors'])
+      )
+
+  def test_dump_intermediates_keeps_tensors_with_the_same_name(self) -> None:
+    def name_every_op_output_the_same(model):
+      subgraph = model.subgraphs[0]
+      for op in subgraph.operators:
+        for index in op.outputs:
+          subgraph.tensors[index].name = b'dup'
+
+    model_path = self._edited_float_model(name_every_op_output_the_same)
+    result, _ = self._dump(model_path)
+    self.assertEqual(result.exit_code, 0, result.output)
+    doc = json.loads(result.stdout)
+    with open(doc['intermediates']['index']) as f:
+      op_records = [r for r in json.load(f)['tensors'] if r['op'] != 'INPUT']
+    self.assertGreater(len(op_records), 1)
+    # The first keeps its name; the others get their tensor index appended, so
+    # no value overwrites another in the .npz.
+    self.assertEqual(
+        [r['name'] for r in op_records],
+        ['dup'] + [f"dup#{r['index']}" for r in op_records[1:]],
+    )
+    with np.load(doc['intermediates']['path']) as dump:
+      for record in op_records:
+        self.assertEqual(list(dump[record['name']].shape), record['shape'])
+
+  def test_dump_failure_does_not_hide_the_verify_result(self) -> None:
+    # Without signature defs the runtime synthesizes a signature, so the model
+    # verifies, but the file has none to attach the intermediate tensors to.
+    def drop_signatures(model):
+      model.signatureDefs = None
+
+    model_path = self._edited_float_model(drop_signatures)
+    result, dump_dir = self._dump(model_path)
+    self.assertEqual(result.exit_code, 0, result.output)
+    doc = json.loads(result.stdout)
+    self.assertTrue(doc['passed'])
+    self.assertEqual(list(doc['intermediates']), ['error'])
+    self.assertIn('no signature def', doc['intermediates']['error'])
+    self.assertIn('not supported', doc['intermediates']['error'])
+    self.assertIn(
+        'Warning: could not dump the intermediate tensors', result.stderr
+    )
+    self.assertIn('Verification passed.', result.stderr)
+    self.assertFalse(os.path.exists(os.path.join(dump_dir, 'intermediates.npz')))
+
+  def test_unexpected_dump_error_keeps_the_mismatch_exit_code(self) -> None:
+    ref = self.create_tempdir().full_path
+    x = np.array([[0.5, -1.0, 2.0, 0.25]], dtype=np.float32)
+    inputs_path = os.path.join(ref, 'inputs.npz')
+    outputs_path = os.path.join(ref, 'outputs.npz')
+    np.savez(inputs_path, x=x)
+    np.savez(outputs_path, scaled=x * 2 + 2)  # Wrong on purpose.
+    with mock.patch.object(
+        runtime, 'dump_intermediates', side_effect=RuntimeError('boom')
+    ):
+      result = _split_stream_runner().invoke(
+          litert.cli,
+          [
+              '--json',
+              'verify',
+              _VERIFY_FLOAT_MODEL,
+              '--inputs',
+              inputs_path,
+              '--expected',
+              outputs_path,
+              '--dump-intermediates',
+              os.path.join(ref, 'dump'),
+          ],
+      )
+    self.assertEqual(result.exit_code, 5, result.output)
+    doc = json.loads(result.stdout)
+    self.assertFalse(doc['passed'])
+    self.assertEqual(doc['intermediates'], {'error': "RuntimeError('boom')"})
+    self.assertIn('Verification failed for', result.stderr)
 
   def test_compare_outputs_keeps_nan_mismatches_out_of_the_stats(self) -> None:
     from litert_cli.commands import verify  # pylint: disable=g-import-not-at-top

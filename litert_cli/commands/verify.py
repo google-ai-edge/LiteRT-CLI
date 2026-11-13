@@ -34,6 +34,16 @@ References come from one of two places:
 (`outputs.npz`) and the verified model's own outputs (`actual.npz`), so one
 step's outputs can become the next step's inputs (e.g. prefill -> decode).
 
+`--dump-intermediates DIR` additionally runs the model with every intermediate
+tensor exposed as a graph output and writes them all (`intermediates.npz`,
+keyed by tensor name, plus an `intermediates.json` index in execution order
+with the producing op), so a failing output can be traced back to the first op
+that diverges from your own reference of the graph. The dump holds every
+activation uncompressed, in memory and then in DIR, and needs a model that
+fits in a 2 GiB FlatBuffer and has signature defs. It runs after the
+comparison and a failure is only a warning (`intermediates.error` in the JSON
+document): the verification result and exit code are not affected.
+
 Both models must take inputs of the same dtype. Comparing a model with
 quantized (int8/uint8) inputs or outputs against its float original is not
 supported yet: `verify` reports an error instead of silently casting.
@@ -57,6 +67,7 @@ Usage Examples:
 from __future__ import annotations
 
 from collections.abc import Mapping
+import json
 import os
 import pathlib
 import textwrap
@@ -76,6 +87,8 @@ VERIFICATION_FAILED_EXIT_CODE = 5
 INPUTS_FILE = "inputs.npz"
 OUTPUTS_FILE = "outputs.npz"
 ACTUAL_FILE = "actual.npz"
+INTERMEDIATES_FILE = "intermediates.npz"
+INTERMEDIATES_INDEX_FILE = "intermediates.json"
 
 
 class VerificationFailed(click.ClickException):
@@ -180,6 +193,86 @@ def _load_npz(path: str) -> dict[str, np.ndarray]:
     return {k: f[k] for k in f.files}
 
 
+def _dump_intermediates(
+    reporter: report.Reporter,
+    dump_dir: str,
+    model_path: str,
+    accelerators: list[str],
+    sig_key: str,
+    inputs: Mapping[str, np.ndarray],
+) -> dict[str, Any]:
+  """Writes MODEL's intermediate tensors to `dump_dir`.
+
+  See `runtime.dump_intermediates`. A failure does not raise: it is printed as
+  a warning and returned as `{"error": ...}`, so that the verification result
+  is still reported.
+
+  Args:
+    reporter: Where to print progress.
+    dump_dir: `--dump-intermediates`.
+    model_path: The verified model.
+    accelerators: The accelerators it was verified on.
+    sig_key: The signature that was verified.
+    inputs: The inputs it was fed.
+
+  Returns:
+    The `intermediates` entry of the verify document.
+  """
+  reporter.echo(
+      f"Running {model_path} again on {','.join(accelerators)} with every"
+      " intermediate tensor exposed as an output..."
+  )
+  out = pathlib.Path(dump_dir)
+  npz_path = out / INTERMEDIATES_FILE
+  index_path = out / INTERMEDIATES_INDEX_FILE
+  try:
+    arrays, records, skipped = runtime.dump_intermediates(
+        model_path, accelerators, sig_key, inputs
+    )
+    out.mkdir(parents=True, exist_ok=True)
+    np.savez(npz_path, **arrays)
+    index_doc = {
+        "model": model_path,
+        "signature": sig_key,
+        "accelerators": accelerators,
+        "note": (
+            "Computed with every intermediate exposed as a graph output, which"
+            " prevents fusion across them; values can differ slightly from"
+            " the plain run."
+        ),
+        "tensors": records,
+        "skipped": skipped,
+    }
+    index_path.write_text(json.dumps(index_doc, indent=2) + "\n")
+    written = npz_path.stat().st_size + index_path.stat().st_size
+  except click.ClickException as e:
+    error = e.format_message()
+  except Exception as e:  # pylint: disable=broad-exception-caught
+    error = repr(e)
+  else:
+    message = (
+        f"Dumped {len(records)} intermediate tensors"
+        f" ({written / 2**20:.1f} MiB) to {out}"
+    )
+    if skipped:
+      message += (
+          f"; {len(skipped)} could not be dumped (see `skipped` in"
+          f" {INTERMEDIATES_INDEX_FILE})"
+      )
+    reporter.echo(message)
+    return {
+        "path": str(npz_path),
+        "index": str(index_path),
+        "count": len(records),
+        "skipped": len(skipped),
+        "bytes": written,
+    }
+  reporter.secho(
+      f"Warning: could not dump the intermediate tensors: {error}", fg="yellow"
+  )
+  return {"error": error}
+
+
 @report.supports_json
 @click.command(
     "verify",
@@ -240,6 +333,23 @@ def _load_npz(path: str) -> dict[str, np.ndarray]:
     ),
 )
 @click.option(
+    "--dump-intermediates",
+    "dump_dir",
+    type=click.Path(file_okay=False),
+    help=(
+        "Also run MODEL with every intermediate tensor exposed as an output"
+        " (same accelerators) and write them to DIR as intermediates.npz"
+        " (keyed by tensor name) plus intermediates.json (execution order,"
+        " shapes, producing op, tensors that could not be dumped). Use it to"
+        " bisect a mismatch against your own reference of the graph. Cost: the"
+        " model is loaded into memory and rewritten to a temporary file (it"
+        " must fit in a 2 GiB FlatBuffer and have signature defs), and every"
+        " activation is held in memory and written to DIR uncompressed. A"
+        " failed dump is a warning: it does not change the verification"
+        " result or the exit code."
+    ),
+)
+@click.option(
     "--seed",
     type=int,
     default=0,
@@ -280,6 +390,7 @@ def verify_cmd(
     expected_path: str | None,
     against: str | None,
     save_dir: str | None,
+    dump_dir: str | None,
     seed: int,
     atol: float,
     rtol: float,
@@ -335,7 +446,7 @@ def verify_cmd(
         f"Running {model_path} on {','.join(accelerators)} with the reference"
         " inputs..."
     )
-    sig_key, _, actual = run_model(
+    sig_key, fed_inputs, actual = run_model(
         model_path, accelerators, signature_index, ref_inputs, seed=seed
     )
   except click.ClickException:
@@ -386,6 +497,14 @@ def verify_cmd(
       detail += f" ({r['reason']})"
     reporter.echo(f"  {status} {r['name']}{detail}")
 
+  # After the comparison, and never fatal: the dump is a debugging aid and
+  # must not hide the verification result or change the exit code.
+  intermediates = None
+  if dump_dir:
+    intermediates = _dump_intermediates(
+        reporter, dump_dir, model_path, accelerators, sig_key, fed_inputs
+    )
+
   document: dict[str, Any] = {
       "model": model_path,
       "reference": reference_desc,
@@ -397,6 +516,8 @@ def verify_cmd(
   }
   if saved:
     document["saved"] = saved
+  if intermediates:
+    document["intermediates"] = intermediates
   reporter.emit(VERIFY_SCHEMA, document)
 
   if passed:

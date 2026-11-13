@@ -489,7 +489,19 @@ that names an output the model does not produce does. `--save DIR` writes
 verified model's own outputs), so a multi-signature model can be checked step
 by step: verify `prefill` with `--signature-index 0 --save step1/`, build the
 decode inputs from `step1/actual.npz` (rename keys with NumPy), then verify
-`decode` with `--signature-index 1`. Both sides must take
+`decode` with `--signature-index 1`. When an output fails, add
+`--dump-intermediates DIR`: it re-runs the model with every intermediate
+tensor exposed as an output and writes `intermediates.npz` (keyed
+by tensor name) plus `intermediates.json` (execution order, shapes, producing
+op), so you can compare against your own NumPy reference of the graph and find
+the first op that diverges instead of re-authoring blind. The dump holds every
+activation uncompressed, in memory and then in `DIR` (the command prints the
+size written), and rewrites the model to a temporary file, so the model must
+fit in a 2 GiB FlatBuffer and have signature defs. Tensors that could not be
+dumped are listed under `skipped` in `intermediates.json`; if the dump itself
+fails, `verify` still reports its result and exit code and gives the reason in
+`intermediates.error`, so check for that key before reading
+`intermediates.path`. Both sides must take
 inputs of the same dtype: a fully quantized model with int8/uint8 inputs cannot
 yet be verified against its float original (`verify` exits with code 1 and says
 so), only float-I/O models can. To see what a model

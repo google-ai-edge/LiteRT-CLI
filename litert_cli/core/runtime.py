@@ -29,6 +29,7 @@ CLI startup.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+import os
 from typing import Any
 
 import click
@@ -340,3 +341,201 @@ def run_once(
   outputs_by_name = create_output_buffers(cm, signatures, sig_key)
   cm.run_by_name(sig_key, buffers, outputs_by_name)
   return sig_key, fed, read_outputs(cm, sig_key, outputs_by_name)
+
+
+
+# Prefix of the signature output names given to exposed intermediate tensors.
+_DUMP_OUTPUT_PREFIX = "__litert_dump_"
+
+# `dump_intermediates` writes the edited model as a single FlatBuffer, which
+# cannot exceed 2 GiB.
+_MAX_DUMP_MODEL_BYTES = 2**31 - 1
+
+
+def _text(value: Any) -> str:
+  """FlatBuffer object-API strings are bytes; returns them as str."""
+  return value.decode("utf-8") if isinstance(value, bytes) else str(value)
+
+
+def dump_intermediates(
+    model_path: str,
+    accelerators: Sequence[str],
+    sig_key: str,
+    inputs: Mapping[str, np.ndarray],
+) -> tuple[dict[str, np.ndarray], list[dict[str, Any]], list[dict[str, Any]]]:
+  """Runs one signature with every intermediate tensor exposed as an output.
+
+  The `.tflite` FlatBuffer is edited in memory: every tensor produced by an op
+  of the signature's subgraph is appended to the subgraph outputs and to the
+  signature's output map, the result is written to a temporary file and run
+  through the same `CompiledModel` path as `run_once`, on the same
+  accelerators. Because the dumped tensors are graph outputs the runtime
+  cannot fuse across them, so values can differ slightly from the plain run.
+
+  Cost: the whole model is loaded into memory and written again to a temporary
+  directory, and every intermediate tensor is held in memory at once.
+
+  Args:
+    model_path: Local path to the `.tflite` file.
+    accelerators: Names from `parse_accelerators`.
+    sig_key: Signature key to run.
+    inputs: Arrays keyed by input name, already coerced to the model's dtypes.
+
+  Returns:
+    `(arrays, records, skipped)`: `arrays` maps tensor name to value;
+    `records` lists the same tensors in execution order with `index`, `name`,
+    `shape`, `dtype`, the producing `op` (`INPUT` for signature inputs) and
+    `op_index`; `skipped` lists the op outputs that are not in `arrays`
+    (constants, element types the CLI cannot read back) with `index`, `name`,
+    `op`, `op_index`, `dtype` and `reason`. Every op output is in exactly one
+    of `records` and `skipped`.
+
+  Raises:
+    click.ClickException: If the model cannot be rewritten: it is larger than
+      a FlatBuffer can be, or has no signature def named `sig_key` (the
+      runtime synthesizes a signature for models without signature defs, but
+      there is none in the file to attach the intermediate tensors to).
+  """
+  # pylint: disable=g-import-not-at-top
+  import copy
+  import tempfile
+  from ai_edge_litert.tools import flatbuffer_utils
+  # pylint: enable=g-import-not-at-top
+
+  size = os.path.getsize(model_path)
+  if size > _MAX_DUMP_MODEL_BYTES:
+    raise click.ClickException(
+        f"Cannot dump the intermediate tensors of {model_path!r} ({size}"
+        " bytes): the model is rewritten as a single FlatBuffer, which is"
+        " limited to 2 GiB."
+    )
+  model = flatbuffer_utils.read_model(model_path)
+  match = next(
+      (
+          (i, s)
+          for i, s in enumerate(model.signatureDefs or [])
+          if _text(s.signatureKey) == sig_key
+      ),
+      None,
+  )
+  if match is None:
+    raise click.ClickException(
+        f"Cannot dump the intermediate tensors of {model_path!r}: the file"
+        f" has no signature def {sig_key!r} to attach them to (models without"
+        " signature defs are not supported)."
+    )
+  signature_index, signature = match
+  signature.outputs = list(signature.outputs or [])
+  subgraph = model.subgraphs[signature.subgraphIndex]
+  tensors = subgraph.tensors
+  subgraph_outputs = list(subgraph.outputs or [])
+  output_name_by_index = {
+      m.tensorIndex: _text(m.name) for m in signature.outputs
+  }
+
+  def is_constant(tensor: Any) -> bool:
+    if not tensor.buffer:
+      return False
+    data = model.buffers[tensor.buffer].data
+    return data is not None and len(data) > 0
+
+  arrays: dict[str, np.ndarray] = {}
+  records: list[dict[str, Any]] = []
+  skipped: list[dict[str, Any]] = []
+
+  def tensor_name(index: int) -> str:
+    return _text(tensors[index].name or "") or f"tensor_{index}"
+
+  def unique_name(index: int) -> str:
+    name = tensor_name(index)
+    return f"{name}#{index}" if name in arrays else name
+
+  for m in signature.inputs or []:
+    name = _text(m.name)
+    if name in inputs:
+      value = np.asarray(inputs[name])
+      record = {
+          "index": int(m.tensorIndex),
+          "name": unique_name(m.tensorIndex),
+          "shape": list(value.shape),
+          "dtype": str(value.dtype),
+          "op": "INPUT",
+      }
+      arrays[record["name"]] = value
+      records.append(record)
+
+  # (signature output name, record) for every op output to read back.
+  wanted: list[tuple[str, dict[str, Any]]] = []
+  extra: list[tuple[str, int]] = []
+  for op_index, op in enumerate(subgraph.operators or []):
+    op_name = (
+        flatbuffer_utils.opcode_to_name(model, op.opcodeIndex) or "UNKNOWN"
+    )
+    for index in op.outputs or []:
+      if index < 0:
+        continue  # Optional output that the op does not produce.
+      index = int(index)
+      tensor = tensors[index]
+      dtype_name = flatbuffer_utils.type_to_name(tensor.type).lower()
+      reason = None
+      if is_constant(tensor):
+        reason = "constant tensor"
+      elif dtype_name not in _NP_DTYPES:
+        reason = f"dtype {dtype_name} cannot be read back by the LiteRT CLI"
+      elif index in subgraph_outputs and index not in output_name_by_index:
+        reason = "subgraph output that the signature does not expose"
+      if reason:
+        skipped.append({
+            "index": index,
+            "name": tensor_name(index),
+            "op_index": op_index,
+            "op": op_name,
+            "dtype": dtype_name,
+            "reason": reason,
+        })
+        continue
+      record = {
+          "index": index,
+          "name": unique_name(index),
+          "op_index": op_index,
+          "op": op_name,
+      }
+      arrays[record["name"]] = np.empty(0)  # Reserve the name.
+      if index in output_name_by_index:
+        wanted.append((output_name_by_index[index], record))
+      else:
+        extra.append((f"{_DUMP_OUTPUT_PREFIX}{index}", index))
+        wanted.append((extra[-1][0], record))
+
+  if extra:
+    # The schema classes are not imported here: a new signature output entry
+    # is a copy of an existing one with its name and tensor replaced.
+    template = next(
+        iter(signature.outputs + list(signature.inputs or [])), None
+    )
+    if template is None:
+      raise click.ClickException(
+          f"Cannot dump the intermediate tensors of {model_path!r}: signature"
+          f" {sig_key!r} has neither inputs nor outputs."
+      )
+    subgraph.outputs = subgraph_outputs + [index for _, index in extra]
+    for key, index in extra:
+      entry = copy.copy(template)
+      entry.name = (
+          key.encode("utf-8") if isinstance(template.name, bytes) else key
+      )
+      entry.tensorIndex = index
+      signature.outputs.append(entry)
+
+  with tempfile.TemporaryDirectory(prefix="litert_dump_") as tmp:
+    path = os.path.join(tmp, "model.tflite")
+    flatbuffer_utils.write_model(model, path)
+    _, _, outputs = run_once(path, accelerators, signature_index, inputs)
+
+  for key, record in wanted:
+    value = outputs[key]
+    arrays[record["name"]] = value
+    record["shape"] = list(value.shape)
+    record["dtype"] = str(value.dtype)
+    records.append(record)
+  return arrays, records, skipped
